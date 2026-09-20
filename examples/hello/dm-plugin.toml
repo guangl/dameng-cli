@@ -1,0 +1,4 @@
+name = "hello"
+version = "0.1.0"
+description = "Rust plugin protocol example"
+api_version = 1

@@ -1,0 +1,8 @@
+[package]
+name = "dm-plugin-sdk"
+version = "0.1.0"
+edition = "2024"
+description = "Rust SDK for dameng-cli plugins"
+license = "MIT"
+repository = "https://github.com/guangl/dameng-cli"
+readme = "README.md"

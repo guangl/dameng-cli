@@ -1,0 +1,71 @@
+# Rust 插件开发协议 v1
+
+## 最小插件
+
+在仓库根目录运行 `dm install ./examples/hello` 可验证完整流程。独立插件 crate 包含：
+
+```text
+my-plugin/
+├── Cargo.toml
+├── Cargo.lock
+├── dm-plugin.toml
+└── src/main.rs
+```
+
+`dm-plugin.toml`：
+
+```toml
+name = "my-tool"
+version = "0.1.0"
+description = "My Dameng tool"
+api_version = 1
+```
+
+`Cargo.toml`：
+
+```toml
+[package]
+name = "dm-plugin-my-tool"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "dm-my-tool"
+path = "src/main.rs"
+
+[dependencies]
+dm-plugin-sdk = { path = "../dameng-cli/crates/dm-plugin-sdk" }
+```
+
+将 path 调整为 SDK 的实际相对路径。这适用于本地开发；独立发布前将 SDK 改为可访问的 Git 依赖并固定到实际提交，或在 SDK 正式发布后使用 crates.io 版本。不要将本机绝对路径提交为公开插件的依赖。
+
+实现方式见 [hello](../examples/hello/src/main.rs)。执行 `cargo generate-lockfile` 并提交 `Cargo.lock`；然后 `dm install ./my-plugin`。远程插件仓库的根目录就是该 crate，所有依赖必须能在独立克隆后解析；不初始化 Git 子模块。
+
+## 校验规则
+
+- 清单所有字段必填，不接受未知字段。
+- 名称为 1–64 个小写字母、数字或 `-`，且必须以字母开头。
+- 保留名：`install`、`uninstall`、`list`、`help`、`version`；拒绝 Windows 设备名。
+- 清单 version 是非空单行版本字符串，必须与 Cargo package 的显式 version 一致；实际版本语法由 Cargo 校验。
+- `api_version` 必须为 `1`。协议有破坏性变更时提升此版本。
+- 显式声明依赖键 `dm-plugin-sdk`；显式声明 `[[bin]] name = "dm-<name>"`。
+- 不接受脚本入口、自定义 executable 字段、任意预编译可执行文件包。
+- 安装的是本机编译的 binary；资源须嵌入。插件应自带说明文件与许可证。
+
+## 运行协议
+
+`dm my-tool --help --option "a b"` 中，插件收到的参数为 `--help`、`--option`、`a b`，不经 shell 拼接，不包含插件名。
+
+| SDK Context | 来源与约定 |
+| --- | --- |
+| `args: Vec<OsString>` | 保留系统原始参数，支持非 UTF-8 参数 |
+| `plugin_dir: PathBuf` | `DM_PLUGIN_DIR`，插件安装目录绝对路径 |
+| `home: PathBuf` | `DM_HOME`，宿主数据目录绝对路径 |
+
+`DM_PLUGIN_API_VERSION=1` 由宿主注入，SDK 启动时检查。插件继承用户工作目录、环境及 stdin/stdout/stderr，适用于管道和交互。SDK 没有数据库配置或日志依赖，插件自行选择库。
+
+`PluginResult = Result<i32, Box<dyn Error + Send + Sync>>`：`Ok(0)` 成功，非零码原样转发；`Err` 输出到 stderr 并退出 1。Unix 被信号终止时宿主返回 `128 + signal`。没有额外的信号转发器；常规前台终端的进程组信号按系统行为传播。
+
+插件启动可将 `--help`、`--version` 等交给自己的参数解析器；SDK 不预占参数。直接运行插件 binary 时因为缺少宿主协议环境，SDK 会给出提示。
+
+插件代码、构建脚本与依赖均以用户权限运行。不要在清单、错误消息、测试日志中包含真实数据库密码。
