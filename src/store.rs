@@ -1,5 +1,6 @@
 use crate::{API_VERSION, Manifest, manifest::validate_name};
 use anyhow::{Context, Result, bail, ensure};
+use rusqlite::{Connection, OptionalExtension, params};
 use std::{
     env,
     ffi::OsString,
@@ -44,6 +45,53 @@ impl PluginStore {
         self.home.join("plugins")
     }
 
+    fn database(&self) -> PathBuf {
+        self.home.join("store.sqlite3")
+    }
+
+    fn connect(&self) -> Result<Connection> {
+        fs::create_dir_all(&self.home).context("Create dm data directory")?;
+        let connection = Connection::open(self.database()).context("Open SQLite plugin store")?;
+        connection
+            .busy_timeout(std::time::Duration::from_secs(5))
+            .context("Configure SQLite plugin store")?;
+        let schema_version: u32 =
+            connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+        ensure!(
+            schema_version <= 1,
+            "SQLite plugin store schema {schema_version} is newer than this dm supports"
+        );
+        connection
+            .execute_batch(
+                "PRAGMA journal_mode = WAL;
+                 PRAGMA foreign_keys = ON;
+                 CREATE TABLE IF NOT EXISTS installed_plugins (
+                     name TEXT PRIMARY KEY,
+                     manifest TEXT NOT NULL,
+                     installed_at INTEGER NOT NULL DEFAULT (unixepoch())
+                 ) STRICT;
+                 CREATE TABLE IF NOT EXISTS registry (
+                     name TEXT PRIMARY KEY,
+                     source TEXT NOT NULL,
+                     updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+                 ) STRICT;
+                 PRAGMA user_version = 1;",
+            )
+            .context("Initialize SQLite plugin store")?;
+        Ok(connection)
+    }
+
+    fn registered_source(&self, name: &str) -> Result<String> {
+        self.connect()?
+            .query_row(
+                "SELECT source FROM registry WHERE name = ?1",
+                [name],
+                |row| row.get(0),
+            )
+            .optional()?
+            .with_context(|| format!("Plugin '{name}' is not registered"))
+    }
+
     pub fn install(&self, source: &str) -> Result<Manifest> {
         if Path::new(source).is_dir() {
             return self.install_directory(Path::new(source));
@@ -54,14 +102,11 @@ impl PluginStore {
             source
         } else {
             validate_name(source)?;
-            let path = self.home.join("registry.toml");
-            let registry: Registry = toml::from_str(&fs::read_to_string(&path)
-                .with_context(|| format!("Unknown plugin '{source}'; use a local directory, HTTPS Git URL, or configure {}", path.display()))?)?;
-            resolved = registry
-                .plugins
-                .get(source)
-                .with_context(|| format!("Plugin '{source}' is not registered"))?
-                .clone();
+            resolved = self.registered_source(source).with_context(|| {
+                format!(
+                    "Unknown plugin '{source}'; use a local directory, HTTPS Git URL, or dm registry add"
+                )
+            })?;
             &resolved
         };
         ensure!(
@@ -108,6 +153,16 @@ impl PluginStore {
             "Plugin source must not contain the plugin store"
         );
         let destination = plugins.join(&manifest.name);
+        let connection = self.connect()?;
+        ensure!(
+            !connection.query_row(
+                "SELECT EXISTS(SELECT 1 FROM installed_plugins WHERE name = ?1)",
+                [&manifest.name],
+                |row| row.get::<_, bool>(0),
+            )?,
+            "Plugin '{}' is already installed; uninstall it first",
+            manifest.name
+        );
         ensure!(
             fs::symlink_metadata(&destination)
                 .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound),
@@ -157,36 +212,48 @@ impl PluginStore {
         )?;
         manifest.entrypoint(&package)?;
         fs::rename(&package, &destination).context("Publish installed plugin")?;
+        if let Err(error) = connection.execute(
+            "INSERT INTO installed_plugins (name, manifest) VALUES (?1, ?2)",
+            params![manifest.name, toml::to_string(&manifest)?],
+        ) {
+            let _ = fs::remove_dir_all(&destination);
+            return Err(error).context("Record installed plugin in SQLite");
+        }
         Ok(manifest)
     }
 
     pub fn list(&self) -> Result<Vec<Manifest>> {
-        if !self.plugins().try_exists()? {
-            return Ok(Vec::new());
-        }
-        let mut result = Vec::new();
-        for item in fs::read_dir(self.plugins())? {
-            let item = item?;
-            if item.file_name().to_string_lossy().starts_with('.') {
-                continue;
-            }
-            let name = item
-                .file_name()
-                .into_string()
-                .map_err(|_| anyhow::anyhow!("Invalid installed plugin name"))?;
-            let (_, manifest) = self.load(&name)?;
-            result.push(manifest);
-        }
-        result.sort_by(|a, b| a.name.cmp(&b.name));
-        Ok(result)
+        let connection = self.connect()?;
+        let names = {
+            let mut statement =
+                connection.prepare("SELECT name FROM installed_plugins ORDER BY name")?;
+            statement
+                .query_map([], |row| row.get::<_, String>(0))?
+                .collect::<rusqlite::Result<Vec<_>>>()?
+        };
+        names
+            .into_iter()
+            .map(|name| self.load(&name).map(|(_, manifest)| manifest))
+            .collect()
     }
 
     fn load(&self, name: &str) -> Result<(PathBuf, Manifest)> {
         validate_name(name)?;
+        let stored = self
+            .connect()?
+            .query_row(
+                "SELECT manifest FROM installed_plugins WHERE name = ?1",
+                [name],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?
+            .with_context(|| {
+                format!("Plugin '{name}' is not installed; use dm install <source>")
+            })?;
+        let stored = Manifest::from_toml(&stored).context("Invalid manifest in SQLite store")?;
         let root = self.plugins().join(name);
-        let metadata = fs::symlink_metadata(&root).with_context(|| {
-            format!("Plugin '{name}' is not installed; use dm install <source>")
-        })?;
+        let metadata = fs::symlink_metadata(&root)
+            .with_context(|| format!("Installed plugin '{name}' is missing from disk"))?;
         ensure!(
             metadata.is_dir(),
             "Installed plugin must be a regular directory"
@@ -194,14 +261,23 @@ impl PluginStore {
         let root = fs::canonicalize(root)?;
         let manifest = Manifest::read(&root)?;
         ensure!(
-            manifest.name == name,
-            "Installed plugin directory and manifest name differ"
+            manifest == stored,
+            "Installed plugin manifest differs from SQLite metadata"
         );
         Ok((root, manifest))
     }
 
     pub fn uninstall(&self, name: &str) -> Result<()> {
         validate_name(name)?;
+        let connection = self.connect()?;
+        ensure!(
+            connection.query_row(
+                "SELECT EXISTS(SELECT 1 FROM installed_plugins WHERE name = ?1)",
+                [name],
+                |row| row.get::<_, bool>(0),
+            )?,
+            "Plugin '{name}' is not installed"
+        );
         let path = self.plugins().join(name);
         let metadata = fs::symlink_metadata(&path)
             .with_context(|| format!("Plugin '{name}' is not installed"))?;
@@ -210,7 +286,42 @@ impl PluginStore {
             "Installed plugin must be a regular directory"
         );
         // Removal must also work for a damaged manifest or missing executable.
-        fs::remove_dir_all(path).context("Remove plugin")
+        fs::remove_dir_all(path).context("Remove plugin")?;
+        connection.execute("DELETE FROM installed_plugins WHERE name = ?1", [name])?;
+        Ok(())
+    }
+
+    pub fn registry_add(&self, name: &str, source: &str) -> Result<()> {
+        validate_name(name)?;
+        ensure!(
+            source.starts_with("https://") && source.len() > 8,
+            "Registry source must be an HTTPS Git repository URL"
+        );
+        self.connect()?.execute(
+            "INSERT INTO registry (name, source) VALUES (?1, ?2)
+             ON CONFLICT(name) DO UPDATE SET source = excluded.source, updated_at = unixepoch()",
+            params![name, source],
+        )?;
+        Ok(())
+    }
+
+    pub fn registry_list(&self) -> Result<Vec<(String, String)>> {
+        let connection = self.connect()?;
+        let mut statement =
+            connection.prepare("SELECT name, source FROM registry ORDER BY name")?;
+        let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        rows.collect::<rusqlite::Result<_>>().map_err(Into::into)
+    }
+
+    pub fn registry_remove(&self, name: &str) -> Result<()> {
+        validate_name(name)?;
+        ensure!(
+            self.connect()?
+                .execute("DELETE FROM registry WHERE name = ?1", [name])?
+                == 1,
+            "Plugin '{name}' is not registered"
+        );
+        Ok(())
     }
 
     pub fn run(&self, name: &str, args: &[OsString]) -> Result<i32> {
@@ -234,12 +345,6 @@ impl PluginStore {
         }
         bail!("Plugin terminated without an exit code")
     }
-}
-
-#[derive(serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Registry {
-    plugins: std::collections::BTreeMap<String, String>,
 }
 
 fn validate_crate(source: &Path, manifest: &Manifest) -> Result<()> {

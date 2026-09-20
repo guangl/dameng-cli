@@ -24,4 +24,5 @@ clap = { version = "4.6.7", features = ["derive"] }
 serde = { version = "1.0.229", features = ["derive"] }
 tempfile = "3.27.0"
 toml = "1.1.6"
+rusqlite = { version = "0.40.2", features = ["bundled"] }
 dm-plugin-sdk = { version = "0.1.0", path = "crates/dm-plugin-sdk" }
