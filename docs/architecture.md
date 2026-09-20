@@ -1,3 +1,9 @@
+---
+layout: doc
+title: 宿主架构
+description: dameng-cli 模块职责、安装事务、运行边界和扩展位置。
+---
+
 # 架构
 
 ```text

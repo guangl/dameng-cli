@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="dameng-cli 插件开发指南：从创建 Rust 项目到本地安装和发布。">
+  <title>dameng-cli 插件开发文档</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f5f1e8;
+      --paper-deep: #ebe4d6;
+      --ink: #17211f;
+      --muted: #65706c;
+      --line: rgba(23, 33, 31, 0.14);
+      --accent: #d94a2f;
+      --accent-dark: #a93220;
+      --green: #1f6b55;
+      --code: #111917;
+      --white: #fffdf8;
+      --shadow: 0 20px 55px rgba(39, 31, 20, 0.12);
+      --radius: 22px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 92% 8%, rgba(217, 74, 47, 0.12), transparent 24rem),
+        linear-gradient(180deg, var(--paper) 0%, #faf8f2 52%, var(--paper) 100%);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.65;
+    }
+
+    a { color: inherit; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    code, pre { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+
+    .progress {
+      position: fixed;
+      inset: 0 auto auto 0;
+      width: 0;
+      height: 3px;
+      z-index: 20;
+      background: var(--accent);
+    }
+
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 1px solid var(--line);
+      background: rgba(245, 241, 232, 0.86);
+      backdrop-filter: blur(18px);
+    }
+
+    .nav-inner, .hero, .section, .footer-inner {
+      width: min(1160px, calc(100% - 40px));
+      margin-inline: auto;
+    }
+
+    .nav-inner {
+      min-height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 11px;
+      text-decoration: none;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      color: var(--white);
+      background: var(--ink);
+      font-family: Georgia, serif;
+      font-size: 18px;
+    }
+
+    .nav-links { display: flex; align-items: center; gap: 24px; }
+    .nav-links a {
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 650;
+      text-decoration: none;
+    }
+    .nav-links a:hover { color: var(--ink); }
+
+    .nav-cta, .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      min-height: 43px;
+      padding: 0 18px;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      font-weight: 750;
+      text-decoration: none;
+      transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+    }
+
+    .nav-cta, .button.primary { color: var(--white); background: var(--accent); }
+    .nav-cta:hover, .button:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(169, 50, 32, 0.18); }
+    .button.secondary { border-color: var(--line); background: rgba(255,255,255,0.48); }
+
+    .hero {
+      min-height: 690px;
+      display: grid;
+      grid-template-columns: 1.08fr 0.92fr;
+      align-items: center;
+      gap: clamp(50px, 8vw, 110px);
+      padding-block: 86px 96px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 22px;
+      color: var(--accent-dark);
+      font-size: 13px;
+      font-weight: 850;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before { content: ""; width: 28px; height: 2px; background: var(--accent); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 {
+      max-width: 760px;
+      margin-bottom: 24px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(48px, 7vw, 88px);
+      line-height: 0.98;
+      letter-spacing: -0.055em;
+      font-weight: 600;
+    }
+
+    h1 em { color: var(--accent); font-style: italic; font-weight: 500; }
+    .hero-copy > p { max-width: 620px; color: var(--muted); font-size: clamp(18px, 2vw, 21px); }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
+
+    .contract-card {
+      position: relative;
+      padding: 25px;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 28px;
+      color: #eaf0ed;
+      background: var(--code);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .contract-card::after {
+      content: "";
+      position: absolute;
+      width: 210px;
+      height: 210px;
+      right: -90px;
+      bottom: -100px;
+      border-radius: 50%;
+      background: rgba(217, 74, 47, 0.28);
+      filter: blur(6px);
+    }
+
+    .window-bar { display: flex; align-items: center; gap: 7px; margin-bottom: 32px; }
+    .window-bar i { width: 10px; height: 10px; border-radius: 50%; background: #56615e; }
+    .window-bar i:first-child { background: var(--accent); }
+    .window-bar span { margin-left: auto; color: #82908b; font: 12px/1.2 monospace; }
+    .flow-node { position: relative; z-index: 1; display: flex; align-items: center; gap: 14px; }
+    .flow-icon {
+      width: 46px;
+      height: 46px;
+      display: grid;
+      place-items: center;
+      flex: 0 0 auto;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 14px;
+      color: #f7b6a8;
+      background: rgba(255,255,255,0.05);
+      font-weight: 850;
+    }
+    .flow-node strong { display: block; font-size: 15px; }
+    .flow-node small { color: #8c9995; }
+    .flow-line { width: 1px; height: 34px; margin: 7px 0 7px 22px; background: linear-gradient(var(--accent), #3d4946); }
+
+    .quick-facts {
+      border-block: 1px solid var(--line);
+      background: rgba(255,255,255,0.32);
+    }
+    .facts-inner {
+      width: min(1160px, calc(100% - 40px));
+      margin: auto;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+    }
+    .fact { padding: 28px 34px; border-left: 1px solid var(--line); }
+    .fact:last-child { border-right: 1px solid var(--line); }
+    .fact strong { display: block; font-family: Georgia, serif; font-size: 29px; }
+    .fact span { color: var(--muted); font-size: 14px; }
+
+    .section { padding-block: 112px; }
+    .section-heading { max-width: 700px; margin-bottom: 54px; }
+    .section-heading h2 {
+      margin-bottom: 16px;
+      font-family: Georgia, serif;
+      font-size: clamp(38px, 5vw, 58px);
+      line-height: 1.05;
+      letter-spacing: -0.035em;
+      font-weight: 600;
+    }
+    .section-heading p { color: var(--muted); font-size: 18px; }
+
+    .docs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .doc-card {
+      min-height: 210px;
+      display: flex;
+      flex-direction: column;
+      padding: 25px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255,255,255,0.48);
+      text-decoration: none;
+      transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+    }
+    .doc-card:hover { transform: translateY(-4px); border-color: rgba(217,74,47,0.45); box-shadow: var(--shadow); }
+    .doc-card small { color: var(--accent); font-weight: 850; letter-spacing: 0.1em; }
+    .doc-card h3 { margin: 42px 0 8px; font-size: 20px; }
+    .doc-card p { margin: 0; color: var(--muted); font-size: 14px; }
+    .doc-card span { margin-top: auto; padding-top: 22px; color: var(--accent-dark); font-weight: 750; }
+
+    .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .step {
+      min-height: 245px;
+      padding: 26px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(255,255,255,0.44);
+    }
+    .step-number { color: var(--accent); font: italic 27px/1 Georgia, serif; }
+    .step h3 { margin: 58px 0 10px; font-size: 20px; }
+    .step p { margin: 0; color: var(--muted); font-size: 15px; }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 26px;
+      color: #eaf0ed;
+      background: var(--code);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .file-tree { padding: 30px; border-right: 1px solid rgba(255,255,255,0.09); }
+    .file-tree strong { color: #84918d; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; }
+    .file-tree ul { margin: 22px 0 0; padding: 0; list-style: none; font: 14px/2.15 monospace; }
+    .file-tree li { color: #9ca8a4; }
+    .file-tree li::before { content: "·"; margin-right: 10px; color: var(--accent); }
+    .file-tree .active { color: #fff; }
+    .code-area { min-width: 0; }
+    .tabs { display: flex; gap: 4px; padding: 14px 16px 0; border-bottom: 1px solid rgba(255,255,255,0.08); overflow-x: auto; }
+    .tab {
+      padding: 11px 15px 13px;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      color: #85928e;
+      background: none;
+      font: 13px/1 monospace;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .tab[aria-selected="true"] { color: #fff; border-color: var(--accent); }
+    .code-panel { position: relative; display: none; }
+    .code-panel.active { display: block; }
+    pre { margin: 0; padding: 28px; overflow-x: auto; color: #dbe4e0; font-size: 13px; line-height: 1.8; }
+    .token-key { color: #f29d89; }
+    .token-string { color: #a8d4b7; }
+    .token-comment { color: #71807b; }
+    .copy {
+      position: absolute;
+      top: 16px;
+      right: 18px;
+      padding: 7px 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      color: #aab5b1;
+      background: #1b2623;
+      cursor: pointer;
+    }
+
+    .checks { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 48px; align-items: start; }
+    .check-list { display: grid; gap: 12px; }
+    .check-item {
+      display: grid;
+      grid-template-columns: 38px 1fr;
+      gap: 15px;
+      padding: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+    .check-mark { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; color: var(--green); background: rgba(31,107,85,0.1); font-weight: 900; }
+    .check-item strong { display: block; margin-bottom: 2px; }
+    .check-item span { color: var(--muted); font-size: 14px; }
+    .command-card { padding: 28px; border-radius: var(--radius); color: #eaf0ed; background: var(--code); }
+    .command-card p { color: #919e99; }
+    .command-card code { display: block; padding: 14px 0; border-top: 1px solid rgba(255,255,255,0.09); color: #fff; }
+    .command-card code::before { content: "$"; margin-right: 12px; color: var(--accent); }
+
+    .callout {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 40px;
+      align-items: center;
+      padding: clamp(34px, 6vw, 64px);
+      border-radius: 28px;
+      color: var(--white);
+      background: var(--accent);
+      box-shadow: 0 24px 60px rgba(169,50,32,0.22);
+    }
+    .callout h2 { margin-bottom: 9px; font: 600 clamp(34px, 5vw, 52px)/1.05 Georgia, serif; letter-spacing: -0.03em; }
+    .callout p { margin: 0; color: rgba(255,255,255,0.8); }
+    .callout .button { color: var(--ink); background: var(--white); white-space: nowrap; }
+
+    footer { margin-top: 100px; border-top: 1px solid var(--line); }
+    .footer-inner { min-height: 110px; display: flex; align-items: center; justify-content: space-between; gap: 24px; color: var(--muted); font-size: 14px; }
+    .footer-inner a { text-decoration: none; }
+
+    @media (max-width: 880px) {
+      .nav-links a:not(.nav-cta) { display: none; }
+      .hero { min-height: auto; grid-template-columns: 1fr; padding-block: 70px; }
+      .hero-copy { max-width: 720px; }
+      .contract-card { max-width: 600px; }
+      .steps { grid-template-columns: repeat(2, 1fr); }
+      .docs-grid { grid-template-columns: repeat(2, 1fr); }
+      .workspace { grid-template-columns: 1fr; }
+      .file-tree { display: none; }
+      .checks { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 580px) {
+      .nav-inner, .hero, .section, .footer-inner, .facts-inner { width: min(100% - 28px, 1160px); }
+      .nav-inner { min-height: 60px; }
+      .nav-cta { display: none; }
+      .hero { padding-block: 54px 70px; }
+      h1 { font-size: 48px; }
+      .facts-inner { grid-template-columns: 1fr; }
+      .fact, .fact:last-child { border-right: 0; border-left: 0; border-bottom: 1px solid var(--line); }
+      .steps { grid-template-columns: 1fr; }
+      .docs-grid { grid-template-columns: 1fr; }
+      .step { min-height: 200px; }
+      .step h3 { margin-top: 35px; }
+      .section { padding-block: 78px; }
+      pre { padding: 24px 18px; font-size: 12px; }
+      .copy { display: none; }
+      .callout { grid-template-columns: 1fr; }
+      .callout .button { justify-self: start; }
+      .footer-inner { min-height: 140px; align-items: flex-start; justify-content: center; flex-direction: column; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="progress" aria-hidden="true"></div>
+  <nav class="nav" aria-label="主导航">
+    <div class="nav-inner">
+      <a class="brand" href="#top"><span class="brand-mark">dm</span> dameng-cli</a>
+      <div class="nav-links">
+        <a href="#docs">开发文档</a>
+        <a href="#workflow">开发流程</a>
+        <a href="#code">完整代码</a>
+        <a href="#verify">验证清单</a>
+        <a class="nav-cta" href="https://github.com/guangl/dameng-cli/tree/main/examples/hello">查看示例 →</a>
+      </div>
+    </div>
+  </nav>
+
+  <main id="top">
+    <header class="hero">
+      <div class="hero-copy">
+        <span class="eyebrow">Plugin developer guide</span>
+        <h1>把数据库能力，做成一个<em>独立插件</em>。</h1>
+        <p>使用 Rust 和稳定的进程协议扩展 <strong>dm</strong>。宿主负责安装、发现与调用，你只需要专注于数据库工具本身。</p>
+        <div class="hero-actions">
+          <a class="button primary" href="#workflow">开始开发 <span aria-hidden="true">↓</span></a>
+          <a class="button secondary" href="plugins.html">阅读协议文档</a>
+        </div>
+      </div>
+
+      <div class="contract-card" aria-label="插件调用流程">
+        <div class="window-bar"><i></i><i></i><i></i><span>process contract</span></div>
+        <div class="flow-node"><span class="flow-icon">01</span><div><strong>用户调用</strong><small>dm backup --database demo</small></div></div>
+        <div class="flow-line"></div>
+        <div class="flow-node"><span class="flow-icon">02</span><div><strong>宿主路由</strong><small>参数与标准流原样传递</small></div></div>
+        <div class="flow-line"></div>
+        <div class="flow-node"><span class="flow-icon">03</span><div><strong>插件进程</strong><small>dm-plugin-sdk 校验协议版本</small></div></div>
+        <div class="flow-line"></div>
+        <div class="flow-node"><span class="flow-icon">04</span><div><strong>退出状态</strong><small>结果、错误和退出码返回用户</small></div></div>
+      </div>
+    </header>
+
+    <section class="quick-facts" aria-label="关键事实">
+      <div class="facts-inner">
+        <div class="fact"><strong>Rust 2024</strong><span>插件是独立的 Rust binary crate</span></div>
+        <div class="fact"><strong>API v1</strong><span>跨进程协议，不依赖动态库 ABI</span></div>
+        <div class="fact"><strong>Locked</strong><span>使用 Cargo.lock 可复现构建</span></div>
+      </div>
+    </section>
+
+    <section class="section" id="docs">
+      <div class="section-heading">
+        <span class="eyebrow">Developer documentation</span>
+        <h2>不只告诉你怎么开始，也讲清每一条契约</h2>
+        <p>从第一个可运行插件到独立仓库发布，按需进入对应章节。每篇文档都包含可执行示例、边界条件与失败处理。</p>
+      </div>
+      <div class="docs-grid">
+        <a class="doc-card" href="plugin-development/getting-started.html"><small>01 · START</small><h3>快速开始</h3><p>搭建 crate、接入 SDK、创建清单并完成首次安装。</p><span>阅读文档 →</span></a>
+        <a class="doc-card" href="plugin-development/manifest.html"><small>02 · STRUCTURE</small><h3>项目与清单</h3><p>完整字段规则、Cargo target、锁文件与资源处理。</p><span>阅读文档 →</span></a>
+        <a class="doc-card" href="plugin-development/sdk-api.html"><small>03 · API</small><h3>SDK API</h3><p>Context、Plugin、PluginResult 和入口函数参考。</p><span>阅读文档 →</span></a>
+        <a class="doc-card" href="plugin-development/runtime-contract.html"><small>04 · RUNTIME</small><h3>运行时协议</h3><p>参数、环境变量、标准流、退出码与兼容性。</p><span>阅读文档 →</span></a>
+        <a class="doc-card" href="plugin-development/testing.html"><small>05 · QUALITY</small><h3>测试与调试</h3><p>分层测试、隔离安装、CI 门禁和诊断方法。</p><span>阅读文档 →</span></a>
+        <a class="doc-card" href="plugin-development/publishing.html"><small>06 · SHIP</small><h3>发布与分发</h3><p>独立仓库、本地与 Git 安装、版本和安全清单。</p><span>阅读文档 →</span></a>
+        <a class="doc-card" href="plugin-development/troubleshooting.html"><small>07 · SUPPORT</small><h3>故障排查</h3><p>按错误信息定位清单、构建、协议和数据库环境。</p><span>阅读文档 →</span></a>
+        <a class="doc-card" href="plugins.html"><small>REFERENCE</small><h3>协议 v1</h3><p>面向实现和兼容性核对的单页规范参考。</p><span>查看规范 →</span></a>
+        <a class="doc-card" href="plugin-development/"><small>INDEX</small><h3>文档总览</h3><p>完整阅读路线、核心边界和所有参考资料。</p><span>打开目录 →</span></a>
+      </div>
+    </section>
+
+    <section class="section" id="workflow">
+      <div class="section-heading">
+        <span class="eyebrow">Four clear steps</span>
+        <h2>从空目录到可调用插件</h2>
+        <p>插件仓库保持独立。宿主安装时会检查清单、依赖和 binary target，然后执行 locked release build。</p>
+      </div>
+      <div class="steps">
+        <article class="step"><span class="step-number">01</span><h3>创建 crate</h3><p>新建 binary crate，并添加 dm-plugin-sdk 依赖。</p></article>
+        <article class="step"><span class="step-number">02</span><h3>声明清单</h3><p>用 dm-plugin.toml 描述名称、版本和 API。</p></article>
+        <article class="step"><span class="step-number">03</span><h3>实现 Plugin</h3><p>读取 Context，在 run 方法中实现业务能力。</p></article>
+        <article class="step"><span class="step-number">04</span><h3>本地验证</h3><p>生成锁文件，通过 dm install 和真实调用验证。</p></article>
+      </div>
+    </section>
+
+    <section class="section" id="code">
+      <div class="section-heading">
+        <span class="eyebrow">Minimal complete plugin</span>
+        <h2>三个文件，一套完整契约</h2>
+        <p>下面的最小插件可以直接编译。名称必须使用小写字母、数字和连字符，binary 固定命名为 <code>dm-&lt;name&gt;</code>。示例中的 SDK 路径适合本地并排开发；独立远程仓库应改用固定提交的 Git 依赖。</p>
+      </div>
+
+      <div class="workspace">
+        <aside class="file-tree" aria-label="项目文件">
+          <strong>Explorer</strong>
+          <ul>
+            <li>my-plugin/</li>
+            <li class="active">　Cargo.toml</li>
+            <li class="active">　dm-plugin.toml</li>
+            <li>　Cargo.lock</li>
+            <li>　src/</li>
+            <li class="active">　　main.rs</li>
+          </ul>
+        </aside>
+        <div class="code-area">
+          <div class="tabs" role="tablist" aria-label="代码文件">
+            <button class="tab" role="tab" aria-selected="true" data-panel="cargo">Cargo.toml</button>
+            <button class="tab" role="tab" aria-selected="false" data-panel="manifest">dm-plugin.toml</button>
+            <button class="tab" role="tab" aria-selected="false" data-panel="rust">src/main.rs</button>
+          </div>
+          <div class="code-panel active" id="cargo" role="tabpanel">
+            <button class="copy" type="button">复制</button>
+            <pre><code><span class="token-key">[package]</span>
+name = <span class="token-string">"dm-plugin-backup"</span>
+version = <span class="token-string">"0.1.0"</span>
+edition = <span class="token-string">"2024"</span>
+
+<span class="token-key">[[bin]]</span>
+name = <span class="token-string">"dm-backup"</span>
+path = <span class="token-string">"src/main.rs"</span>
+
+<span class="token-key">[dependencies]</span>
+dm-plugin-sdk = { path = <span class="token-string">"../dameng-cli/crates/dm-plugin-sdk"</span> }</code></pre>
+          </div>
+          <div class="code-panel" id="manifest" role="tabpanel">
+            <button class="copy" type="button">复制</button>
+            <pre><code>name = <span class="token-string">"backup"</span>
+version = <span class="token-string">"0.1.0"</span>
+description = <span class="token-string">"Backup a Dameng database"</span>
+api_version = <span class="token-key">1</span></code></pre>
+          </div>
+          <div class="code-panel" id="rust" role="tabpanel">
+            <button class="copy" type="button">复制</button>
+            <pre><code><span class="token-key">use</span> dm_plugin_sdk::{Context, Plugin, PluginResult};
+
+<span class="token-key">struct</span> Backup;
+
+<span class="token-key">impl</span> Plugin <span class="token-key">for</span> Backup {
+    <span class="token-key">fn</span> run(&amp;self, context: Context) -&gt; PluginResult {
+        println!(<span class="token-string">"received {} arguments"</span>, context.args.len());
+        <span class="token-comment">// 在这里实现连接、备份或其他数据库能力。</span>
+        Ok(<span class="token-key">0</span>)
+    }
+}
+
+<span class="token-key">fn</span> main() {
+    dm_plugin_sdk::run(Backup);
+}</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="verify">
+      <div class="checks">
+        <div>
+          <div class="section-heading">
+            <span class="eyebrow">Before publishing</span>
+            <h2>交付前检查</h2>
+            <p>安装过程会运行 Cargo 构建脚本，因此用户只应安装可信源码。插件仓库需要能够独立解析所有依赖。</p>
+          </div>
+          <div class="check-list">
+            <div class="check-item"><span class="check-mark">✓</span><div><strong>清单与 crate 版本一致</strong><span>避免安装时因版本不匹配被拒绝。</span></div></div>
+            <div class="check-item"><span class="check-mark">✓</span><div><strong>提交 Cargo.lock</strong><span>远程安装始终使用 --locked 构建。</span></div></div>
+            <div class="check-item"><span class="check-mark">✓</span><div><strong>入口名称符合约定</strong><span>backup 对应 dm-backup，不接受脚本入口。</span></div></div>
+            <div class="check-item"><span class="check-mark">✓</span><div><strong>错误返回非零退出码</strong><span>标准输出、错误输出和退出码是公共接口。</span></div></div>
+          </div>
+        </div>
+        <aside class="command-card" aria-label="验证命令">
+          <p>在 dameng-cli 仓库根目录执行：</p>
+          <code>cargo generate-lockfile</code>
+          <code>dm install ./my-plugin</code>
+          <code>dm list</code>
+          <code>dm backup --help</code>
+          <code>dm uninstall backup</code>
+        </aside>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="callout">
+        <div><h2>从 hello 示例开始。</h2><p>先运行仓库内的最小插件，再替换为你的数据库逻辑。</p></div>
+        <a class="button" href="https://github.com/guangl/dameng-cli/tree/main/examples/hello">打开示例目录 →</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <span>dameng-cli · 独立社区项目，与达梦官方无隶属关系</span>
+      <span><a href="architecture.html">架构说明</a>　·　<a href="plugins.html">插件协议</a>　·　<a href="https://github.com/guangl/dameng-cli/blob/main/LICENSE">MIT License</a></span>
+    </div>
+  </footer>
+
+  <script>
+    const tabs = document.querySelectorAll('.tab');
+    const panels = document.querySelectorAll('.code-panel');
+
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        tabs.forEach((item) => item.setAttribute('aria-selected', 'false'));
+        panels.forEach((panel) => panel.classList.remove('active'));
+        tab.setAttribute('aria-selected', 'true');
+        document.getElementById(tab.dataset.panel).classList.add('active');
+      });
+    });
+
+    document.querySelectorAll('.copy').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const text = button.nextElementSibling.innerText;
+        await navigator.clipboard.writeText(text);
+        button.textContent = '已复制';
+        window.setTimeout(() => { button.textContent = '复制'; }, 1400);
+      });
+    });
+
+    const progress = document.querySelector('.progress');
+    const updateProgress = () => {
+      const height = document.documentElement.scrollHeight - window.innerHeight;
+      progress.style.width = `${height > 0 ? (window.scrollY / height) * 100 : 0}%`;
+    };
+    window.addEventListener('scroll', updateProgress, { passive: true });
+    updateProgress();
+  </script>
+</body>
+</html>
