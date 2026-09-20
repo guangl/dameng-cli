@@ -1,3 +1,9 @@
+---
+layout: doc
+title: SDK API
+description: Context、Plugin、PluginResult 与 dm_plugin_sdk::run 参考。
+---
+
 # SDK API
 
 `dm-plugin-sdk` 故意保持很小。它不绑定数据库驱动、异步运行时、日志系统或参数解析器。
@@ -78,5 +84,4 @@ fn main() {
 
 直接运行编译出的 `dm-backup` 会因为缺少宿主环境而失败，这是预期行为。通过 `dm backup` 调用。
 
-下一步阅读[运行时协议](runtime-contract.md)。
-
+下一步阅读[运行时协议](runtime-contract.html)。

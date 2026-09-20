@@ -1,16 +1,23 @@
+---
+layout: doc
+title: 插件开发文档
+description: dameng-cli 插件开发文档的完整阅读路线与核心边界。
+permalink: /plugin-development/
+---
+
 # dameng-cli 插件开发文档
 
 这套文档面向准备开发、测试并分发 `dm` 插件的 Rust 开发者。插件是独立的 binary crate，通过 `dm-plugin-sdk` 接收宿主上下文，并以独立进程运行。
 
 ## 阅读路线
 
-1. [快速开始](getting-started.md)：创建并运行第一个插件。
-2. [项目结构与清单](manifest.md)：理解 `Cargo.toml`、`Cargo.lock` 和 `dm-plugin.toml` 的约束。
-3. [SDK API](sdk-api.md)：使用 `Context`、`Plugin`、`PluginResult` 和入口函数。
-4. [运行时协议](runtime-contract.md)：参数、环境变量、标准流和退出码的准确约定。
-5. [测试与调试](testing.md)：从业务单元测试到真实安装生命周期测试。
-6. [发布与分发](publishing.md)：准备独立仓库并支持本地、Git URL 和名称安装。
-7. [故障排查](troubleshooting.md)：定位常见的清单、构建、安装和运行错误。
+1. [快速开始](getting-started.html)：创建并运行第一个插件。
+2. [项目结构与清单](manifest.html)：理解 `Cargo.toml`、`Cargo.lock` 和 `dm-plugin.toml` 的约束。
+3. [SDK API](sdk-api.html)：使用 `Context`、`Plugin`、`PluginResult` 和入口函数。
+4. [运行时协议](runtime-contract.html)：参数、环境变量、标准流和退出码的准确约定。
+5. [测试与调试](testing.html)：从业务单元测试到真实安装生命周期测试。
+6. [发布与分发](publishing.html)：准备独立仓库并支持本地、Git URL 和名称安装。
+7. [故障排查](troubleshooting.html)：定位常见的清单、构建、安装和运行错误。
 
 ## 核心边界
 
@@ -21,8 +28,7 @@
 
 ## 参考资料
 
-- [插件协议 v1](../plugins.md)
-- [宿主架构](../architecture.md)
-- [可运行 hello 示例](../../examples/hello/)
-- [SDK 源码](../../crates/dm-plugin-sdk/src/lib.rs)
-
+- [插件协议 v1](../plugins.html)
+- [宿主架构](../architecture.html)
+- [可运行 hello 示例](https://github.com/guangl/dameng-cli/tree/main/examples/hello)
+- [SDK 源码](https://github.com/guangl/dameng-cli/blob/main/crates/dm-plugin-sdk/src/lib.rs)

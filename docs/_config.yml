@@ -1,0 +1,12 @@
+title: dameng-cli 插件开发文档
+description: 使用 Rust 和 dm-plugin-sdk 开发、测试并发布 Dameng CLI 插件。
+url: https://guangl.github.io
+baseurl: /dameng-cli
+lang: zh-CN
+markdown: kramdown
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+exclude:
+  - releasing.md
+

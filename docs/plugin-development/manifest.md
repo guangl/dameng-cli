@@ -1,3 +1,9 @@
+---
+layout: doc
+title: 项目结构与清单
+description: dm-plugin.toml、Cargo target、锁文件和资源文件规范。
+---
+
 # 项目结构与清单
 
 ## 必需文件
@@ -58,5 +64,4 @@ const DEFAULT_CONFIG: &str = include_str!("../assets/default.toml");
 
 需要运行时生成的数据应写入插件自己管理的位置；不要修改安装目录中的 binary 或清单。
 
-下一步阅读 [SDK API](sdk-api.md)。
-
+下一步阅读 [SDK API](sdk-api.html)。

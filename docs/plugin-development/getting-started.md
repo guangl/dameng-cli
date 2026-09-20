@@ -1,3 +1,9 @@
+---
+layout: doc
+title: 快速开始
+description: 创建、安装并运行第一个 dameng-cli Rust 插件。
+---
+
 # 快速开始
 
 ## 前置条件
@@ -102,5 +108,4 @@ dm backup --help
 
 安装成功后，插件运行不再依赖原源码目录和 Cargo 构建目录。修改源码后需要先 `dm uninstall backup`，再重新安装。
 
-下一步阅读[项目结构与清单](manifest.md)。
-
+下一步阅读[项目结构与清单](manifest.html)。

@@ -1,3 +1,9 @@
+---
+layout: doc
+title: 运行时协议
+description: 插件参数、环境变量、标准流、退出状态与兼容性约定。
+---
+
 # 运行时协议
 
 ## 调用模型
@@ -51,4 +57,4 @@ printf 'select 1;\n' | dm formatter > formatted.sql
 
 `api_version` 描述宿主与插件之间的进程契约，不是插件业务版本。只有契约发生破坏性变化时才提升 API 版本；普通插件功能升级只更新插件 `version`。
 
-下一步阅读[测试与调试](testing.md)。
+下一步阅读[测试与调试](testing.html)。

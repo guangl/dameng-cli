@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="{{ page.description | default: site.description }}">
+  <title>{{ page.title }} · {{ site.title }}</title>
+  <link rel="stylesheet" href="{{ '/assets/docs.css' | relative_url }}">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{{ '/' | relative_url }}"><span>dm</span> dameng-cli</a>
+    <a class="source" href="https://github.com/guangl/dameng-cli">GitHub ↗</a>
+  </header>
+  <div class="shell">
+    <aside class="sidebar" aria-label="开发文档导航">
+      <p class="sidebar-label">插件开发</p>
+      <nav>
+        <a href="{{ '/plugin-development/' | relative_url }}">文档总览</a>
+        <a href="{{ '/plugin-development/getting-started.html' | relative_url }}">快速开始</a>
+        <a href="{{ '/plugin-development/manifest.html' | relative_url }}">项目结构与清单</a>
+        <a href="{{ '/plugin-development/sdk-api.html' | relative_url }}">SDK API</a>
+        <a href="{{ '/plugin-development/runtime-contract.html' | relative_url }}">运行时协议</a>
+        <a href="{{ '/plugin-development/testing.html' | relative_url }}">测试与调试</a>
+        <a href="{{ '/plugin-development/publishing.html' | relative_url }}">发布与分发</a>
+        <a href="{{ '/plugin-development/troubleshooting.html' | relative_url }}">故障排查</a>
+      </nav>
+      <p class="sidebar-label secondary">参考</p>
+      <nav>
+        <a href="{{ '/plugins.html' | relative_url }}">插件协议 v1</a>
+        <a href="{{ '/architecture.html' | relative_url }}">宿主架构</a>
+      </nav>
+    </aside>
+    <main class="content">
+      <div class="breadcrumb"><a href="{{ '/' | relative_url }}">开发文档</a><span>/</span>{{ page.title }}</div>
+      <article>
+        {{ content }}
+      </article>
+      <footer>
+        <span>dameng-cli 独立社区项目</span>
+        <a href="https://github.com/guangl/dameng-cli/issues">反馈文档问题 ↗</a>
+      </footer>
+    </main>
+  </div>
+</body>
+</html>
+

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="dameng-cli 插件开发指南：从创建 Rust 项目到本地安装和发布。">
-  <title>dameng-cli 插件开发指南</title>
+  <title>dameng-cli 插件开发文档</title>
   <style>
     :root {
       color-scheme: light;
@@ -386,7 +386,7 @@
         <a href="#workflow">开发流程</a>
         <a href="#code">完整代码</a>
         <a href="#verify">验证清单</a>
-        <a class="nav-cta" href="../examples/hello/">查看示例 →</a>
+        <a class="nav-cta" href="https://github.com/guangl/dameng-cli/tree/main/examples/hello">查看示例 →</a>
       </div>
     </div>
   </nav>
@@ -399,7 +399,7 @@
         <p>使用 Rust 和稳定的进程协议扩展 <strong>dm</strong>。宿主负责安装、发现与调用，你只需要专注于数据库工具本身。</p>
         <div class="hero-actions">
           <a class="button primary" href="#workflow">开始开发 <span aria-hidden="true">↓</span></a>
-          <a class="button secondary" href="plugins.md">阅读协议文档</a>
+          <a class="button secondary" href="plugins.html">阅读协议文档</a>
         </div>
       </div>
 
@@ -430,15 +430,15 @@
         <p>从第一个可运行插件到独立仓库发布，按需进入对应章节。每篇文档都包含可执行示例、边界条件与失败处理。</p>
       </div>
       <div class="docs-grid">
-        <a class="doc-card" href="plugin-development/getting-started.md"><small>01 · START</small><h3>快速开始</h3><p>搭建 crate、接入 SDK、创建清单并完成首次安装。</p><span>阅读文档 →</span></a>
-        <a class="doc-card" href="plugin-development/manifest.md"><small>02 · STRUCTURE</small><h3>项目与清单</h3><p>完整字段规则、Cargo target、锁文件与资源处理。</p><span>阅读文档 →</span></a>
-        <a class="doc-card" href="plugin-development/sdk-api.md"><small>03 · API</small><h3>SDK API</h3><p>Context、Plugin、PluginResult 和入口函数参考。</p><span>阅读文档 →</span></a>
-        <a class="doc-card" href="plugin-development/runtime-contract.md"><small>04 · RUNTIME</small><h3>运行时协议</h3><p>参数、环境变量、标准流、退出码与兼容性。</p><span>阅读文档 →</span></a>
-        <a class="doc-card" href="plugin-development/testing.md"><small>05 · QUALITY</small><h3>测试与调试</h3><p>分层测试、隔离安装、CI 门禁和诊断方法。</p><span>阅读文档 →</span></a>
-        <a class="doc-card" href="plugin-development/publishing.md"><small>06 · SHIP</small><h3>发布与分发</h3><p>独立仓库、本地与 Git 安装、版本和安全清单。</p><span>阅读文档 →</span></a>
-        <a class="doc-card" href="plugin-development/troubleshooting.md"><small>07 · SUPPORT</small><h3>故障排查</h3><p>按错误信息定位清单、构建、协议和数据库环境。</p><span>阅读文档 →</span></a>
-        <a class="doc-card" href="plugins.md"><small>REFERENCE</small><h3>协议 v1</h3><p>面向实现和兼容性核对的单页规范参考。</p><span>查看规范 →</span></a>
-        <a class="doc-card" href="plugin-development/README.md"><small>INDEX</small><h3>文档总览</h3><p>完整阅读路线、核心边界和所有参考资料。</p><span>打开目录 →</span></a>
+        <a class="doc-card" href="plugin-development/getting-started.html"><small>01 · START</small><h3>快速开始</h3><p>搭建 crate、接入 SDK、创建清单并完成首次安装。</p><span>阅读文档 →</span></a>
+        <a class="doc-card" href="plugin-development/manifest.html"><small>02 · STRUCTURE</small><h3>项目与清单</h3><p>完整字段规则、Cargo target、锁文件与资源处理。</p><span>阅读文档 →</span></a>
+        <a class="doc-card" href="plugin-development/sdk-api.html"><small>03 · API</small><h3>SDK API</h3><p>Context、Plugin、PluginResult 和入口函数参考。</p><span>阅读文档 →</span></a>
+        <a class="doc-card" href="plugin-development/runtime-contract.html"><small>04 · RUNTIME</small><h3>运行时协议</h3><p>参数、环境变量、标准流、退出码与兼容性。</p><span>阅读文档 →</span></a>
+        <a class="doc-card" href="plugin-development/testing.html"><small>05 · QUALITY</small><h3>测试与调试</h3><p>分层测试、隔离安装、CI 门禁和诊断方法。</p><span>阅读文档 →</span></a>
+        <a class="doc-card" href="plugin-development/publishing.html"><small>06 · SHIP</small><h3>发布与分发</h3><p>独立仓库、本地与 Git 安装、版本和安全清单。</p><span>阅读文档 →</span></a>
+        <a class="doc-card" href="plugin-development/troubleshooting.html"><small>07 · SUPPORT</small><h3>故障排查</h3><p>按错误信息定位清单、构建、协议和数据库环境。</p><span>阅读文档 →</span></a>
+        <a class="doc-card" href="plugins.html"><small>REFERENCE</small><h3>协议 v1</h3><p>面向实现和兼容性核对的单页规范参考。</p><span>查看规范 →</span></a>
+        <a class="doc-card" href="plugin-development/"><small>INDEX</small><h3>文档总览</h3><p>完整阅读路线、核心边界和所有参考资料。</p><span>打开目录 →</span></a>
       </div>
     </section>
 
@@ -553,7 +553,7 @@ api_version = <span class="token-key">1</span></code></pre>
     <section class="section">
       <div class="callout">
         <div><h2>从 hello 示例开始。</h2><p>先运行仓库内的最小插件，再替换为你的数据库逻辑。</p></div>
-        <a class="button" href="../examples/hello/">打开示例目录 →</a>
+        <a class="button" href="https://github.com/guangl/dameng-cli/tree/main/examples/hello">打开示例目录 →</a>
       </div>
     </section>
   </main>
@@ -561,7 +561,7 @@ api_version = <span class="token-key">1</span></code></pre>
   <footer>
     <div class="footer-inner">
       <span>dameng-cli · 独立社区项目，与达梦官方无隶属关系</span>
-      <span><a href="architecture.md">架构说明</a>　·　<a href="plugins.md">插件协议</a>　·　<a href="../LICENSE">MIT License</a></span>
+      <span><a href="architecture.html">架构说明</a>　·　<a href="plugins.html">插件协议</a>　·　<a href="https://github.com/guangl/dameng-cli/blob/main/LICENSE">MIT License</a></span>
     </div>
   </footer>
 

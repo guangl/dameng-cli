@@ -102,7 +102,7 @@ fn main() {
 }
 ```
 
-见 [插件开发网页](docs/plugin-development.html)、[完整开发文档](docs/plugin-development/README.md)、[插件开发协议](docs/plugins.md)、[架构说明](docs/architecture.md) 和可运行的 [hello 示例](examples/hello)。SDK 目前随仓库提供，尚未宣称发布到 crates.io。
+见 [插件开发网站](https://guangl.github.io/dameng-cli/)、[开发文档源码](docs/plugin-development/README.md)、[插件开发协议](docs/plugins.md)、[架构说明](docs/architecture.md) 和可运行的 [hello 示例](examples/hello)。SDK 目前随仓库提供，尚未宣称发布到 crates.io。
 
 ## 开发与仓库维护
 

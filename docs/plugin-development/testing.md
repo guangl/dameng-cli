@@ -1,3 +1,9 @@
+---
+layout: doc
+title: 测试与调试
+description: 插件分层测试、隔离安装、CI 门禁和调试建议。
+---
+
 # 测试与调试
 
 ## 分层测试
@@ -48,5 +54,4 @@ DM_HOME="$plugin_test_home" dm uninstall backup
 
 如需查看安装结果，插件目录位于 `DM_HOME/plugins/<name>`。该目录是宿主管理区域，不要手工修改；修改会导致清单校验失败。
 
-下一步阅读[发布与分发](publishing.md)。
-
+下一步阅读[发布与分发](publishing.html)。

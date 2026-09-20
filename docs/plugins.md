@@ -1,3 +1,9 @@
+---
+layout: doc
+title: Rust 插件开发协议 v1
+description: dameng-cli 插件清单、构建校验和运行时协议规范。
+---
+
 # Rust 插件开发协议 v1
 
 ## 最小插件
@@ -39,7 +45,7 @@ dm-plugin-sdk = { path = "../dameng-cli/crates/dm-plugin-sdk" }
 
 将 path 调整为 SDK 的实际相对路径。这适用于本地开发；独立发布前将 SDK 改为可访问的 Git 依赖并固定到实际提交，或在 SDK 正式发布后使用 crates.io 版本。不要将本机绝对路径提交为公开插件的依赖。
 
-实现方式见 [hello](../examples/hello/src/main.rs)。执行 `cargo generate-lockfile` 并提交 `Cargo.lock`；然后 `dm install ./my-plugin`。远程插件仓库的根目录就是该 crate，所有依赖必须能在独立克隆后解析；不初始化 Git 子模块。
+实现方式见 [hello](https://github.com/guangl/dameng-cli/blob/main/examples/hello/src/main.rs)。执行 `cargo generate-lockfile` 并提交 `Cargo.lock`；然后 `dm install ./my-plugin`。远程插件仓库的根目录就是该 crate，所有依赖必须能在独立克隆后解析；不初始化 Git 子模块。
 
 ## 校验规则
 
