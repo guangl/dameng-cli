@@ -1,0 +1,51 @@
+# 发布与分发
+
+## 发布前清单
+
+- `dm-plugin.toml` 与 Cargo package 版本一致。
+- `Cargo.lock` 已生成并提交。
+- SDK 使用公开可访问、固定提交的 Git 依赖；不包含本机绝对路径。
+- 仓库根目录就是插件 crate，不依赖未初始化的 submodule。
+- README 记录用法、配置、退出码、数据库客户端依赖和许可证。
+- 所有目标系统的格式、Clippy、测试和文档检查通过。
+- 错误消息、fixture 和 CI 日志中没有真实凭证。
+
+## 本地目录安装
+
+适用于开发和审查：
+
+```sh
+dm install ./dm-plugin-backup
+```
+
+宿主读取当前目录中的源码，但安装后只保留编译出的 binary 和清单。
+
+## HTTPS Git 安装
+
+将 crate 放在仓库根目录并推送后：
+
+```sh
+dm install https://github.com/your-org/dm-plugin-backup.git
+```
+
+宿主浅克隆远程默认分支并执行 locked release build。`Cargo.lock` 固定依赖，但默认分支仍可能变化；需要严格复现时，让用户先在本地检出明确 tag 或 commit，再从目录安装。
+
+## 名称安装
+
+名称安装依赖用户配置的本地注册表。注册表中的名称必须与下载后清单的 `name` 完全一致：
+
+```sh
+dm install backup
+```
+
+具体注册表配置方式以当前宿主 README 为准。插件仓库不能通过修改自身清单冒充另一个注册名称。
+
+## 版本策略
+
+- 插件业务版本由插件仓库独立维护。
+- 破坏性命令行或配置变更应提升主版本并写迁移说明。
+- 宿主 API 仍为 v1 时保持 `api_version = 1`。
+- 升级安装当前采用先卸载、再安装；发布说明应提示短暂不可用和配置迁移步骤。
+
+出现问题时查看[故障排查](troubleshooting.md)。
+
