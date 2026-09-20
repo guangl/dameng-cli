@@ -86,11 +86,15 @@ fn rust_plugin_lifecycle_and_process_contract() {
     let home = temp.path().join("dm home");
     let source = fixture(temp.path());
     assert!(ok(dm(&home).arg("list").output().unwrap()).is_empty());
-    assert!(!home.exists());
+    assert!(home.join("store.sqlite3").is_file());
     assert!(
         ok(dm(&home).arg("install").arg(&source).output().unwrap()).contains("Installed probe")
     );
     assert!(ok(dm(&home).arg("list").output().unwrap()).contains("probe\t0.1.0"));
+    assert_eq!(
+        &fs::read(home.join("store.sqlite3")).unwrap()[..16],
+        b"SQLite format 3\0"
+    );
     assert!(
         !dm(&home)
             .arg("install")
@@ -219,12 +223,77 @@ fn traversal_and_unconfigured_registry_are_rejected() {
     assert!(store.uninstall("../outside").is_err());
     assert!(store.run("../outside", &[]).is_err());
     assert!(store.install("unknown").is_err());
-    fs::write(
-        temp.path().join("registry.toml"),
-        "[plugins]\nprobe = \"file:///untrusted\"\n",
-    )
-    .unwrap();
+    assert!(store.registry_add("probe", "file:///untrusted").is_err());
     assert!(store.install("probe").is_err());
+}
+
+#[test]
+fn sqlite_registry_is_persistent_sorted_and_manageable() {
+    let temp = TempDir::new().unwrap();
+    let store = PluginStore::new(temp.path());
+    store
+        .registry_add("zeta", "https://example.invalid/zeta.git")
+        .unwrap();
+    store
+        .registry_add("alpha", "https://example.invalid/alpha.git")
+        .unwrap();
+    store
+        .registry_add("alpha", "https://example.invalid/new-alpha.git")
+        .unwrap();
+    assert_eq!(
+        store.registry_list().unwrap(),
+        vec![
+            (
+                "alpha".into(),
+                "https://example.invalid/new-alpha.git".into()
+            ),
+            ("zeta".into(), "https://example.invalid/zeta.git".into())
+        ]
+    );
+    store.registry_remove("alpha").unwrap();
+    assert!(store.registry_remove("alpha").is_err());
+    assert_eq!(store.registry_list().unwrap().len(), 1);
+}
+
+#[test]
+fn newer_sqlite_schema_is_rejected() {
+    let temp = TempDir::new().unwrap();
+    let database = temp.path().join("store.sqlite3");
+    rusqlite::Connection::open(database)
+        .unwrap()
+        .execute_batch("PRAGMA user_version = 2")
+        .unwrap();
+    let error = PluginStore::new(temp.path()).list().unwrap_err();
+    assert!(error.to_string().contains("schema 2 is newer"));
+}
+
+#[test]
+fn registry_cli_round_trip() {
+    let temp = TempDir::new().unwrap();
+    let home = temp.path();
+    assert!(
+        ok(dm(home)
+            .args([
+                "registry",
+                "add",
+                "probe",
+                "https://example.invalid/probe.git"
+            ])
+            .output()
+            .unwrap())
+        .contains("Registered probe")
+    );
+    assert_eq!(
+        ok(dm(home).args(["registry", "list"]).output().unwrap()),
+        "probe\thttps://example.invalid/probe.git\n"
+    );
+    assert!(
+        ok(dm(home)
+            .args(["registry", "remove", "probe"])
+            .output()
+            .unwrap())
+        .contains("Removed probe")
+    );
 }
 
 #[test]
@@ -247,11 +316,13 @@ fn symlinked_installed_directory_is_not_executed_or_removed() {
     use std::os::unix::fs::symlink;
     let temp = TempDir::new().unwrap();
     let home = temp.path().join("home");
-    fs::create_dir_all(home.join("plugins")).unwrap();
+    let source = fixture(temp.path());
+    let store = PluginStore::new(&home);
+    store.install(source.to_str().unwrap()).unwrap();
+    fs::remove_dir_all(home.join("plugins/probe")).unwrap();
     let outside = temp.path().join("outside");
     fs::create_dir(&outside).unwrap();
     symlink(&outside, home.join("plugins/probe")).unwrap();
-    let store = PluginStore::new(home);
     assert!(store.run("probe", &[]).is_err());
     assert!(store.uninstall("probe").is_err());
     assert!(outside.is_dir());
@@ -307,8 +378,13 @@ fn registry_resolution_and_git_failure_with_fake_transport() {
     let temp = TempDir::new().unwrap();
     let source = fixture(temp.path());
     let home = temp.path().join("home");
-    fs::create_dir(&home).unwrap();
-    fs::write(home.join("registry.toml"), "[plugins]\nprobe = \"https://example.invalid/probe.git\"\nwrong = \"https://example.invalid/probe.git\"\n").unwrap();
+    let store = PluginStore::new(&home);
+    store
+        .registry_add("probe", "https://example.invalid/probe.git")
+        .unwrap();
+    store
+        .registry_add("wrong", "https://example.invalid/probe.git")
+        .unwrap();
     let tools = temp.path().join("tools");
     fs::create_dir(&tools).unwrap();
     let git = tools.join("git");
@@ -341,4 +417,17 @@ fn registry_resolution_and_git_failure_with_fake_transport() {
     assert!(!failed.status.success());
     assert!(String::from_utf8_lossy(&failed.stderr).contains("Git could not fetch"));
     assert_eq!(fs::read_dir(home.join("plugins")).unwrap().count(), 1);
+}
+
+#[cfg(unix)]
+#[test]
+fn installer_scripts_have_valid_shell_syntax() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    for script in ["scripts/install.sh", "scripts/install-local.sh"] {
+        let output = Command::new("sh")
+            .args(["-n", root.join(script).to_str().unwrap()])
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{script} has invalid shell syntax");
+    }
 }

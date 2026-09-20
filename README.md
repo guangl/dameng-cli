@@ -11,13 +11,33 @@
 
 ## 快速开始
 
-需要当前稳定版 Rust / Cargo；从远程仓库安装插件还需要 Git。
+### 安装 `dm`
+
+Linux x86_64 或 Apple Silicon macOS 可以从最新 GitHub Release 远程安装：
 
 ```sh
-git clone https://github.com/guangl/dameng-cli.git
-cd dameng-cli
-cargo install --path . --locked
+curl -fsSL https://raw.githubusercontent.com/guangl/dameng-cli/main/scripts/install.sh | sh
+```
 
+指定版本或安装目录：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/guangl/dameng-cli/main/scripts/install.sh | DM_INSTALL_DIR="$HOME/bin" sh -s -- v0.1.0
+```
+
+已下载源码时，使用本地安装脚本（需要当前稳定版 Rust / Cargo）：
+
+```sh
+./scripts/install-local.sh
+```
+
+两个脚本默认安装到 `$HOME/.local/bin/dm`，可通过 `DM_INSTALL_DIR` 修改。远程脚本会下载与 Release 一起发布的 SHA-256 文件并在安装前校验；Windows 请下载 Release 中的 zip，或执行 `cargo install --path . --locked`。
+
+### 安装插件
+
+从远程仓库安装插件需要 Git，从源码构建插件需要当前稳定版 Rust / Cargo。
+
+```sh
 dm install ./examples/hello
 dm list
 dm hello --help
@@ -37,6 +57,9 @@ dm uninstall hello
 | `dm list` | 列出已安装插件 |
 | `dm <name> [args...]` | 执行插件，原样转发后续参数，包括 `--help` |
 | `dm uninstall <name>` | 删除插件，不要求插件清单完好 |
+| `dm registry add <name> <url>` | 在 SQLite 注册表中新增或更新名称与 HTTPS Git 地址 |
+| `dm registry list` | 列出名称注册表 |
+| `dm registry remove <name>` | 删除名称注册表条目 |
 | `dm --help` / `dm --version` | 宿主帮助和版本 |
 
 同名插件拒绝覆盖；更新时先卸载再安装。首版不提供自动更新或中央插件市场。
@@ -49,14 +72,15 @@ dm uninstall hello
 - Windows：`%LOCALAPPDATA%\dm`。
 - Linux / macOS：`$XDG_DATA_HOME/dm`，未设置时使用 `$HOME/.local/share/dm`。
 
-可以在该目录创建 `registry.toml`，使用自己的真实插件仓库地址：
+该目录内的 `store.sqlite3` 是插件元数据和名称注册表的权威存储。插件可执行文件仍保存在 `plugins/`，以便操作系统直接运行。使用自己的真实插件仓库地址：
 
-```toml
-[plugins]
-backup = "https://github.com/YOUR_ORG/dm-backup.git"
+```sh
+dm registry add backup https://github.com/YOUR_ORG/dm-backup.git
+dm registry list
+dm install backup
 ```
 
-配置后执行 `dm install backup`。注册表名称必须与目标插件清单名称一致。仓库根目录必须包含插件 crate、`Cargo.lock` 和 `dm-plugin.toml`；示例地址不是已发布的插件。
+注册表名称必须与目标插件清单名称一致。仓库根目录必须包含插件 crate、`Cargo.lock` 和 `dm-plugin.toml`；示例地址不是已发布的插件。旧版 `registry.toml` 不再读取，请用 `dm registry add` 导入其中的条目。
 
 ## Rust 插件开发
 

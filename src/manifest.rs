@@ -51,8 +51,12 @@ impl Manifest {
             fs::symlink_metadata(&path).with_context(|| format!("Read {}", path.display()))?;
         ensure!(metadata.is_file(), "Manifest must be a regular file");
         ensure!(metadata.len() <= 64 * 1024, "Manifest exceeds 64 KiB");
-        let manifest: Self = toml::from_str(&fs::read_to_string(&path)?)
-            .with_context(|| format!("Invalid manifest {}", path.display()))?;
+        Self::from_toml(&fs::read_to_string(&path)?)
+            .with_context(|| format!("Invalid manifest {}", path.display()))
+    }
+
+    pub(crate) fn from_toml(text: &str) -> Result<Self> {
+        let manifest: Self = toml::from_str(text)?;
         validate_name(&manifest.name)?;
         ensure!(
             manifest.api_version == API_VERSION,
