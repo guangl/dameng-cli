@@ -9,19 +9,13 @@ pub const MANIFEST_FILE: &str = "dm-plugin.toml";
 pub use dm_plugin_sdk::API_VERSION;
 pub const SUPPORTED_API_VERSIONS: &[u32] = &[API_VERSION];
 const RESERVED_NAMES: &[&str] = &[
-    "disable",
     "doctor",
-    "enable",
     "completions",
     "help",
     "info",
     "install",
     "list",
-    "new",
     "outdated",
-    "registry",
-    "rollback",
-    "search",
     "self-update",
     "uninstall",
     "update",
@@ -128,7 +122,9 @@ impl Manifest {
             .with_context(|| format!("Invalid manifest {}", path.display()))
     }
 
-    pub(crate) fn from_toml(text: &str) -> Result<Self> {
+    /// Parse and validate a manifest from TOML. Public for integration tests.
+    #[doc(hidden)]
+    pub fn from_toml(text: &str) -> Result<Self> {
         let manifest: Self = toml::from_str(text)?;
         validate_name(&manifest.name)?;
         ensure!(

@@ -1,5 +1,6 @@
 use crate::{API_VERSION, Manifest, plugin::manifest::validate_name};
 use anyhow::{Context, Result, bail, ensure};
+use indicatif::ProgressBar;
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -21,7 +22,6 @@ pub struct PluginInfo {
     pub source_ref: Option<String>,
     pub checksum: String,
     pub installed_at: i64,
-    pub enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -55,19 +55,22 @@ impl PluginStore {
     }
 
     pub fn from_env() -> Result<Self> {
-        let home = if let Some(home) = env::var_os("DM_HOME") {
-            ensure!(!home.is_empty(), "DM_HOME must not be empty");
+        let home = if let Some(home) = env::var_os("DM_PLUGIN_HOME") {
+            ensure!(!home.is_empty(), "DM_PLUGIN_HOME must not be empty");
             PathBuf::from(home)
-        } else if cfg!(windows) {
-            PathBuf::from(env::var_os("LOCALAPPDATA").context("Set DM_HOME or LOCALAPPDATA")?)
-                .join("dm")
-        } else if let Some(data) = env::var_os("XDG_DATA_HOME").filter(|s| !s.is_empty()) {
-            let data = PathBuf::from(data);
-            ensure!(data.is_absolute(), "XDG_DATA_HOME must be absolute");
-            data.join("dm")
         } else {
-            PathBuf::from(env::var_os("HOME").context("Set DM_HOME or HOME")?)
-                .join(".local/share/dm")
+            #[cfg(windows)]
+            {
+                PathBuf::from(
+                    env::var_os("LOCALAPPDATA").context("Set DM_PLUGIN_HOME or LOCALAPPDATA")?,
+                )
+                .join("dm")
+            }
+            #[cfg(not(windows))]
+            {
+                PathBuf::from(env::var_os("HOME").context("Set DM_PLUGIN_HOME or HOME")?)
+                    .join(".config/dm")
+            }
         };
         Ok(Self::new(if home.is_absolute() {
             home
@@ -96,22 +99,44 @@ impl PluginStore {
         self.home.join("store.sqlite3")
     }
 
+    fn ensure_home_writable(&self) -> Result<()> {
+        tempfile::Builder::new()
+            .prefix(".dm-write-probe-")
+            .tempfile_in(&self.home)
+            .with_context(|| {
+                format!(
+                    "DM_PLUGIN_HOME directory {} is not writable; check permissions or set DM_PLUGIN_HOME to a writable directory",
+                    self.home.display()
+                )
+            })?;
+        Ok(())
+    }
+
+    fn store_open_error(&self, error: rusqlite::Error) -> anyhow::Error {
+        if error.sqlite_error_code() == Some(rusqlite::ErrorCode::CannotOpen) {
+            anyhow::anyhow!(
+                "Cannot open SQLite plugin store at {}; make sure the DM_PLUGIN_HOME directory is writable: {error}",
+                self.database().display()
+            )
+        } else {
+            anyhow::Error::from(error)
+        }
+    }
+
     fn connect(&self) -> Result<Connection> {
         fs::create_dir_all(&self.home).context("Create dm data directory")?;
-        let connection = Connection::open(self.database()).context("Open SQLite plugin store")?;
+        self.ensure_home_writable()?;
+        let connection = Connection::open(self.database())
+            .map_err(|error| self.store_open_error(error))
+            .context("Open SQLite plugin store")?;
         connection
             .busy_timeout(std::time::Duration::from_secs(5))
             .context("Configure SQLite plugin store")?;
-        let schema_version: u32 =
-            connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-        ensure!(
-            schema_version <= 2,
-            "SQLite plugin store schema {schema_version} is newer than this dm supports"
-        );
         connection
             .execute_batch(
                 "PRAGMA journal_mode = WAL;
                  PRAGMA foreign_keys = ON;
+                 PRAGMA user_version = 3;
                  CREATE TABLE IF NOT EXISTS installed_plugins (
                      name TEXT PRIMARY KEY,
                      manifest TEXT NOT NULL,
@@ -119,42 +144,12 @@ impl PluginStore {
                      source TEXT,
                      revision TEXT,
                      source_ref TEXT,
-                     checksum TEXT NOT NULL DEFAULT '',
-                     enabled INTEGER NOT NULL DEFAULT 1
-                 ) STRICT;
-                 CREATE TABLE IF NOT EXISTS registry (
-                     name TEXT PRIMARY KEY,
-                     source TEXT NOT NULL,
-                     updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+                     checksum TEXT NOT NULL DEFAULT ''
                  ) STRICT;",
             )
+            .map_err(|error| self.store_open_error(error))
             .context("Initialize SQLite plugin store")?;
-        if schema_version == 1 {
-            connection.execute_batch(
-                "BEGIN IMMEDIATE;
-                 ALTER TABLE installed_plugins ADD COLUMN source TEXT;
-                 ALTER TABLE installed_plugins ADD COLUMN revision TEXT;
-                 ALTER TABLE installed_plugins ADD COLUMN source_ref TEXT;
-                 ALTER TABLE installed_plugins ADD COLUMN checksum TEXT NOT NULL DEFAULT '';
-                 ALTER TABLE installed_plugins ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1;
-                 PRAGMA user_version = 2;
-                 COMMIT;",
-            )?;
-        } else if schema_version == 0 {
-            connection.execute_batch("PRAGMA user_version = 2;")?;
-        }
         Ok(connection)
-    }
-
-    fn registered_source(&self, name: &str) -> Result<String> {
-        self.connect()?
-            .query_row(
-                "SELECT source FROM registry WHERE name = ?1",
-                [name],
-                |row| row.get(0),
-            )
-            .optional()?
-            .with_context(|| format!("Plugin '{name}' is not registered"))
     }
 
     pub fn install(&self, source: &str) -> Result<Manifest> {
@@ -162,15 +157,6 @@ impl PluginStore {
     }
 
     pub fn install_with_revision(&self, source: &str, revision: Option<&str>) -> Result<Manifest> {
-        self.install_with_consent(source, revision, false)
-    }
-
-    pub fn install_with_consent(
-        &self,
-        source: &str,
-        revision: Option<&str>,
-        accept_permissions: bool,
-    ) -> Result<Manifest> {
         if Path::new(source).is_dir() {
             ensure!(
                 revision.is_none(),
@@ -183,40 +169,19 @@ impl PluginStore {
                 None,
                 None,
                 InstallMode::New,
-                accept_permissions,
             );
         }
-        let requested_name = (!source.starts_with("https://")).then_some(source);
-        let resolved;
-        let source = if source.starts_with("https://") {
-            source
-        } else {
-            validate_name(source)?;
-            resolved = self.registered_source(source).with_context(|| {
-                format!(
-                    "Unknown plugin '{source}'; use a local directory, HTTPS Git URL, or dm registry add"
-                )
-            })?;
-            &resolved
-        };
         ensure!(
             source.starts_with("https://") && source.len() > 8,
             "Source must be a local plugin directory or HTTPS Git repository URL"
         );
         let (checkout, destination, resolved_revision) = checkout_git(source, revision)?;
-        if let Some(name) = requested_name {
-            ensure!(
-                Manifest::read(&destination)?.name == name,
-                "Registry name '{name}' does not match the fetched plugin manifest"
-            );
-        }
         let result = self.install_directory(
             &destination,
             Some(source.to_owned()),
             Some(resolved_revision),
             revision.map(str::to_owned),
             InstallMode::New,
-            accept_permissions,
         );
         drop(checkout);
         result
@@ -229,7 +194,6 @@ impl PluginStore {
         revision: Option<String>,
         source_ref: Option<String>,
         mode: InstallMode,
-        accept_permissions: bool,
     ) -> Result<Manifest> {
         let source = fs::canonicalize(source)?;
         let manifest = Manifest::read(&source)?;
@@ -246,16 +210,6 @@ impl PluginStore {
             [&manifest.name],
             |row| row.get::<_, bool>(0),
         )?;
-        let previous_manifest = if installed {
-            Some(self.info(&manifest.name)?.manifest)
-        } else {
-            None
-        };
-        ensure!(
-            accept_permissions || !manifest.requests_consent_from(previous_manifest.as_ref()),
-            "Plugin '{}' requests new permissions or environment variables; review its manifest and rerun with --accept-permissions",
-            manifest.name
-        );
         match mode {
             InstallMode::New => {
                 ensure!(
@@ -283,42 +237,33 @@ impl PluginStore {
             .prefix(".install-")
             .tempdir_in(&plugins)?;
         let package = stage.path().join("package");
-        validate_crate(&source, &manifest)?;
+        let prebuilt = stage.path().join("prebuilt");
+        let local_binary = source.join(manifest.executable_name());
+        if local_binary.is_file() {
+            fs::copy(&local_binary, &prebuilt).context("Copy local prebuilt plugin")?;
+        } else {
+            try_download_prebuilt(
+                recorded_source.as_deref(),
+                &manifest,
+                source_ref.as_deref(),
+                &prebuilt,
+            )
+            .context("Source builds are disabled; install a prebuilt plugin release")?;
+        }
         if let Some(hook) = manifest.hooks.pre_install.as_deref() {
             self.run_hook(&source, hook, "pre-install", &manifest)?;
         }
-        let build = stage.path().join("build");
-        let status = Command::new("cargo")
-            .args(["build", "--release", "--locked", "--manifest-path"])
-            .arg(source.join("Cargo.toml"))
-            .args([
-                "--bin",
-                &manifest.binary_name(),
-                "--target",
-                env!("DM_HOST_TARGET"),
-                "--target-dir",
-            ])
-            .arg(&build)
-            .current_dir(&source)
-            .status()
-            .context("Build Rust plugin; install the Rust toolchain and Cargo first")?;
-        ensure!(
-            status.success(),
-            "Rust plugin build failed; no plugin was installed"
-        );
-        ensure!(
-            Manifest::read(&source)? == manifest,
-            "Plugin manifest changed during build"
-        );
         fs::create_dir(&package)?;
-        fs::copy(
-            build
-                .join(env!("DM_HOST_TARGET"))
-                .join("release")
-                .join(manifest.executable_name()),
-            package.join(manifest.executable_name()),
-        )
-        .context("Copy compiled Rust plugin")?;
+        fs::copy(&prebuilt, package.join(manifest.executable_name()))
+            .context("Copy plugin binary")?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(
+                package.join(manifest.executable_name()),
+                fs::Permissions::from_mode(0o755),
+            )?;
+        }
         fs::write(
             package.join(crate::MANIFEST_FILE),
             toml::to_string(&manifest)?,
@@ -349,8 +294,8 @@ impl PluginStore {
         let database_result = match mode {
             InstallMode::New => transaction.execute(
                 "INSERT INTO installed_plugins
-                 (name, manifest, source, revision, source_ref, checksum, enabled)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1)",
+                 (name, manifest, source, revision, source_ref, checksum)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                 params![
                     manifest.name,
                     toml::to_string(&manifest)?,
@@ -381,9 +326,6 @@ impl PluginStore {
                 let _ = fs::rename(&previous, &destination);
             }
             return Err(error).context("Record installed plugin in SQLite");
-        }
-        if mode == InstallMode::Update {
-            self.archive_previous(&previous, &manifest.name)?;
         }
         Ok(manifest)
     }
@@ -418,7 +360,7 @@ impl PluginStore {
         let values = self
             .connect()?
             .query_row(
-                "SELECT manifest, source, revision, source_ref, checksum, installed_at, enabled
+                "SELECT manifest, source, revision, source_ref, checksum, installed_at
                  FROM installed_plugins WHERE name = ?1",
                 [name],
                 |row| {
@@ -429,7 +371,6 @@ impl PluginStore {
                         row.get::<_, Option<String>>(3)?,
                         row.get::<_, String>(4)?,
                         row.get::<_, i64>(5)?,
-                        row.get::<_, bool>(6)?,
                     ))
                 },
             )
@@ -442,20 +383,7 @@ impl PluginStore {
             source_ref: values.3,
             checksum: values.4,
             installed_at: values.5,
-            enabled: values.6,
         })
-    }
-
-    pub fn set_enabled(&self, name: &str, enabled: bool) -> Result<()> {
-        validate_name(name)?;
-        ensure!(
-            self.connect()?.execute(
-                "UPDATE installed_plugins SET enabled = ?2 WHERE name = ?1",
-                params![name, enabled],
-            )? == 1,
-            "Plugin '{name}' is not installed"
-        );
-        Ok(())
     }
 
     pub fn verify(&self, name: Option<&str>) -> Result<Vec<String>> {
@@ -479,10 +407,6 @@ impl PluginStore {
     }
 
     pub fn update(&self, name: &str) -> Result<Manifest> {
-        self.update_with_consent(name, false)
-    }
-
-    pub fn update_with_consent(&self, name: &str, accept_permissions: bool) -> Result<Manifest> {
         let info = self.info(name)?;
         let source = info
             .source
@@ -495,7 +419,6 @@ impl PluginStore {
                 None,
                 None,
                 InstallMode::Update,
-                accept_permissions,
             );
         }
         ensure!(
@@ -515,27 +438,19 @@ impl PluginStore {
             Some(resolved_revision),
             info.source_ref,
             InstallMode::Update,
-            accept_permissions,
         );
         drop(checkout);
         result
     }
 
     pub fn update_all(&self) -> Vec<(String, Result<Manifest>)> {
-        self.update_all_with_consent(false)
-    }
-
-    pub fn update_all_with_consent(
-        &self,
-        accept_permissions: bool,
-    ) -> Vec<(String, Result<Manifest>)> {
         match self.list_info() {
             Ok(plugins) => plugins
                 .into_iter()
                 .map(|plugin| {
                     let name = plugin.manifest.name;
                     eprintln!("Updating {name}");
-                    let result = self.update_with_consent(&name, accept_permissions);
+                    let result = self.update(&name);
                     (name, result)
                 })
                 .collect(),
@@ -588,17 +503,6 @@ impl PluginStore {
         })
     }
 
-    pub fn search(&self, query: &str) -> Result<Vec<(String, String)>> {
-        Ok(filter_registry(self.registry_list()?, query))
-    }
-
-    pub fn search_remote(&self, url: &str, query: &str) -> Result<Vec<(String, String)>> {
-        Ok(filter_registry(
-            crate::registry_index::fetch_registry_index(url)?,
-            query,
-        ))
-    }
-
     pub fn doctor(&self, repair: bool) -> Result<DoctorReport> {
         fs::create_dir_all(self.plugins())?;
         let connection = self.connect()?;
@@ -614,20 +518,16 @@ impl PluginStore {
         for entry in fs::read_dir(self.plugins())? {
             let entry = entry?;
             let name = entry.file_name().to_string_lossy().into_owned();
-            if name.starts_with(".rollback-") {
-                issues.push(format!("stale rollback transaction directory: {name}"));
-                if repair {
-                    repairs.push(self.repair_rollback_transaction(&entry.path())?);
-                }
-                continue;
-            }
-            if name.starts_with(".install-") || name.starts_with(".remove-") {
+            if name.starts_with(".install-")
+                || name.starts_with(".remove-")
+                || name.starts_with(".rollback-")
+            {
                 issues.push(format!("stale transaction directory: {name}"));
                 if repair {
-                    let candidate = if name.starts_with(".install-") {
-                        entry.path().join("previous")
-                    } else {
+                    let candidate = if name.starts_with(".remove-") {
                         entry.path().join("package")
+                    } else {
+                        entry.path().join("previous")
                     };
                     if candidate.is_dir() {
                         if let Ok(manifest) = Manifest::read(&candidate) {
@@ -744,7 +644,8 @@ impl PluginStore {
         Ok(DoctorReport { issues, repairs })
     }
 
-    fn load(&self, name: &str) -> Result<(PathBuf, Manifest)> {
+    #[doc(hidden)]
+    pub fn load(&self, name: &str) -> Result<(PathBuf, Manifest)> {
         validate_name(name)?;
         let stored = self
             .connect()?
@@ -825,89 +726,6 @@ impl PluginStore {
         Ok(())
     }
 
-    pub fn registry_add(&self, name: &str, source: &str) -> Result<()> {
-        validate_name(name)?;
-        ensure!(
-            source.starts_with("https://") && source.len() > 8,
-            "Registry source must be an HTTPS Git repository URL"
-        );
-        self.connect()?.execute(
-            "INSERT INTO registry (name, source) VALUES (?1, ?2)
-             ON CONFLICT(name) DO UPDATE SET source = excluded.source, updated_at = unixepoch()",
-            params![name, source],
-        )?;
-        Ok(())
-    }
-
-    pub fn verify_registry_source(&self, source: &str) -> Result<()> {
-        ensure!(
-            source.starts_with("https://") && source.len() > 8,
-            "Registry source must be an HTTPS Git repository URL"
-        );
-        let status = Command::new("git")
-            .args([
-                "-c",
-                "protocol.https.allow=always",
-                "-c",
-                "protocol.allow=never",
-                "ls-remote",
-            ])
-            .arg(source)
-            .env("GIT_TERMINAL_PROMPT", "0")
-            .status()
-            .context("Verify registry source; HTTPS registry verification requires Git")?;
-        ensure!(status.success(), "Git source is not reachable: {source}");
-        Ok(())
-    }
-
-    pub fn registry_sync(&self, url: &str, prune: bool) -> Result<(usize, usize)> {
-        let entries = crate::registry_index::fetch_registry_index(url)?;
-        let mut connection = self.connect()?;
-        let transaction = connection.transaction()?;
-        for (name, source) in &entries {
-            transaction.execute(
-                "INSERT INTO registry (name, source) VALUES (?1, ?2)
-                 ON CONFLICT(name) DO UPDATE SET source = excluded.source, updated_at = unixepoch()",
-                params![name, source],
-            )?;
-        }
-        let mut removed = 0;
-        if prune {
-            let existing = {
-                let mut statement = transaction.prepare("SELECT name FROM registry")?;
-                let names = statement.query_map([], |row| row.get::<_, String>(0))?;
-                names.collect::<rusqlite::Result<Vec<_>>>()?
-            };
-            for name in existing {
-                if !entries.iter().any(|(entry, _)| entry == &name) {
-                    transaction.execute("DELETE FROM registry WHERE name = ?1", [&name])?;
-                    removed += 1;
-                }
-            }
-        }
-        transaction.commit()?;
-        Ok((entries.len(), removed))
-    }
-
-    pub fn registry_list(&self) -> Result<Vec<(String, String)>> {
-        let connection = self.connect()?;
-        let mut statement =
-            connection.prepare("SELECT name, source FROM registry ORDER BY name")?;
-        let rows = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
-        rows.collect::<rusqlite::Result<_>>().map_err(Into::into)
-    }
-
-    pub fn registry_remove(&self, name: &str) -> Result<()> {
-        validate_name(name)?;
-        ensure!(
-            self.connect()?
-                .execute("DELETE FROM registry WHERE name = ?1", [name])?
-                == 1,
-            "Plugin '{name}' is not registered"
-        );
-        Ok(())
-    }
-
     fn copy_hooks(&self, source: &Path, package: &Path, manifest: &Manifest) -> Result<()> {
         for hook in [
             manifest.hooks.post_install.as_deref(),
@@ -953,7 +771,7 @@ impl PluginStore {
         command
             .arg(phase)
             .current_dir(&root)
-            .env("DM_HOME", fs::canonicalize(&self.home)?)
+            .env("DM_PLUGIN_HOME", fs::canonicalize(&self.home)?)
             .env("DM_PLUGIN_DIR", &root)
             .env("DM_HOOK_PHASE", phase);
         let status = command
@@ -963,104 +781,7 @@ impl PluginStore {
         Ok(())
     }
 
-    fn archive_previous(&self, previous: &Path, name: &str) -> Result<()> {
-        let backups = self.backups();
-        fs::create_dir_all(&backups)?;
-        let target = backups.join(name);
-        if target.exists() {
-            fs::remove_dir_all(&target)?;
-        }
-        fs::rename(previous, &target).with_context(|| format!("Archive previous {name}"))?;
-        Ok(())
-    }
-
-    fn repair_rollback_transaction(&self, transaction: &Path) -> Result<String> {
-        let previous = transaction.join("previous");
-        if !previous.exists() {
-            fs::remove_dir_all(transaction)?;
-            return Ok(format!(
-                "removed completed rollback transaction {}",
-                transaction.display()
-            ));
-        }
-
-        let previous_manifest =
-            Manifest::read(&previous).context("Read previous plugin from interrupted rollback")?;
-        let name = &previous_manifest.name;
-        let stored = self.info(name)?;
-        let current = self.plugins().join(name);
-        let current_manifest = Manifest::read(&current).ok();
-
-        if stored.manifest == previous_manifest {
-            // SQLite still describes the pre-rollback version. Abort the interrupted
-            // rollback and put that version back in the active plugin directory.
-            if current.exists() {
-                let current_manifest = current_manifest
-                    .as_ref()
-                    .context("Interrupted rollback left an invalid active plugin")?;
-                ensure!(
-                    current_manifest.name == *name,
-                    "Interrupted rollback active plugin name does not match '{name}'"
-                );
-                self.archive_previous(&current, name)?;
-            }
-            fs::rename(&previous, &current)
-                .with_context(|| format!("Restore interrupted rollback for {name}"))?;
-        } else if current_manifest
-            .as_ref()
-            .is_some_and(|manifest| *manifest == stored.manifest)
-        {
-            // SQLite and the active directory already contain the rolled-back
-            // version. Finish the transaction by retaining the former version as
-            // the next rollback target.
-            self.archive_previous(&previous, name)?;
-        } else {
-            bail!(
-                "Cannot safely repair interrupted rollback for '{name}': neither staged nor active manifest matches SQLite"
-            );
-        }
-
-        fs::remove_dir_all(transaction)?;
-        Ok(format!("recovered interrupted rollback for {name}"))
-    }
-
-    pub fn rollback(&self, name: &str) -> Result<Manifest> {
-        validate_name(name)?;
-        let current = self.plugins().join(name);
-        let backup = self.backups().join(name);
-        ensure!(current.is_dir(), "Plugin '{name}' is not installed");
-        ensure!(
-            backup.is_dir(),
-            "Plugin '{name}' has no backup to roll back to"
-        );
-        let restored = Manifest::read(&backup)?;
-        ensure!(restored.name == name, "Backup name does not match '{name}'");
-        let stage = tempfile::Builder::new()
-            .prefix(".rollback-")
-            .tempdir_in(self.plugins())?;
-        let old = stage.path().join("previous");
-        fs::rename(&current, &old)?;
-        if let Err(error) = fs::rename(&backup, &current) {
-            let _ = fs::rename(&old, &current);
-            return Err(error).context("Restore backup");
-        }
-        let manifest = Manifest::read(&current)?;
-        let checksum = sha256_file(&manifest.entrypoint(&current)?)?;
-        let connection = self.connect()?;
-        if let Err(error) = connection.execute(
-            "UPDATE installed_plugins SET manifest = ?2, checksum = ?3, installed_at = unixepoch() WHERE name = ?1",
-            params![name, toml::to_string(&manifest)?, checksum],
-        ) {
-            let _ = fs::rename(&current, &backup);
-            let _ = fs::rename(&old, &current);
-            return Err(error).context("Record rolled back plugin");
-        }
-        fs::rename(&old, &backup)?;
-        Ok(manifest)
-    }
-
     pub fn run(&self, name: &str, args: &[OsString]) -> Result<i32> {
-        ensure!(self.info(name)?.enabled, "Plugin '{name}' is disabled");
         let (root, manifest) = self.load(name)?;
         let config_dir = self.home.join("config").join(name);
         let data_dir = self.home.join("data").join(name);
@@ -1082,51 +803,36 @@ impl PluginStore {
             .env("DM_PLUGIN_CACHE_DIR", fs::canonicalize(cache_dir)?)
             .status()
             .with_context(|| format!("Start plugin '{name}'"))?;
-        if let Some(code) = status.code() {
-            return Ok(code);
-        }
-        #[cfg(unix)]
-        {
-            use std::os::unix::process::ExitStatusExt;
-            if let Some(signal) = status.signal() {
-                return Ok(128 + signal);
+        let code = match status.code() {
+            Some(code) => code,
+            None => {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::process::ExitStatusExt;
+                    status.signal().map(|signal| 128 + signal).unwrap_or(0)
+                }
+                #[cfg(not(unix))]
+                {
+                    anyhow::bail!("Plugin terminated without an exit code")
+                }
             }
-        }
-        bail!("Plugin terminated without an exit code")
+        };
+        Ok(code)
     }
 }
 
-fn validate_crate(source: &Path, manifest: &Manifest) -> Result<()> {
-    let cargo: toml::Value = toml::from_str(
-        &fs::read_to_string(source.join("Cargo.toml"))
-            .context("Rust plugins must include Cargo.toml")?,
-    )?;
-    let package = cargo
-        .get("package")
-        .context("Plugin must be a Rust package")?;
-    ensure!(
-        package.get("version").and_then(toml::Value::as_str) == Some(&manifest.version),
-        "Cargo package version must match dm-plugin.toml (use an explicit version)"
-    );
-    ensure!(
-        cargo
-            .get("dependencies")
-            .and_then(|v| v.get("dm-plugin-sdk"))
-            .is_some(),
-        "Rust plugins must depend on dm-plugin-sdk"
-    );
-    ensure!(
-        cargo
-            .get("bin")
-            .and_then(toml::Value::as_array)
-            .is_some_and(|bins| bins
-                .iter()
-                .any(|bin| bin.get("name").and_then(toml::Value::as_str)
-                    == Some(&manifest.binary_name()))),
-        "Rust plugins must declare [[bin]] with name '{}'",
-        manifest.binary_name()
-    );
-    Ok(())
+#[doc(hidden)]
+pub fn progress_bar_for(len: u64, terminal: bool) -> ProgressBar {
+    if terminal {
+        ProgressBar::new(len)
+    } else {
+        ProgressBar::hidden()
+    }
+}
+
+fn progress_bar(len: u64) -> ProgressBar {
+    use std::io::IsTerminal;
+    progress_bar_for(len, std::io::stderr().is_terminal())
 }
 
 fn checkout_git(
@@ -1147,6 +853,8 @@ fn checkout_git(
     }
     let checkout = tempfile::tempdir()?;
     let destination = checkout.path().join("source");
+    let bar = progress_bar(2);
+    bar.set_message("Cloning plugin repository");
     eprintln!("Cloning {source}");
     let mut clone = Command::new("git");
     clone.args([
@@ -1161,24 +869,30 @@ fn checkout_git(
     if revision.is_none() {
         clone.args(["--depth", "1"]);
     }
-    let status = clone
+    let output = clone
         .arg("--")
         .arg(source)
         .arg(&destination)
         .env("GIT_TERMINAL_PROMPT", "0")
-        .status()
+        .output()
         .context("Fetch plugin; HTTPS installation requires Git")?;
-    ensure!(status.success(), "Git could not fetch the plugin");
+    ensure!(
+        output.status.success(),
+        "Git could not fetch the plugin\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    bar.inc(1);
     if let Some(revision) = revision {
-        let status = Command::new("git")
+        let output = Command::new("git")
             .args(["-c", "core.hooksPath=/dev/null", "checkout", "--detach"])
             .arg(revision)
             .current_dir(&destination)
             .env("GIT_TERMINAL_PROMPT", "0")
-            .status()?;
+            .output()?;
         ensure!(
-            status.success(),
-            "Git revision '{revision}' could not be checked out"
+            output.status.success(),
+            "Git revision '{revision}' could not be checked out\n{}",
+            String::from_utf8_lossy(&output.stderr)
         );
     }
     let output = Command::new("git")
@@ -1189,8 +903,136 @@ fn checkout_git(
         output.status.success(),
         "Could not resolve plugin Git revision"
     );
+    bar.inc(1);
+    bar.finish_and_clear();
     let resolved = String::from_utf8(output.stdout)?.trim().to_owned();
     Ok((checkout, destination, resolved))
+}
+
+#[doc(hidden)]
+pub fn github_repository(source: &str) -> Option<(&str, &str)> {
+    let rest = source.strip_prefix("https://github.com/")?;
+    let rest = rest.trim_end_matches('/');
+    let rest = rest.strip_suffix(".git").unwrap_or(rest);
+    let (owner, repository) = rest.split_once('/')?;
+    if repository.contains('/') {
+        return None;
+    }
+    let valid = |value: &str| {
+        !value.is_empty()
+            && value
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+    };
+    (valid(owner) && valid(repository)).then_some((owner, repository))
+}
+
+pub fn prebuilt_target_label() -> Option<&'static str> {
+    prebuilt_target_label_for(env!("DM_HOST_TARGET"))
+}
+
+#[doc(hidden)]
+pub fn prebuilt_target_label_for(target: &str) -> Option<&'static str> {
+    match target {
+        "aarch64-apple-darwin" => Some("aarch64-macos"),
+        "x86_64-apple-darwin" => Some("x86_64-macos"),
+        "x86_64-unknown-linux-gnu" | "x86_64-unknown-linux-musl" => Some("x86_64-linux"),
+        "aarch64-unknown-linux-gnu" | "aarch64-unknown-linux-musl" => Some("aarch64-linux"),
+        "x86_64-pc-windows-msvc" => Some("x86_64-windows"),
+        _ => None,
+    }
+}
+
+#[doc(hidden)]
+pub fn release_tag_candidates(manifest: &Manifest, revision: Option<&str>) -> Vec<String> {
+    let mut candidates = Vec::new();
+    if let Some(revision) = revision {
+        if revision.starts_with('v') {
+            candidates.push(revision.to_owned());
+        } else if semver::Version::parse(revision).is_ok() {
+            candidates.push(format!("v{revision}"));
+        }
+    }
+    candidates.push(format!("v{}", manifest.version));
+    candidates.dedup();
+    candidates
+}
+
+fn download_prebuilt_asset(url: &str, destination: &Path) -> bool {
+    Command::new("curl")
+        .args([
+            "-fsSL",
+            "--retry",
+            "3",
+            "--connect-timeout",
+            "15",
+            "--output",
+        ])
+        .arg(destination)
+        .arg(url)
+        .output()
+        .is_ok_and(|output| output.status.success())
+}
+
+fn verify_optional_prebuilt_checksum(binary_url: &str, binary: &Path) -> Result<()> {
+    let checksum_path = binary.with_extension("sha256");
+    let downloaded = download_prebuilt_asset(&format!("{binary_url}.sha256"), &checksum_path);
+    if !downloaded {
+        eprintln!("warning: prebuilt plugin has no SHA-256 sidecar; trusting HTTPS transport");
+        return Ok(());
+    }
+    let expected = fs::read_to_string(&checksum_path)?;
+    let _ = fs::remove_file(&checksum_path);
+    let expected = expected
+        .split_whitespace()
+        .next()
+        .context("Empty prebuilt SHA-256 sidecar")?;
+    ensure!(
+        expected.len() == 64 && expected.bytes().all(|byte| byte.is_ascii_hexdigit()),
+        "Invalid prebuilt SHA-256 sidecar"
+    );
+    let actual = sha256_file(binary)?;
+    ensure!(
+        actual.eq_ignore_ascii_case(expected),
+        "Prebuilt plugin SHA-256 mismatch"
+    );
+    Ok(())
+}
+
+fn try_download_prebuilt(
+    source: Option<&str>,
+    manifest: &Manifest,
+    revision: Option<&str>,
+    destination: &Path,
+) -> Result<()> {
+    let source = source.context("Plugin source is not a GitHub repository")?;
+    let (owner, repository) =
+        github_repository(source).context("Prebuilt plugins require a GitHub HTTPS source")?;
+    let target =
+        prebuilt_target_label().context("No prebuilt plugin is published for this host target")?;
+    let asset = format!(
+        "{}-{}{}",
+        manifest.binary_name(),
+        target,
+        std::env::consts::EXE_SUFFIX
+    );
+    let bar = progress_bar(1);
+    bar.set_message("Downloading prebuilt plugin");
+    for tag in release_tag_candidates(manifest, revision) {
+        let url =
+            format!("https://github.com/{owner}/{repository}/releases/download/{tag}/{asset}");
+        if download_prebuilt_asset(&url, destination) {
+            verify_optional_prebuilt_checksum(&url, destination)?;
+            bar.inc(1);
+            bar.finish_and_clear();
+            return Ok(());
+        }
+    }
+    bar.finish_and_clear();
+    bail!(
+        "No prebuilt plugin '{}' found for {target}; source builds are disabled",
+        asset
+    )
 }
 
 fn sha256_file(path: &Path) -> Result<String> {
@@ -1207,7 +1049,8 @@ fn sha256_file(path: &Path) -> Result<String> {
     Ok(format!("{:x}", hasher.finalize()))
 }
 
-fn versions_differ(installed: &str, available: &str) -> bool {
+#[doc(hidden)]
+pub fn versions_differ(installed: &str, available: &str) -> bool {
     match (
         semver::Version::parse(installed),
         semver::Version::parse(available),
@@ -1215,17 +1058,6 @@ fn versions_differ(installed: &str, available: &str) -> bool {
         (Ok(installed), Ok(available)) => available > installed,
         _ => installed != available,
     }
-}
-
-fn filter_registry(entries: Vec<(String, String)>, query: &str) -> Vec<(String, String)> {
-    let query = query.to_ascii_lowercase();
-    entries
-        .into_iter()
-        .filter(|(name, source)| {
-            name.to_ascii_lowercase().contains(&query)
-                || source.to_ascii_lowercase().contains(&query)
-        })
-        .collect()
 }
 
 fn inherit_safe_environment(command: &mut Command, manifest: &Manifest) {

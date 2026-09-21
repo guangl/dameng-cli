@@ -59,6 +59,7 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: python scripts/release.py verify
       - run: cargo build --release --locked --bin dm --target ${{ matrix.target }}
+      - run: cargo build --release --locked --bin dm-ssh --manifest-path plugins/ssh/Cargo.toml --target ${{ matrix.target }}
       - name: Package binary, license and checksums
         env:
           RELEASE_TAG: ${{ github.ref_name }}
