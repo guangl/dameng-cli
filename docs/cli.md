@@ -13,13 +13,13 @@ description: dm 命令、环境变量、JSON 输出和常见工作流参考。
 | 命令 | 说明 |
 | --- | --- |
 | `dm new <name> [--directory PATH] [--generate-lockfile]` | 创建 Rust 插件项目；未指定目录时使用 `dm-plugin-<name>`。生成锁文件失败会清理新目录。 |
-| `dm install <source> [--rev REF] [--accept-permissions]` | 从本地目录、HTTPS Git URL 或注册名称安装。Git 来源可固定 tag、branch 或 commit。 |
-| `dm update <name> [--accept-permissions]` | 从已记录来源原子升级一个插件。 |
-| `dm update --all [--accept-permissions]` | 逐个升级全部插件，最后汇总失败项。 |
+| `dm install <source> [--rev REF]` | 从本地预编译目录、HTTPS Git URL 或注册名称安装。Git 来源可固定 tag、branch 或 commit；只安装预编译插件，不执行源码编译。 |
+| `dm update <name>` | 从已记录来源原子升级一个插件。 |
+| `dm update --all` | 逐个升级全部插件，最后汇总失败项。 |
 | `dm rollback <name>` | 将当前版本与最近一次升级前的备份交换；再次执行可切回。 |
 | `dm uninstall <name>` | 运行卸载 hook 后删除插件、备份及其 config/data/cache 目录。 |
 
-首次安装带有 `permissions` 或 `environment` 的插件，以及升级时新增这些声明，都需要 `--accept-permissions`。该选项表示用户已审查声明，不会创建权限沙箱。
+`permissions` 与 `environment` 会随清单记录，用于审查和展示，不再要求交互确认。
 
 ## 查询、执行与修复
 
@@ -63,7 +63,7 @@ description: dm 命令、环境变量、JSON 输出和常见工作流参考。
 
 | 变量 | 作用 |
 | --- | --- |
-| `DM_HOME` | 覆盖宿主数据目录；相对路径按当前工作目录解析。 |
+| `DM_PLUGIN_HOME` | 覆盖宿主数据目录；相对路径按当前工作目录解析。 |
 | `DM_REGISTRY_INDEX` | `search` 和 `registry sync` 的默认远程索引 URL。 |
 | `DM_INSTALL_DIR` | 安装脚本的目标目录。 |
 | `DM_INSTALL_TARGET` | 远程安装脚本选择的 Release target。 |

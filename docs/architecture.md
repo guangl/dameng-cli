@@ -42,7 +42,7 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
 不支持安装过程中修改源码或同时卸载正在运行的插件。
 
 ```text
-DM_HOME/
+DM_PLUGIN_HOME/
 ├── store.sqlite3              # 插件元数据和名称 -> HTTPS Git 注册表
 ├── store.sqlite3-wal          # SQLite 运行时文件，存在时不要单独移动
 ├── store.sqlite3-shm          # SQLite 运行时文件，存在时不要单独移动

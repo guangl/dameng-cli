@@ -24,7 +24,7 @@ dm backup --database demo --label "nightly copy"
 | --- | --- |
 | `DM_PLUGIN_API_VERSION` | 当前进程协议版本，v1 为 `1`。 |
 | `DM_PLUGIN_DIR` | 插件安装目录的绝对路径。 |
-| `DM_HOME` | 宿主数据目录的绝对路径。 |
+| `DM_PLUGIN_HOME` | 宿主数据目录的绝对路径。 |
 | `DM_PLUGIN_CONFIG_DIR` | 当前插件的持久配置目录。 |
 | `DM_PLUGIN_DATA_DIR` | 当前插件的持久数据目录。 |
 | `DM_PLUGIN_CACHE_DIR` | 当前插件的可再生成缓存目录。 |

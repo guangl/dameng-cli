@@ -34,7 +34,7 @@ pub struct Context {
 | --- | --- |
 | `args` | 插件名之后的原始系统参数，不经 shell 拼接，可能不是 UTF-8。 |
 | `plugin_dir` | 当前插件的安装目录绝对路径。 |
-| `home` | 宿主数据目录绝对路径，与 `DM_HOME` 一致。 |
+| `home` | 宿主数据目录绝对路径，与 `DM_PLUGIN_HOME` 一致。 |
 | `config_dir` | 当前插件的持久配置目录。 |
 | `data_dir` | 当前插件的持久数据目录。 |
 | `cache_dir` | 当前插件的可再生成缓存目录。 |

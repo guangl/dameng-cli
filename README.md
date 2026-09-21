@@ -35,7 +35,7 @@ curl -fsSL https://raw.githubusercontent.com/guangl/dameng-cli/main/scripts/inst
 
 ### 安装插件
 
-从远程仓库安装插件需要 Git，从源码构建插件需要当前稳定版 Rust / Cargo。
+远程安装插件需要 Git 和 curl；本地安装使用预编译插件目录，不需要 Rust/Cargo。
 
 ```sh
 dm install ./examples/hello
@@ -46,26 +46,27 @@ dm verify hello
 dm uninstall hello
 ```
 
-`dm install` 校验 Rust crate 和插件清单，使用 `cargo build --release --locked` 编译本机可执行文件，成功后原子安装。不接受脚本包或预编译插件包。编译过程会运行依赖的构建脚本，因此只安装可信源码。
+`dm install` 只安装预编译插件：本地目录需包含 `dm-<name>` 二进制和 `dm-plugin.toml`；GitHub HTTPS 来源会下载该仓库 Release 中与本机 target 匹配的 `dm-<name>` 二进制。没有可用预编译产物时直接报错，不再回退源码编译。插件 Release 应同时发布 `dm-<name>-<target>` 和同名 `.sha256` 文件；缺少 SHA-256 侧车时宿主会提示并信任 HTTPS 传输。
 
 ## 命令
 
 | 命令 | 作用 |
 | --- | --- |
 | `dm new <name> [--directory PATH] [--generate-lockfile]` | 生成完整的 Rust 插件项目骨架，可立即生成 `Cargo.lock` |
-| `dm install ./path/to/plugin [--accept-permissions]` | 从本地 Rust crate 编译安装 |
-| `dm install https://github.com/OWNER/REPO.git --rev v1.2.0 [--accept-permissions]` | 安装固定 Git tag、branch 或 commit |
+| `dm install ./path/to/plugin` | 从包含预编译二进制和清单的本地目录安装 |
+| `dm install https://github.com/OWNER/REPO.git --rev v1.2.0` | 从 GitHub Release 安装固定版本的预编译插件 |
 | `dm install <name>` | 根据本地注册表查找 HTTPS Git 仓库并安装 |
 | `dm list [--json]` / `dm info <name> [--json]` | 列出插件或查看来源、revision、校验和与权限 |
 | `dm search [query] [--remote URL] [--local] [--json]` | 搜索本地或远程配置的插件来源；未指定时可用 `DM_REGISTRY_INDEX` 指定远程索引 |
 | `dm <name> [args...]` | 执行插件，原样转发后续参数，包括 `--help` |
-| `dm update <name> [--accept-permissions]` / `dm update --all [--accept-permissions]` | 构建、校验并原子替换插件，失败时保留旧版本 |
+| `dm update <name>` / `dm update --all` | 下载、校验并原子替换插件，失败时保留旧版本 |
 | `dm outdated [--json]` | 并行检查插件是否有新版本 |
 | `dm rollback <name>` | 回滚到上一次更新前保留的历史版本 |
 | `dm enable/disable <name>` | 启用或停用插件 |
 | `dm verify [name]` | 校验已安装清单与二进制 SHA-256 |
 | `dm doctor [--repair]` | 检查或修复 SQLite、插件目录、残留事务与孤立配置/数据/缓存目录 |
 | `dm uninstall <name>` | 删除插件及其 config/data/cache 隔离目录 |
+| `dm ssh add/list/remove/test/ssh` | 由 `plugins/ssh` 插件提供的 SSH 服务器管理；配置写入宿主 `store.sqlite3` 的 `servers` 表供其他插件共享 |
 | `dm registry add <name> <url> [--verify]` | 在 SQLite 注册表中新增或更新名称与 HTTPS Git 地址，`--verify` 先用 `git ls-remote` 校验可达性 |
 | `dm registry sync [url] [--prune]` | 拉取远程 JSON 索引并合并到本地注册表，`--prune` 删除远端已消失的条目；省略 url 时使用 `DM_REGISTRY_INDEX` |
 | `dm registry list [--json]` | 列出名称注册表 |
@@ -76,7 +77,7 @@ dm uninstall hello
 
 完整参数、JSON 输出、环境变量和退出行为见 [CLI 参考](docs/cli.md)。
 
-同名插件拒绝直接覆盖；使用 `dm update` 无损升级。安装或升级时，若清单新增了 `permissions` 或 `environment`，需要显式追加 `--accept-permissions` 确认；`dm uninstall` 会一并删除 `config/<name>`、`data/<name>`、`cache/<name>`，`dm doctor --repair` 也会清理这些目录中的孤立残留。名称注册表是本地来源目录，不冒充带审核、签名和发布者身份的中央插件市场。
+同名插件拒绝直接覆盖；使用 `dm update` 无损升级。`dm uninstall` 会一并删除 `config/<name>`、`data/<name>`、`cache/<name>`，`dm doctor --repair` 也会清理这些目录中的孤立残留。名称注册表是本地来源目录，不冒充带审核、签名和发布者身份的中央插件市场。
 
 插件可以在 `dm-plugin.toml` 的 `[hooks]` 中声明 `pre_install`、`post_install`、`pre_uninstall` 和 `post_uninstall`。hook 必须是插件根目录内的相对可执行文件，并以对应的源码或安装目录作为工作目录运行；它们与 Cargo 构建脚本一样拥有当前用户权限，只应安装可信插件。更新前的版本保存在 `backups/<name>`，`dm rollback` 可在当前版本和上一版本之间切换；异常中断留下的安装、卸载或回滚事务可由 `dm doctor --repair` 协调恢复。
 
@@ -84,9 +85,9 @@ dm uninstall hello
 
 按以下优先级选择目录：
 
-- `DM_HOME`：自定义目录，相对路径按当前工作目录解析。
+- `DM_PLUGIN_HOME`：自定义目录，相对路径按当前工作目录解析。
 - Windows：`%LOCALAPPDATA%\dm`。
-- Linux / macOS：`$XDG_DATA_HOME/dm`，未设置时使用 `$HOME/.local/share/dm`。
+- Linux / macOS：`$HOME/.config/dm`。
 
 该目录内的 `store.sqlite3` 保存插件清单、来源、Git revision、SHA-256、启停状态和名称注册表。`plugins/` 保存可执行文件；`backups/<name>` 保留更新前的历史版本，供 `dm rollback` 使用；`config/<name>`、`data/<name>`、`cache/<name>` 是每个插件的隔离目录。使用自己的真实插件仓库地址：
 

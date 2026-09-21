@@ -62,7 +62,7 @@ hook 路径必须是插件根目录内的相对路径，不允许绝对路径、
 | `pre_uninstall` | 当前安装目录；移除前。失败会阻止卸载。 |
 | `post_uninstall` | 暂存的待删除目录；成功后才永久删除。失败会恢复插件。 |
 
-宿主设置 `DM_HOOK_PHASE`、`DM_HOME` 和 `DM_PLUGIN_DIR`，并清理其他环境，仅保留运行基础变量及清单白名单。hook 与 Cargo 构建脚本拥有当前用户权限，只能来自可信源码。升级会执行新版本的安装 hook，不执行旧版本的卸载 hook；`dm rollback` 只交换已验证的安装目录，不重新运行 hook。
+宿主设置 `DM_HOOK_PHASE`、`DM_PLUGIN_HOME` 和 `DM_PLUGIN_DIR`，并清理其他环境，仅保留运行基础变量及清单白名单。hook 与 Cargo 构建脚本拥有当前用户权限，只能来自可信源码。升级会执行新版本的安装 hook，不执行旧版本的卸载 hook；`dm rollback` 只交换已验证的安装目录，不重新运行 hook。
 
 ## Cargo 约束
 

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 新增 `plugins/ssh` 插件，提供 `dm ssh add/list/remove/test/ssh` SSH 服务器管理；配置写入宿主 `store.sqlite3` 的 `servers` 表供其他插件共享，密码与私钥 passphrase 使用本机 AES-GCM 密钥加密。安装脚本会一并安装宿主和该插件。
+- `dm install` 改为只安装预编译插件，取消源码编译与 `--accept-permissions`；宿主数据目录环境变量从 `DM_HOME` 改为 `DM_PLUGIN_HOME`，安装/克隆输出默认静默并显示进度条。
+- 增加不可写 `DM_PLUGIN_HOME` 的可操作错误提示。
 - 全面同步 README、CLI、安全、架构、插件开发、发布、签名和故障排查文档，并新增完整 CLI 参考。
 - 增加宿主 `dm self-update`，从 GitHub Release 下载目标平台归档、验证 SHA-256 并原子替换当前程序。
 - `dm self-update` 增加 minisign 签名强制校验；Release 流程对归档生成签名。
