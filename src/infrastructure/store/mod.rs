@@ -1,4 +1,4 @@
-use crate::{API_VERSION, Manifest, manifest::validate_name};
+use crate::{API_VERSION, Manifest, plugin::manifest::validate_name};
 use anyhow::{Context, Result, bail, ensure};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::Serialize;
@@ -614,6 +614,13 @@ impl PluginStore {
         for entry in fs::read_dir(self.plugins())? {
             let entry = entry?;
             let name = entry.file_name().to_string_lossy().into_owned();
+            if name.starts_with(".rollback-") {
+                issues.push(format!("stale rollback transaction directory: {name}"));
+                if repair {
+                    repairs.push(self.repair_rollback_transaction(&entry.path())?);
+                }
+                continue;
+            }
             if name.starts_with(".install-") || name.starts_with(".remove-") {
                 issues.push(format!("stale transaction directory: {name}"));
                 if repair {
@@ -927,6 +934,7 @@ impl PluginStore {
     }
 
     fn run_hook(&self, root: &Path, hook: &str, phase: &str, manifest: &Manifest) -> Result<()> {
+        let root = fs::canonicalize(root).context("Resolve plugin hook directory")?;
         let executable = root.join(hook);
         let metadata =
             fs::symlink_metadata(&executable).with_context(|| format!("Missing hook '{hook}'"))?;
@@ -944,8 +952,9 @@ impl PluginStore {
         inherit_safe_environment(&mut command, manifest);
         command
             .arg(phase)
+            .current_dir(&root)
             .env("DM_HOME", fs::canonicalize(&self.home)?)
-            .env("DM_PLUGIN_DIR", root)
+            .env("DM_PLUGIN_DIR", &root)
             .env("DM_HOOK_PHASE", phase);
         let status = command
             .status()
@@ -963,6 +972,56 @@ impl PluginStore {
         }
         fs::rename(previous, &target).with_context(|| format!("Archive previous {name}"))?;
         Ok(())
+    }
+
+    fn repair_rollback_transaction(&self, transaction: &Path) -> Result<String> {
+        let previous = transaction.join("previous");
+        if !previous.exists() {
+            fs::remove_dir_all(transaction)?;
+            return Ok(format!(
+                "removed completed rollback transaction {}",
+                transaction.display()
+            ));
+        }
+
+        let previous_manifest =
+            Manifest::read(&previous).context("Read previous plugin from interrupted rollback")?;
+        let name = &previous_manifest.name;
+        let stored = self.info(name)?;
+        let current = self.plugins().join(name);
+        let current_manifest = Manifest::read(&current).ok();
+
+        if stored.manifest == previous_manifest {
+            // SQLite still describes the pre-rollback version. Abort the interrupted
+            // rollback and put that version back in the active plugin directory.
+            if current.exists() {
+                let current_manifest = current_manifest
+                    .as_ref()
+                    .context("Interrupted rollback left an invalid active plugin")?;
+                ensure!(
+                    current_manifest.name == *name,
+                    "Interrupted rollback active plugin name does not match '{name}'"
+                );
+                self.archive_previous(&current, name)?;
+            }
+            fs::rename(&previous, &current)
+                .with_context(|| format!("Restore interrupted rollback for {name}"))?;
+        } else if current_manifest
+            .as_ref()
+            .is_some_and(|manifest| *manifest == stored.manifest)
+        {
+            // SQLite and the active directory already contain the rolled-back
+            // version. Finish the transaction by retaining the former version as
+            // the next rollback target.
+            self.archive_previous(&previous, name)?;
+        } else {
+            bail!(
+                "Cannot safely repair interrupted rollback for '{name}': neither staged nor active manifest matches SQLite"
+            );
+        }
+
+        fs::remove_dir_all(transaction)?;
+        Ok(format!("recovered interrupted rollback for {name}"))
     }
 
     pub fn rollback(&self, name: &str) -> Result<Manifest> {

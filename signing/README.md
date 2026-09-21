@@ -3,7 +3,7 @@
 This directory holds the public half of the minisign keypair used to sign
 GitHub Release archives.
 
-- `dm-minisign.pub` — public key, embedded in `src/self_update.rs` and
+- `dm-minisign.pub` — public key, embedded in `src/infrastructure/self_update/mod.rs` and
   `scripts/install.sh`.
 - The private key is **not committed**; configure it as the GitHub Actions
   secret `MINISIGN_SECRET_KEY` before publishing a release.

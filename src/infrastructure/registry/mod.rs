@@ -1,4 +1,4 @@
-use crate::manifest::validate_name;
+use crate::plugin::manifest::validate_name;
 use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 use std::{fs, process::Command};

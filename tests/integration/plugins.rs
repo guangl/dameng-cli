@@ -330,6 +330,69 @@ fn plugin_metadata_verification_enablement_and_atomic_update() {
     assert!(home.join("backups/probe").is_dir());
 }
 
+#[test]
+fn doctor_recovers_an_interrupted_rollback() {
+    let temp = TempDir::new().unwrap();
+    let source = fixture(temp.path());
+    let home = temp.path().join("home");
+    let store = PluginStore::new(&home);
+    store.install(source.to_str().unwrap()).unwrap();
+
+    fs::write(
+        source.join("dm-plugin.toml"),
+        manifest("probe").replace("0.1.0", "0.2.0"),
+    )
+    .unwrap();
+    let cargo = fs::read_to_string(source.join("Cargo.toml")).unwrap();
+    fs::write(source.join("Cargo.toml"), cargo.replace("0.1.0", "0.2.0")).unwrap();
+    ok(Command::new("cargo")
+        .args(["generate-lockfile", "--offline", "--manifest-path"])
+        .arg(source.join("Cargo.toml"))
+        .output()
+        .unwrap());
+    store.update("probe").unwrap();
+
+    // Simulate interruption after the backup became active but before SQLite
+    // was updated to describe it.
+    let transaction = home.join("plugins/.rollback-test");
+    fs::create_dir(&transaction).unwrap();
+    fs::rename(home.join("plugins/probe"), transaction.join("previous")).unwrap();
+    fs::rename(home.join("backups/probe"), home.join("plugins/probe")).unwrap();
+
+    let report = store.doctor(true).unwrap();
+    assert!(
+        report
+            .repairs
+            .iter()
+            .any(|repair| repair.contains("interrupted rollback")),
+        "{report:?}"
+    );
+    assert_eq!(store.info("probe").unwrap().manifest.version, "0.2.0");
+    assert_eq!(
+        Manifest::read(&home.join("plugins/probe")).unwrap().version,
+        "0.2.0"
+    );
+    assert_eq!(
+        Manifest::read(&home.join("backups/probe")).unwrap().version,
+        "0.1.0"
+    );
+    assert!(!transaction.exists());
+
+    // Also cover interruption after SQLite already describes the rolled-back
+    // version but before the former active version is archived.
+    store.rollback("probe").unwrap();
+    let transaction = home.join("plugins/.rollback-test-finished");
+    fs::create_dir(&transaction).unwrap();
+    fs::rename(home.join("backups/probe"), transaction.join("previous")).unwrap();
+    store.doctor(true).unwrap();
+    assert_eq!(store.info("probe").unwrap().manifest.version, "0.1.0");
+    assert_eq!(
+        Manifest::read(&home.join("backups/probe")).unwrap().version,
+        "0.2.0"
+    );
+    assert!(!transaction.exists());
+}
+
 #[cfg(unix)]
 #[test]
 fn lifecycle_hooks_run_in_order() {
@@ -346,7 +409,9 @@ fn lifecycle_hooks_run_in_order() {
         let path = source.join(name);
         fs::write(
             &path,
-            format!("#!/bin/sh\nprintf '{marker}\\n' >> \"$DM_HOME/hooks.log\"\n"),
+            format!(
+                "#!/bin/sh\ntest \"$PWD\" = \"$DM_PLUGIN_DIR\" || exit 42\nprintf '{marker}\\n' >> \"$DM_HOME/hooks.log\"\n"
+            ),
         )
         .unwrap();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();

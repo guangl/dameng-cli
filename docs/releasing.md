@@ -19,7 +19,7 @@
 2. 完成本地检查并合并；确认默认分支 CI 全绿。
 3. 创建并推送与 Cargo package version 一致的 `vX.Y.Z` 标签。
 4. Release workflow 先运行完整 CI，再为 Linux x86_64、Linux ARM64、Linux x86_64 musl、macOS Apple Silicon、Windows x86_64 编译宿主。
-5. 全部成功后为每个归档生成 minisign 签名并创建 GitHub Release，附带压缩包、MIT License、README、SHA-256 校验文件和 `.minisig` 签名；带 `-` 的版本标签标记为预发布。发布 job 需要 `MINISIGN_SECRET_KEY` secret，公钥内嵌在 `src/self_update.rs` 和 `scripts/install.sh`。归档命名和目录结构也是 `dm self-update` 的稳定协议，不得在同一主版本中随意改变。
+5. 全部成功后为每个归档生成 minisign 签名并创建 GitHub Release，附带压缩包、MIT License、README、SHA-256 校验文件和 `.minisig` 签名；带 `-` 的版本标签标记为预发布。发布 job 需要 `MINISIGN_SECRET_KEY` secret，公钥内嵌在 `src/infrastructure/self_update/mod.rs` 和 `scripts/install.sh`。归档命名和目录结构也是 `dm self-update` 的稳定协议，不得在同一主版本中随意改变。
 
 当前仍不发布 Intel macOS 或 aarch64 musl 产物，也不承诺旧 Linux 的 glibc 兼容性。产物在 GitHub hosted runner 上构建，需要更旧系统兼容性时另行制定构建基线。
 

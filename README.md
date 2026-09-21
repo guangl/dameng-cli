@@ -76,6 +76,8 @@ dm uninstall hello
 
 同名插件拒绝直接覆盖；使用 `dm update` 无损升级。安装或升级时，若清单新增了 `permissions` 或 `environment`，需要显式追加 `--accept-permissions` 确认；`dm uninstall` 会一并删除 `config/<name>`、`data/<name>`、`cache/<name>`，`dm doctor --repair` 也会清理这些目录中的孤立残留。名称注册表是本地来源目录，不冒充带审核、签名和发布者身份的中央插件市场。
 
+插件可以在 `dm-plugin.toml` 的 `[hooks]` 中声明 `pre_install`、`post_install`、`pre_uninstall` 和 `post_uninstall`。hook 必须是插件根目录内的相对可执行文件，并以对应的源码或安装目录作为工作目录运行；它们与 Cargo 构建脚本一样拥有当前用户权限，只应安装可信插件。更新前的版本保存在 `backups/<name>`，`dm rollback` 可在当前版本和上一版本之间切换；异常中断留下的安装、卸载或回滚事务可由 `dm doctor --repair` 协调恢复。
+
 ## 数据目录与名称安装
 
 按以下优先级选择目录：
@@ -121,6 +123,8 @@ fn main() {
 见 [插件开发网站](https://guangl.github.io/dameng-cli/)、[开发文档源码](docs/plugin-development/README.md)、[插件开发协议](docs/plugins.md)、[架构说明](docs/architecture.md) 和可运行的 [hello 示例](examples/hello)。SDK 目前随仓库提供，尚未宣称发布到 crates.io。
 
 ## 开发与仓库维护
+
+源码按职责组织：`src/plugin/` 保存插件清单与脚手架，`src/infrastructure/` 保存 SQLite 存储、远程注册表和宿主自更新，`src/cli/` 只负责命令解析与调度。测试分别位于 `tests/unit/` 和 `tests/integration/`，避免实现模块与端到端场景混在同一目录。
 
 ```sh
 cargo fmt --all -- --check

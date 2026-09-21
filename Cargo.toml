@@ -19,6 +19,18 @@ categories = ["command-line-utilities", "database"]
 name = "dm"
 path = "src/main.rs"
 
+[[test]]
+name = "plugins"
+path = "tests/integration/plugins.rs"
+
+[[test]]
+name = "self_update"
+path = "tests/integration/self_update.rs"
+
+[[test]]
+name = "unit"
+path = "tests/unit/core.rs"
+
 [dependencies]
 anyhow = "1.0.104"
 clap = { version = "4.6.7", features = ["derive"] }

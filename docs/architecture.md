@@ -22,22 +22,22 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
 
 | 模块 | 责任 |
 | --- | --- |
-| `src/main.rs` / `src/cli.rs` | 程序入口与命令解析、内置命令、外部子命令路由、错误展示 |
-| `src/manifest.rs` | 严格清单解析、名称限制、API 版本、固定入口命名 |
-| `src/store/mod.rs` | SQLite 元数据、来源与 revision、编译安装、原子更新、校验修复、卸载、进程调用 |
-| `src/self_update.rs` | 宿主 Release 查询、下载、SHA-256 与 minisign 校验、解包和原子自替换 |
-| `src/registry_index.rs` | 远程 JSON 注册表索引的拉取与解析 |
-| `src/scaffold.rs` | `dm new` 插件项目脚手架 |
+| `src/main.rs` / `src/cli/` | 程序入口与命令解析、内置命令、外部子命令路由、错误展示 |
+| `src/plugin/` | 严格清单解析、名称限制、API 版本、固定入口命名和项目脚手架 |
+| `src/infrastructure/store/` | SQLite 元数据、来源与 revision、编译安装、原子更新、校验修复、卸载、进程调用 |
+| `src/infrastructure/self_update/` | 宿主 Release 查询、下载、SHA-256 与 minisign 校验、解包和原子自替换 |
+| `src/infrastructure/registry/` | 远程 JSON 注册表索引的拉取与解析 |
 | `crates/dm-plugin-sdk` | `Plugin` / `Context` / `PluginResult` 和协议版本 |
 | `examples/hello` | 唯一演示插件，验证 SDK 使用方法 |
-| `tests/plugins.rs` | 真实 Rust crate 安装和进程协议回归测试 |
+| `tests/unit/` | 清单、脚手架、注册表和签名算法的单元测试 |
+| `tests/integration/` | 真实 Rust crate 安装、生命周期、恢复和自更新回归测试 |
 
 ## 安装事务
 
 插件只能从 Rust 源码安装，必须显式依赖 `dm-plugin-sdk` 并声明 `dm-<name>` binary target。
 本地源码不复制，远程源码浅克隆到临时目录；宿主通过 Cargo 编译到插件存储内的独立临时目录，显式指定宿主 target，避免用户默认交叉编译目标导致安装错误产物。
 只将清单与编译后的可执行文件装入最终目录；源文件、Git 元数据和构建缓存不会进入安装结果。资源应通过 Rust 的 `include_str!` / `include_bytes!` 嵌入。
-编译失败时清理临时目录；成功后使用同文件系统目录重命名发布，再将经过校验的清单、来源、revision 和 SHA-256 写入 SQLite。数据库写入失败时恢复旧插件。拒绝同名直接覆盖，并发安装只有一个成功；进程被强制杀死时可能留下隐藏事务目录，`dm doctor --repair` 会清理并协调磁盘与数据库状态。
+编译失败时清理临时目录；成功后使用同文件系统目录重命名发布，再将经过校验的清单、来源、revision 和 SHA-256 写入 SQLite。数据库写入失败时恢复旧插件。拒绝同名直接覆盖，并发安装只有一个成功；进程被强制杀死时可能留下隐藏事务目录，`dm doctor --repair` 会识别安装、卸载和回滚事务，并根据 SQLite 中已提交的清单协调活动目录与备份目录。
 不支持安装过程中修改源码或同时卸载正在运行的插件。
 
 ```text
@@ -45,10 +45,11 @@ DM_HOME/
 ├── store.sqlite3              # 插件元数据和名称 -> HTTPS Git 注册表
 ├── store.sqlite3-wal          # SQLite 运行时文件，存在时不要单独移动
 ├── store.sqlite3-shm          # SQLite 运行时文件，存在时不要单独移动
-└── plugins/                   # 可执行文件不能存入 SQLite 后直接运行
+├── plugins/                   # 可执行文件不能存入 SQLite 后直接运行
     └── hello/
         ├── dm-plugin.toml
         └── dm-hello[.exe]
+├── backups/hello/             # 上一个版本，供 rollback 交换恢复
 ├── config/hello/              # 插件持久配置
 ├── data/hello/                # 插件持久数据
 └── cache/hello/               # 可再生成缓存
