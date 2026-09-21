@@ -1076,7 +1076,7 @@ impl PluginStore {
             .env("DM_PLUGIN_API_VERSION", API_VERSION.to_string())
             .env("DM_PLUGIN_CAPABILITIES", "config-dirs-v1")
             .env("DM_PLUGIN_DIR", &root)
-            .env("DM_HOME", fs::canonicalize(&self.home)?)
+            .env("DM_PLUGIN_HOME", fs::canonicalize(&self.home)?)
             .env("DM_PLUGIN_CONFIG_DIR", fs::canonicalize(config_dir)?)
             .env("DM_PLUGIN_DATA_DIR", fs::canonicalize(data_dir)?)
             .env("DM_PLUGIN_CACHE_DIR", fs::canonicalize(cache_dir)?)

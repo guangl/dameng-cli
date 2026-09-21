@@ -9,4 +9,4 @@ name = "dm-hello"
 path = "src/main.rs"
 
 [dependencies]
-dm-plugin-sdk = { path = "../../crates/dm-plugin-sdk" }
+dm-plugin-sdk = "0.2.0"
