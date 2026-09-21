@@ -25,8 +25,12 @@ dm backup --database demo --label "nightly copy"
 | `DM_PLUGIN_API_VERSION` | 当前进程协议版本，v1 为 `1`。 |
 | `DM_PLUGIN_DIR` | 插件安装目录的绝对路径。 |
 | `DM_HOME` | 宿主数据目录的绝对路径。 |
+| `DM_PLUGIN_CONFIG_DIR` | 当前插件的持久配置目录。 |
+| `DM_PLUGIN_DATA_DIR` | 当前插件的持久数据目录。 |
+| `DM_PLUGIN_CACHE_DIR` | 当前插件的可再生成缓存目录。 |
+| `DM_PLUGIN_CAPABILITIES` | 逗号分隔的协议能力；v0.2 提供 `config-dirs-v1`。 |
 
-其他用户环境变量和当前工作目录会被继承。插件不应自行伪造上述三个协议变量来绕过宿主运行。
+当前工作目录会被继承。宿主先清理进程环境，只保留 PATH、区域、终端和临时目录等基础变量，再加入清单 `environment` 明确允许的变量。插件不应自行伪造协议变量来绕过宿主运行。
 
 ## 标准流
 
@@ -55,6 +59,6 @@ printf 'select 1;\n' | dm formatter > formatted.sql
 
 ## 兼容性
 
-`api_version` 描述宿主与插件之间的进程契约，不是插件业务版本。只有契约发生破坏性变化时才提升 API 版本；普通插件功能升级只更新插件 `version`。
+`api_version` 描述宿主与插件之间的进程契约，不是插件业务版本。宿主维护受支持版本集合，不会因为新增兼容能力就淘汰 v1；普通扩展通过 `DM_PLUGIN_CAPABILITIES` 协商。只有契约发生破坏性变化时才增加 API 版本，同时应为旧版本保留明确的支持窗口。普通插件功能升级只更新插件 `version`。
 
 下一步阅读[测试与调试](testing.html)。

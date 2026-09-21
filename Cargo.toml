@@ -5,8 +5,9 @@ resolver = "3"
 
 [package]
 name = "dameng-cli"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
+rust-version = "1.85"
 description = "A minimal plugin host for Dameng database tools"
 license = "MIT"
 repository = "https://github.com/guangl/dameng-cli"
@@ -21,8 +22,13 @@ path = "src/main.rs"
 [dependencies]
 anyhow = "1.0.104"
 clap = { version = "4.6.7", features = ["derive"] }
+clap_complete = "4.6.5"
 serde = { version = "1.0.229", features = ["derive"] }
 tempfile = "3.27.0"
 toml = "1.1.6"
 rusqlite = { version = "0.40.2", features = ["bundled"] }
-dm-plugin-sdk = { version = "0.1.0", path = "crates/dm-plugin-sdk" }
+dm-plugin-sdk = { version = "0.2.0", path = "crates/dm-plugin-sdk" }
+semver = "1.0.28"
+serde_json = "1.0.151"
+sha2 = "0.10.9"
+minisign = "0.9.1"

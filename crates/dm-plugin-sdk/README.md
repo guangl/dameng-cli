@@ -1,6 +1,6 @@
 # dm-plugin-sdk
 
-`dameng-cli` 的 Rust 插件 SDK，提供 `Plugin` trait、`Context`、`PluginResult` 和版本化进程协议。
+`dameng-cli` 的 Rust 插件 SDK，提供 `Plugin` trait、`Context`、`PluginResult` 和版本化进程协议。Context 包含插件目录、宿主目录以及按插件隔离的配置、数据和缓存目录。
 
 ```rust
 use dm_plugin_sdk::{Context, Plugin, PluginResult};

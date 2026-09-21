@@ -24,6 +24,11 @@ name = "backup"
 version = "0.1.0"
 description = "Backup a Dameng database"
 api_version = 1
+min_host_version = "0.2.0"
+license = "MIT"
+homepage = "https://example.com/dm-backup"
+environment = ["DM_DATABASE_URL"]
+permissions = ["filesystem", "network"]
 ```
 
 | 字段 | 规则 |
@@ -32,8 +37,12 @@ api_version = 1
 | `version` | 非空、单行，并与 Cargo package 的显式 `version` 完全一致。 |
 | `description` | 单行说明，显示在 `dm list` 中。 |
 | `api_version` | 当前必须为整数 `1`。 |
+| `min_host_version` | 可选 SemVer；宿主低于此版本时拒绝安装。 |
+| `license` / `homepage` | 可选的许可证标识和项目主页。 |
+| `environment` | 允许运行时继承的环境变量白名单，名称必须为大写 ASCII。 |
+| `permissions` | 可选的 `filesystem`、`network`、`process` 声明，用于审查和展示。 |
 
-清单拒绝未知字段。`install`、`uninstall`、`list`、`help`、`version` 是保留名；Windows 设备名也会被拒绝。
+清单拒绝未知字段。所有宿主命令（包括 `registry`、`doctor`、`self-update`）都是保留名；Windows 设备名也会被拒绝。权限声明目前不构成强制沙箱，插件仍是当前用户权限的原生进程。
 
 ## Cargo 约束
 
@@ -62,6 +71,6 @@ path = "src/main.rs"
 const DEFAULT_CONFIG: &str = include_str!("../assets/default.toml");
 ```
 
-需要运行时生成的数据应写入插件自己管理的位置；不要修改安装目录中的 binary 或清单。
+需要运行时生成的数据应写入 `Context.data_dir`，配置写入 `Context.config_dir`，可再生成内容写入 `Context.cache_dir`；不要修改安装目录中的 binary 或清单。
 
 下一步阅读 [SDK API](sdk-api.html)。

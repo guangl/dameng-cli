@@ -35,6 +35,8 @@ CI 应在插件支持的每个操作系统上运行测试，并使用提交的 `
 plugin_test_home=$(mktemp -d)
 DM_HOME="$plugin_test_home" dm install .
 DM_HOME="$plugin_test_home" dm list
+DM_HOME="$plugin_test_home" dm verify
+DM_HOME="$plugin_test_home" dm doctor
 DM_HOME="$plugin_test_home" dm backup --help
 DM_HOME="$plugin_test_home" dm uninstall backup
 ```
@@ -46,11 +48,14 @@ DM_HOME="$plugin_test_home" dm uninstall backup
 - 删除源码目录后插件仍能运行。
 - 参数中的空格、`--` 和 `--help` 保持原样。
 - stdin、stdout、stderr 和非零退出码符合文档。
+- 未在清单白名单中的环境变量不会传入插件。
+- 配置、数据和缓存分别写入三个 Context 目录。
+- 更新构建失败时，已安装版本仍能运行且通过 `dm verify`。
 - 错误信息不泄漏密码或连接串。
 
 ## 调试建议
 
-插件 binary 不能脱离宿主直接运行。需要调试器时，先通过 `dm` 确认协议行为，再让调试配置提供与宿主相同的三个环境变量。不要把伪造协议变量的命令写成面向用户的正式启动方式。
+插件 binary 不能脱离宿主直接运行。需要调试器时，先通过 `dm` 确认协议行为，再让调试配置提供运行时协议中列出的环境变量和 `config-dirs-v1` 能力。不要把伪造协议变量的命令写成面向用户的正式启动方式。
 
 如需查看安装结果，插件目录位于 `DM_HOME/plugins/<name>`。该目录是宿主管理区域，不要手工修改；修改会导致清单校验失败。
 

@@ -18,6 +18,10 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
           - os: macos-latest
             target: aarch64-apple-darwin
           - os: windows-latest
@@ -31,6 +35,25 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
+      - name: Install Linux cross toolchain
+        if: runner.os == 'Linux' && (matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'x86_64-unknown-linux-musl')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu musl-tools
+      - name: Configure cross linker
+        if: runner.os == 'Linux' && (matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'x86_64-unknown-linux-musl')
+        shell: bash
+        run: |
+          case "${{ matrix.target }}" in
+            aarch64-unknown-linux-gnu)
+              echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
+              echo "CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
+              ;;
+            x86_64-unknown-linux-musl)
+              echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc" >> "$GITHUB_ENV"
+              echo "CC_x86_64_unknown_linux_musl=musl-gcc" >> "$GITHUB_ENV"
+              ;;
+          esac
       - name: Verify version
         env:
           RELEASE_TAG: ${{ github.ref_name }}
@@ -56,6 +79,19 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install rsign2
+        run: cargo install rsign2 --locked
+      - name: Sign release archives
+        env:
+          MINISIGN_SECRET_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
+        shell: bash
+        run: |
+          test -n "${MINISIGN_SECRET_KEY}" || { echo "MINISIGN_SECRET_KEY is not configured" >&2; exit 1; }
+          printf '%s' "${MINISIGN_SECRET_KEY}" > "${RUNNER_TEMP}/minisign.key"
+          for file in dist/*.tar.gz dist/*.zip; do
+            rsign sign "${file}" -s "${RUNNER_TEMP}/minisign.key" -x "${file}.minisig" -W
+          done
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}

@@ -34,7 +34,13 @@ dm install ./dm-plugin-backup
 dm install https://github.com/your-org/dm-plugin-backup.git
 ```
 
-宿主浅克隆远程默认分支并执行 locked release build。`Cargo.lock` 固定依赖，但默认分支仍可能变化；需要严格复现时，让用户先在本地检出明确 tag 或 commit，再从目录安装。
+宿主浅克隆远程默认分支并执行 locked release build。`Cargo.lock` 固定依赖，但默认分支仍可能变化；生产安装应固定 tag 或完整 commit：
+
+```sh
+dm install https://github.com/your-org/dm-plugin-backup.git --rev v1.2.0
+```
+
+宿主会记录解析后的 commit 和已安装二进制 SHA-256。`dm verify` 可检测安装后的文件变化。
 
 ## 名称安装
 
@@ -52,6 +58,7 @@ dm install backup
 - 插件业务版本由插件仓库独立维护。
 - 破坏性命令行或配置变更应提升主版本并写迁移说明。
 - 宿主 API 仍为 v1 时保持 `api_version = 1`。
-- 升级安装当前采用先卸载、再安装；发布说明应提示短暂不可用和配置迁移步骤。
+- `dm update` 在临时目录完成构建和校验，再原子切换安装目录；构建或元数据写入失败会保留旧版本。
+- 使用固定 `--rev` 的插件不会被 `dm outdated` 误报为跟踪默认分支；变更固定版本时重新安装或明确选择新 revision。
 
 出现问题时查看[故障排查](troubleshooting.html)。
