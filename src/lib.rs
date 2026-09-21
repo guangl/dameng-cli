@@ -2,11 +2,6 @@
 mod infrastructure;
 mod plugin;
 
-/// Remote registry index parsing and retrieval.
-pub mod registry_index {
-    pub use crate::infrastructure::registry::*;
-}
-
 /// Secure host self-update support.
 pub mod self_update {
     pub use crate::infrastructure::self_update::*;
@@ -17,7 +12,6 @@ pub use infrastructure::store::{
     prebuilt_target_label_for, progress_bar_for, release_tag_candidates, versions_differ,
 };
 pub use plugin::manifest::{API_VERSION, MANIFEST_FILE, Manifest, SUPPORTED_API_VERSIONS};
-pub use plugin::scaffold::{finish_scaffold, scaffold_plugin, write_project};
 pub use self_update::{
     SelfUpdateResult, cleanup_self_update_backup, self_update, self_update_with_options,
 };

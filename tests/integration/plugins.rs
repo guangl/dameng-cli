@@ -216,7 +216,6 @@ fn manifest_rejects_invalid_names_versions_and_foreign_entrypoints() {
         "help",
         "version",
         "uninstall",
-        "registry",
         "doctor",
         "self-update",
         "Upper",
@@ -249,46 +248,17 @@ fn local_prebuilt_package_does_not_require_cargo_manifest() {
 }
 
 #[test]
-fn traversal_and_unconfigured_registry_are_rejected() {
+fn traversal_and_unknown_sources_are_rejected() {
     let temp = TempDir::new().unwrap();
     let store = PluginStore::new(temp.path());
     assert!(store.uninstall("../outside").is_err());
     assert!(store.run("../outside", &[]).is_err());
     assert!(store.install("unknown").is_err());
-    assert!(store.registry_add("probe", "file:///untrusted").is_err());
     assert!(store.install("probe").is_err());
 }
 
 #[test]
-fn sqlite_registry_is_persistent_sorted_and_manageable() {
-    let temp = TempDir::new().unwrap();
-    let store = PluginStore::new(temp.path());
-    store
-        .registry_add("zeta", "https://example.invalid/zeta.git")
-        .unwrap();
-    store
-        .registry_add("alpha", "https://example.invalid/alpha.git")
-        .unwrap();
-    store
-        .registry_add("alpha", "https://example.invalid/new-alpha.git")
-        .unwrap();
-    assert_eq!(
-        store.registry_list().unwrap(),
-        vec![
-            (
-                "alpha".into(),
-                "https://example.invalid/new-alpha.git".into()
-            ),
-            ("zeta".into(), "https://example.invalid/zeta.git".into())
-        ]
-    );
-    store.registry_remove("alpha").unwrap();
-    assert!(store.registry_remove("alpha").is_err());
-    assert_eq!(store.registry_list().unwrap().len(), 1);
-}
-
-#[test]
-fn plugin_metadata_verification_enablement_and_atomic_update() {
+fn plugin_metadata_verification_and_atomic_update() {
     let temp = TempDir::new().unwrap();
     let source = fixture(temp.path());
     let home = temp.path().join("home");
@@ -303,15 +273,6 @@ fn plugin_metadata_verification_enablement_and_atomic_update() {
         source.canonicalize().unwrap().to_str()
     );
     assert_eq!(store.verify(Some("probe")).unwrap(), ["probe"]);
-    store.set_enabled("probe", false).unwrap();
-    assert!(
-        store
-            .run("probe", &[])
-            .unwrap_err()
-            .to_string()
-            .contains("disabled")
-    );
-    store.set_enabled("probe", true).unwrap();
 
     fs::write(
         source.join("dm-plugin.toml"),
@@ -334,73 +295,6 @@ fn plugin_metadata_verification_enablement_and_atomic_update() {
     assert_eq!(current.manifest.version, "0.2.0");
     assert_eq!(current.checksum, good_checksum);
     store.verify(Some("probe")).unwrap();
-
-    assert_eq!(store.rollback("probe").unwrap().version, "0.1.0");
-    assert_eq!(store.info("probe").unwrap().manifest.version, "0.1.0");
-    assert!(home.join("backups/probe").is_dir());
-}
-
-#[test]
-fn doctor_recovers_an_interrupted_rollback() {
-    let temp = TempDir::new().unwrap();
-    let source = fixture(temp.path());
-    let home = temp.path().join("home");
-    let store = PluginStore::new(&home);
-    store.install(source.to_str().unwrap()).unwrap();
-
-    fs::write(
-        source.join("dm-plugin.toml"),
-        manifest("probe").replace("0.1.0", "0.2.0"),
-    )
-    .unwrap();
-    let cargo = fs::read_to_string(source.join("Cargo.toml")).unwrap();
-    fs::write(source.join("Cargo.toml"), cargo.replace("0.1.0", "0.2.0")).unwrap();
-    ok(Command::new("cargo")
-        .args(["generate-lockfile", "--offline", "--manifest-path"])
-        .arg(source.join("Cargo.toml"))
-        .output()
-        .unwrap());
-    store.update("probe").unwrap();
-
-    // Simulate interruption after the backup became active but before SQLite
-    // was updated to describe it.
-    let transaction = home.join("plugins/.rollback-test");
-    fs::create_dir(&transaction).unwrap();
-    fs::rename(home.join("plugins/probe"), transaction.join("previous")).unwrap();
-    fs::rename(home.join("backups/probe"), home.join("plugins/probe")).unwrap();
-
-    let report = store.doctor(true).unwrap();
-    assert!(
-        report
-            .repairs
-            .iter()
-            .any(|repair| repair.contains("interrupted rollback")),
-        "{report:?}"
-    );
-    assert_eq!(store.info("probe").unwrap().manifest.version, "0.2.0");
-    assert_eq!(
-        Manifest::read(&home.join("plugins/probe")).unwrap().version,
-        "0.2.0"
-    );
-    assert_eq!(
-        Manifest::read(&home.join("backups/probe")).unwrap().version,
-        "0.1.0"
-    );
-    assert!(!transaction.exists());
-
-    // Also cover interruption after SQLite already describes the rolled-back
-    // version but before the former active version is archived.
-    store.rollback("probe").unwrap();
-    let transaction = home.join("plugins/.rollback-test-finished");
-    fs::create_dir(&transaction).unwrap();
-    fs::rename(home.join("backups/probe"), transaction.join("previous")).unwrap();
-    store.doctor(true).unwrap();
-    assert_eq!(store.info("probe").unwrap().manifest.version, "0.1.0");
-    assert_eq!(
-        Manifest::read(&home.join("backups/probe")).unwrap().version,
-        "0.2.0"
-    );
-    assert!(!transaction.exists());
 }
 
 #[cfg(unix)]
@@ -572,7 +466,7 @@ fn doctor_cleans_orphaned_per_plugin_directories() {
 }
 
 #[test]
-fn json_cli_and_reserved_registry_name() {
+fn json_cli_reports_manifest_name() {
     let temp = TempDir::new().unwrap();
     let source = fixture(temp.path());
     let home = temp.path().join("home");
@@ -584,19 +478,6 @@ fn json_cli_and_reserved_registry_name() {
     let json: serde_json::Value = serde_json::from_str(&output).unwrap();
     assert_eq!(json[0]["manifest"]["name"], "probe");
     assert!(ok(dm(&home).args(["completions", "bash"]).output().unwrap()).contains("_dm"));
-    assert!(
-        !dm(&home)
-            .args([
-                "registry",
-                "add",
-                "registry",
-                "https://example.invalid/registry.git"
-            ])
-            .output()
-            .unwrap()
-            .status
-            .success()
-    );
 }
 
 #[cfg(unix)]
@@ -613,35 +494,6 @@ fn unwritable_dm_home_reports_actionable_error() {
     assert!(error.to_string().contains("is not writable"), "{error:#}");
 
     fs::set_permissions(&home, fs::Permissions::from_mode(0o755)).unwrap();
-}
-
-#[test]
-fn registry_cli_round_trip() {
-    let temp = TempDir::new().unwrap();
-    let home = temp.path();
-    assert!(
-        ok(dm(home)
-            .args([
-                "registry",
-                "add",
-                "probe",
-                "https://example.invalid/probe.git"
-            ])
-            .output()
-            .unwrap())
-        .contains("Registered probe")
-    );
-    assert_eq!(
-        ok(dm(home).args(["registry", "list"]).output().unwrap()),
-        "probe\thttps://example.invalid/probe.git\n"
-    );
-    assert!(
-        ok(dm(home)
-            .args(["registry", "remove", "probe"])
-            .output()
-            .unwrap())
-        .contains("Removed probe")
-    );
 }
 
 #[test]
@@ -721,85 +573,6 @@ fn concurrent_install_publishes_one_complete_plugin() {
 
 #[cfg(unix)]
 #[test]
-fn registry_resolution_and_git_failure_with_fake_transport() {
-    use std::os::unix::fs::PermissionsExt;
-    let temp = TempDir::new().unwrap();
-    let source = fixture(temp.path());
-    let home = temp.path().join("home");
-    let store = PluginStore::new(&home);
-    store
-        .registry_add("probe", "https://example.invalid/probe.git")
-        .unwrap();
-    store
-        .registry_add("wrong", "https://example.invalid/probe.git")
-        .unwrap();
-    let tools = temp.path().join("tools");
-    fs::create_dir(&tools).unwrap();
-    let git = tools.join("git");
-    fs::write(&git, "#!/bin/sh\nprintf '%s\\n' \"$@\" >> \"$FAKE_GIT_LOG\"\nfor destination do :; done\ncase \" $* \" in *\" clone \"*) cp -R \"$FAKE_GIT_SOURCE\" \"$destination\" ;; *\" rev-parse \"*) printf '%040d\\n' 1 ;; esac\n").unwrap();
-    fs::set_permissions(&git, fs::Permissions::from_mode(0o755)).unwrap();
-    let path = std::env::join_paths(
-        std::iter::once(tools).chain(std::env::split_paths(&std::env::var_os("PATH").unwrap())),
-    )
-    .unwrap();
-    let log = temp.path().join("git.log");
-    let command = || {
-        let mut cmd = dm(&home);
-        cmd.env("PATH", &path)
-            .env("FAKE_GIT_SOURCE", &source)
-            .env("FAKE_GIT_LOG", &log);
-        cmd
-    };
-
-    let verified = command()
-        .args([
-            "registry",
-            "add",
-            "--verify",
-            "reachable",
-            "https://example.invalid/reachable.git",
-        ])
-        .output()
-        .unwrap();
-    assert!(
-        verified.status.success(),
-        "{}",
-        String::from_utf8_lossy(&verified.stderr)
-    );
-    assert!(ok(dm(&home).args(["registry", "list"]).output().unwrap()).contains("reachable"));
-
-    let mismatch = command().args(["install", "wrong"]).output().unwrap();
-    assert!(!mismatch.status.success());
-    assert!(String::from_utf8_lossy(&mismatch.stderr).contains("does not match"));
-    ok(command().args(["install", "probe"]).output().unwrap());
-    let args = fs::read_to_string(&log).unwrap();
-    assert!(args.contains("protocol.allow=never"));
-    assert!(args.contains("--\nhttps://example.invalid/probe.git\n"));
-    fs::write(&git, "#!/bin/sh\nexit 1\n").unwrap();
-    let failed = command()
-        .args(["install", "https://example.invalid/fail.git"])
-        .output()
-        .unwrap();
-    assert!(!failed.status.success());
-    assert!(String::from_utf8_lossy(&failed.stderr).contains("Git could not fetch"));
-    assert_eq!(fs::read_dir(home.join("plugins")).unwrap().count(), 1);
-
-    let bad_verify = command()
-        .args([
-            "registry",
-            "add",
-            "--verify",
-            "bad",
-            "https://example.invalid/bad.git",
-        ])
-        .output()
-        .unwrap();
-    assert!(!bad_verify.status.success());
-    assert!(!ok(dm(&home).args(["registry", "list"]).output().unwrap()).contains("bad"));
-}
-
-#[cfg(unix)]
-#[test]
 fn prebuilt_release_is_used_before_source_build() {
     use std::os::unix::fs::PermissionsExt;
 
@@ -861,77 +634,6 @@ fn prebuilt_release_is_used_before_source_build() {
 }
 
 #[test]
-fn new_command_scaffolds_a_project() {
-    let temp = TempDir::new().unwrap();
-    let home = temp.path().join("home");
-    let destination = temp.path().join("created");
-    let output = ok(dm(&home)
-        .args(["new", "backup", "--directory"])
-        .arg(&destination)
-        .output()
-        .unwrap());
-    assert!(output.contains("Created"), "{output}");
-    assert!(destination.join("Cargo.toml").is_file());
-    assert!(destination.join("dm-plugin.toml").is_file());
-    assert!(destination.join("src/main.rs").is_file());
-    let cargo = fs::read_to_string(destination.join("Cargo.toml")).unwrap();
-    assert!(cargo.contains(r#"name = "dm-plugin-backup""#));
-    assert!(cargo.contains(r#"tag = "v0.2.0""#));
-    let reserved = temp.path().join("reserved");
-    assert!(
-        !dm(&home)
-            .args(["new", "registry", "--directory"])
-            .arg(&reserved)
-            .output()
-            .unwrap()
-            .status
-            .success()
-    );
-    assert!(!reserved.exists());
-
-    let offline = temp.path().join("offline");
-    let output = dm(&home)
-        .args(["new", "backup", "--directory"])
-        .arg(&offline)
-        .args(["--generate-lockfile"])
-        .output()
-        .unwrap();
-    assert!(!output.status.success());
-    assert!(!offline.exists());
-}
-
-#[test]
-fn search_command_filters_registry() {
-    let temp = TempDir::new().unwrap();
-    let home = temp.path().join("home");
-    ok(dm(&home)
-        .args([
-            "registry",
-            "add",
-            "backup",
-            "https://example.invalid/backup.git",
-        ])
-        .output()
-        .unwrap());
-    ok(dm(&home)
-        .args([
-            "registry",
-            "add",
-            "tools",
-            "https://example.invalid/tools.git",
-        ])
-        .output()
-        .unwrap());
-    let output = ok(dm(&home).args(["search", "back"]).output().unwrap());
-    assert!(output.contains("backup"));
-    assert!(output.contains("https://example.invalid/backup.git"));
-    assert!(!output.contains("tools"));
-    let json = ok(dm(&home).args(["search", "--json"]).output().unwrap());
-    let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
-    assert_eq!(parsed.as_array().unwrap().len(), 2);
-}
-
-#[test]
 fn outdated_command_reports_newer_local_version() {
     let temp = TempDir::new().unwrap();
     let source = fixture(temp.path());
@@ -967,92 +669,6 @@ fn update_all_command_updates_installed_plugins() {
     let output = ok(dm(&home).args(["update", "--all"]).output().unwrap());
     assert!(output.contains("Updated probe to 0.1.0"), "{output}");
     assert!(home.join("plugins/probe/dm-plugin.toml").is_file());
-}
-
-#[cfg(unix)]
-#[test]
-fn remote_registry_index_sync_and_search() {
-    use std::os::unix::fs::PermissionsExt;
-    let temp = TempDir::new().unwrap();
-    let home = temp.path().join("home");
-    let index = temp.path().join("registry.json");
-    fs::write(
-        &index,
-        r#"[{"name":"backup","source":"https://example.invalid/backup.git"},{"name":"tools","source":"https://example.invalid/tools.git"}]"#,
-    )
-    .unwrap();
-    let tools = temp.path().join("tools");
-    fs::create_dir(&tools).unwrap();
-    let curl = tools.join("curl");
-    fs::write(
-        &curl,
-        r#"#!/bin/sh
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --output) dest="$2"; shift 2;;
-    *) shift;;
-  esac
-done
-cp "$FAKE_REGISTRY_INDEX" "$dest"
-"#,
-    )
-    .unwrap();
-    fs::set_permissions(&curl, fs::Permissions::from_mode(0o755)).unwrap();
-    let path = std::env::join_paths(
-        std::iter::once(tools).chain(std::env::split_paths(&std::env::var_os("PATH").unwrap())),
-    )
-    .unwrap();
-
-    ok(dm(&home)
-        .args([
-            "registry",
-            "add",
-            "stale",
-            "https://example.invalid/stale.git",
-        ])
-        .output()
-        .unwrap());
-
-    let mut sync = dm(&home);
-    sync.env("PATH", &path).env("FAKE_REGISTRY_INDEX", &index);
-    let output = ok(sync
-        .args([
-            "registry",
-            "sync",
-            "--prune",
-            "https://example.invalid/registry.json",
-        ])
-        .output()
-        .unwrap());
-    assert!(output.contains("Synced 2"), "{output}");
-    assert!(output.contains("Removed 1 stale entries"), "{output}");
-
-    let mut search = dm(&home);
-    search.env("PATH", &path).env("FAKE_REGISTRY_INDEX", &index);
-    let output = ok(search
-        .args([
-            "search",
-            "--remote",
-            "https://example.invalid/registry.json",
-            "back",
-        ])
-        .output()
-        .unwrap());
-    assert!(output.contains("backup"));
-    assert!(!output.contains("tools"));
-
-    let json = ok(dm(&home)
-        .args(["registry", "list", "--json"])
-        .output()
-        .unwrap());
-    let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
-    let names: Vec<&str> = parsed
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|entry| entry[0].as_str().unwrap())
-        .collect();
-    assert_eq!(names, ["backup", "tools"]);
 }
 
 #[cfg(unix)]
@@ -1100,42 +716,8 @@ fn installer_scripts_have_valid_shell_syntax() {
     }
 }
 
-#[cfg(unix)]
 #[test]
-fn new_command_generates_lockfile_when_cargo_succeeds() {
-    use std::os::unix::fs::PermissionsExt;
-    let temp = TempDir::new().unwrap();
-    let home = temp.path().join("home");
-    let tools = temp.path().join("tools");
-    fs::create_dir(&tools).unwrap();
-    let cargo = tools.join("cargo");
-    fs::write(&cargo, "#!/bin/sh\nexit 0\n").unwrap();
-    fs::set_permissions(&cargo, fs::Permissions::from_mode(0o755)).unwrap();
-    let path = std::env::join_paths(
-        std::iter::once(tools).chain(std::env::split_paths(&std::env::var_os("PATH").unwrap())),
-    )
-    .unwrap();
-    let destination = temp.path().join("created");
-
-    let output = dm(&home)
-        .env("PATH", &path)
-        .args(["new", "backup", "--directory"])
-        .arg(&destination)
-        .arg("--generate-lockfile")
-        .output()
-        .unwrap();
-    assert!(
-        output.status.success(),
-        "stdout: {}\nstderr: {}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(String::from_utf8_lossy(&output.stdout).contains("Created"));
-    assert!(destination.join("Cargo.toml").is_file());
-}
-
-#[test]
-fn cli_reporting_branches_cover_info_disable_enable_verify_search_update_rollback_doctor() {
+fn cli_reporting_branches_cover_info_verify_update_doctor() {
     let temp = TempDir::new().unwrap();
     let source = fixture(temp.path());
     fs::write(
@@ -1157,7 +739,6 @@ environment = ["DM_DATABASE_URL"]
     let info = ok(dm(&home).args(["info", "probe"]).output().unwrap());
     assert!(info.contains("Name: probe"), "{info}");
     assert!(info.contains("Version: 0.1.0"), "{info}");
-    assert!(info.contains("Status: enabled"), "{info}");
     assert!(info.contains("Permissions: network"), "{info}");
     assert!(info.contains("Environment: DM_DATABASE_URL"), "{info}");
     let info_json = ok(dm(&home)
@@ -1167,33 +748,8 @@ environment = ["DM_DATABASE_URL"]
     let parsed: serde_json::Value = serde_json::from_str(&info_json).unwrap();
     assert_eq!(parsed["manifest"]["name"], "probe");
 
-    ok(dm(&home).args(["disable", "probe"]).output().unwrap());
-    let disabled_info = ok(dm(&home).args(["info", "probe"]).output().unwrap());
-    assert!(
-        disabled_info.contains("Status: disabled"),
-        "{disabled_info}"
-    );
-    let list = ok(dm(&home).args(["list"]).output().unwrap());
-    assert!(list.contains("disabled"), "{list}");
-    ok(dm(&home).args(["enable", "probe"]).output().unwrap());
-
     let verify = ok(dm(&home).args(["verify", "probe"]).output().unwrap());
     assert!(verify.contains("Verified probe"), "{verify}");
-
-    ok(dm(&home)
-        .args([
-            "registry",
-            "add",
-            "backup",
-            "https://example.invalid/backup.git",
-        ])
-        .output()
-        .unwrap());
-    let search = ok(dm(&home)
-        .args(["search", "--local", "back"])
-        .output()
-        .unwrap());
-    assert!(search.contains("backup"), "{search}");
 
     ok(dm(&home).args(["update", "probe"]).output().unwrap());
 
@@ -1215,11 +771,6 @@ environment = ["DM_DATABASE_URL"]
         .output()
         .unwrap());
     ok(dm(&home).args(["update", "probe"]).output().unwrap());
-    let rollback = ok(dm(&home).args(["rollback", "probe"]).output().unwrap());
-    assert!(
-        rollback.contains("Rolled back probe to 0.1.0"),
-        "{rollback}"
-    );
 
     let healthy = ok(dm(&home).args(["doctor"]).output().unwrap());
     assert!(healthy.contains("Plugin store is healthy"), "{healthy}");
@@ -1485,7 +1036,6 @@ fn install_reports_sqlite_insert_failure() {
                  revision TEXT,
                  source_ref TEXT,
                  checksum TEXT NOT NULL DEFAULT '',
-                 enabled INTEGER NOT NULL DEFAULT 1,
                  extra TEXT NOT NULL
              ) STRICT;",
         )
@@ -1688,27 +1238,6 @@ fn doctor_skips_files_and_installed_names() {
             .any(|issue| issue.contains("orphaned config")),
         "{report:?}"
     );
-}
-
-#[test]
-fn doctor_removes_completed_rollback_transaction() {
-    let temp = TempDir::new().unwrap();
-    let source = fixture(temp.path());
-    let home = temp.path().join("home");
-    let store = PluginStore::new(&home);
-    store.install(source.to_str().unwrap()).unwrap();
-
-    let transaction = home.join("plugins/.rollback-done");
-    fs::create_dir(&transaction).unwrap();
-    let report = store.doctor(true).unwrap();
-    assert!(
-        report
-            .repairs
-            .iter()
-            .any(|repair| repair.contains("removed completed rollback transaction")),
-        "{report:?}"
-    );
-    assert!(!transaction.exists());
 }
 
 #[test]

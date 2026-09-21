@@ -1,24 +1,11 @@
-use dameng_cli::registry_index::parse_registry_index;
 use dameng_cli::self_update::{
     normalize_tag, validate_repository, verify_checksum, verify_release_signature,
 };
 use dameng_cli::{
-    Manifest, PluginStore, finish_scaffold, github_repository, prebuilt_target_label_for,
-    progress_bar_for, release_tag_candidates, scaffold_plugin, versions_differ, write_project,
+    Manifest, PluginStore, github_repository, prebuilt_target_label_for, progress_bar_for,
+    release_tag_candidates, versions_differ,
 };
 use sha2::{Digest, Sha256};
-
-#[test]
-fn scaffold_creates_a_complete_plugin_project_without_overwriting() {
-    let temp = tempfile::tempdir().unwrap();
-    let destination = temp.path().join("dm-plugin-backup");
-    scaffold_plugin("backup", &destination).unwrap();
-    assert!(destination.join("Cargo.toml").is_file());
-    assert!(destination.join("dm-plugin.toml").is_file());
-    assert!(destination.join("src/main.rs").is_file());
-    assert!(scaffold_plugin("backup", &destination).is_err());
-    assert!(scaffold_plugin("registry", &temp.path().join("bad")).is_err());
-}
 
 #[test]
 fn update_helpers_validate_repository_and_versions() {
@@ -36,35 +23,6 @@ fn update_checksum_verification_rejects_tampering() {
 }
 
 #[test]
-fn registry_index_parser_accepts_valid_entries_and_rejects_invalid() {
-    let parsed = parse_registry_index(
-        br#"[{"name":"backup","source":"https://example.invalid/backup.git"},{"name":"tools","source":"https://example.invalid/tools.git"}]"#,
-    )
-    .unwrap();
-    assert_eq!(
-        parsed,
-        vec![
-            (
-                "backup".to_string(),
-                "https://example.invalid/backup.git".to_string()
-            ),
-            (
-                "tools".to_string(),
-                "https://example.invalid/tools.git".to_string()
-            ),
-        ]
-    );
-    assert!(
-        parse_registry_index(br#"[{"name":"bad_name","source":"https://example.invalid/x.git"}]"#)
-            .is_err()
-    );
-    assert!(
-        parse_registry_index(br#"[{"name":"backup","source":"http://example.invalid/x.git"}]"#)
-            .is_err()
-    );
-}
-
-#[test]
 fn release_signature_verification_accepts_rsign_signature() {
     let signature = br#"untrusted comment: signature from rsign secret key
 RUS7NJlQNVKoGOxn2EoqG2NHCN0enNX/Yd+1dkSpQzdMTrnucI/L8Kvh+jMccSYW7F0w0KekD0tP0Hz8rSVXg/JAW0KT3bUOWgg=
@@ -74,54 +32,6 @@ kc3x7cAU3ju8e0GV5ePI27dCKzf7jWkIii2UAPifVxgyAv07j7qXlG5lSyZ+P/HSJEcNUSXMsVhsmyU/
         panic!("{error:#}");
     }
     assert!(verify_release_signature(b"changed", signature).is_err());
-}
-
-#[test]
-fn write_project_writes_every_scaffolded_file() {
-    let temp = tempfile::tempdir().unwrap();
-    let destination = temp.path().join("plugin");
-    std::fs::create_dir_all(destination.join("src")).unwrap();
-    write_project("demo", &destination).unwrap();
-    assert!(destination.join("Cargo.toml").is_file());
-    assert!(destination.join("dm-plugin.toml").is_file());
-    assert!(destination.join("src/main.rs").is_file());
-    assert!(destination.join("README.md").is_file());
-    assert!(destination.join(".gitignore").is_file());
-}
-
-#[test]
-fn finish_scaffold_removes_partial_output_on_failure() {
-    let temp = tempfile::tempdir().unwrap();
-    let destination = temp.path().join("plugin");
-    std::fs::create_dir_all(destination.join("src")).unwrap();
-    std::fs::create_dir_all(destination.join("Cargo.toml")).unwrap();
-    assert!(finish_scaffold("demo", &destination).is_err());
-    assert!(!destination.exists());
-}
-
-#[test]
-fn write_project_fails_when_manifest_is_a_directory() {
-    let temp = tempfile::tempdir().unwrap();
-    let destination = temp.path().join("plugin");
-    std::fs::create_dir_all(destination.join("dm-plugin.toml")).unwrap();
-    assert!(write_project("demo", &destination).is_err());
-}
-
-#[test]
-fn write_project_fails_when_source_directory_is_missing() {
-    let temp = tempfile::tempdir().unwrap();
-    let destination = temp.path().join("plugin");
-    std::fs::create_dir_all(&destination).unwrap();
-    assert!(write_project("demo", &destination).is_err());
-}
-
-#[test]
-fn write_project_fails_when_readme_is_a_directory() {
-    let temp = tempfile::tempdir().unwrap();
-    let destination = temp.path().join("plugin");
-    std::fs::create_dir_all(destination.join("src")).unwrap();
-    std::fs::create_dir_all(destination.join("README.md")).unwrap();
-    assert!(write_project("demo", &destination).is_err());
 }
 
 fn base_manifest() -> String {

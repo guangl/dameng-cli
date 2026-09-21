@@ -4,6 +4,7 @@ use std::fs;
 use dm_plugin_sdk::Context as PluginContext;
 use dm_plugin_ssh::{
     Server, decrypt, encrypt, hex, load_servers, machine_key, open_database, remove_server,
+    resolve_auth, resolve_passphrase, resolve_password, resolve_port, resolve_required,
     ssh_command, unhex, upsert_server, validate_name,
 };
 use tempfile::TempDir;
@@ -137,8 +138,8 @@ fn ssh_command_key_uses_ssh() {
 fn machine_key_rejects_invalid_key_length() {
     let temp = TempDir::new().unwrap();
     let context = context(&temp);
-    fs::create_dir_all(&context.home).unwrap();
-    fs::write(context.home.join(".ssh-key"), b"too short").unwrap();
+    fs::create_dir_all(&context.data_dir).unwrap();
+    fs::write(context.data_dir.join(".ssh-key"), b"too short").unwrap();
     assert!(machine_key(&context).is_err());
 }
 
@@ -146,8 +147,8 @@ fn machine_key_rejects_invalid_key_length() {
 fn machine_key_rejects_unreadable_key() {
     let temp = TempDir::new().unwrap();
     let context = context(&temp);
-    fs::create_dir_all(&context.home).unwrap();
-    fs::create_dir(context.home.join(".ssh-key")).unwrap();
+    fs::create_dir_all(&context.data_dir).unwrap();
+    fs::create_dir(context.data_dir.join(".ssh-key")).unwrap();
     assert!(machine_key(&context).is_err());
 }
 
@@ -217,10 +218,11 @@ fn ssh_command_rejects_missing_key_and_password() {
 }
 
 #[test]
-fn malformed_shared_store_reports_query_errors() {
+fn malformed_store_reports_query_errors() {
     let temp = TempDir::new().unwrap();
     let context = context(&temp);
-    let connection = rusqlite::Connection::open(context.home.join("store.sqlite3")).unwrap();
+    fs::create_dir_all(&context.data_dir).unwrap();
+    let connection = rusqlite::Connection::open(context.data_dir.join("servers.sqlite3")).unwrap();
     connection
         .execute_batch("CREATE TABLE servers (name TEXT PRIMARY KEY)")
         .unwrap();
@@ -250,7 +252,8 @@ fn open_database_reports_readonly_store_error() {
     use std::os::unix::fs::PermissionsExt;
     let temp = TempDir::new().unwrap();
     let context = context(&temp);
-    let database = context.home.join("store.sqlite3");
+    fs::create_dir_all(&context.data_dir).unwrap();
+    let database = context.data_dir.join("servers.sqlite3");
     {
         let connection = rusqlite::Connection::open(&database).unwrap();
         drop(connection);
@@ -258,4 +261,106 @@ fn open_database_reports_readonly_store_error() {
     fs::set_permissions(&database, fs::Permissions::from_mode(0o444)).unwrap();
     assert!(open_database(&context).is_err());
     fs::set_permissions(&database, fs::Permissions::from_mode(0o644)).unwrap();
+}
+
+#[test]
+fn resolve_password_uses_explicit_value_without_prompting() {
+    assert_eq!(
+        resolve_password(Some("p@ssw0rd".to_owned()), true).unwrap(),
+        "p@ssw0rd"
+    );
+    assert_eq!(
+        resolve_password(Some("p@ssw0rd".to_owned()), false).unwrap(),
+        "p@ssw0rd"
+    );
+}
+
+#[test]
+fn resolve_password_rejects_empty_explicit_value() {
+    assert!(resolve_password(Some(String::new()), false).is_err());
+}
+
+#[test]
+fn resolve_password_requires_value_when_not_interactive() {
+    let error = resolve_password(None, false).unwrap_err();
+    assert!(
+        error.to_string().contains("password or key path"),
+        "{error}"
+    );
+}
+
+#[test]
+fn resolve_passphrase_handles_explicit_and_missing_values() {
+    assert_eq!(
+        resolve_passphrase(Some("secret".to_owned()), false)
+            .unwrap()
+            .as_deref(),
+        Some("secret")
+    );
+    assert_eq!(resolve_passphrase(None, false).unwrap(), None);
+    assert_eq!(
+        resolve_passphrase(Some(String::new()), false).unwrap(),
+        None
+    );
+}
+
+#[test]
+fn resolve_required_uses_value_or_reports_missing() {
+    assert_eq!(
+        resolve_required(Some("prod".to_owned()), "Name: ", "missing", false).unwrap(),
+        "prod"
+    );
+    let error = resolve_required(None, "Name: ", "name is required", false).unwrap_err();
+    assert!(error.to_string().contains("name is required"), "{error}");
+}
+
+#[test]
+fn resolve_port_defaults_to_22_and_accepts_explicit_value() {
+    assert_eq!(resolve_port(None, false).unwrap(), 22);
+    assert_eq!(resolve_port(Some(2222), false).unwrap(), 2222);
+}
+
+#[test]
+fn resolve_auth_uses_explicit_password() {
+    let temp = TempDir::new().unwrap();
+    let context = context(&temp);
+    let (auth_type, key_path, secret) =
+        resolve_auth(&context, Some("p@ssw0rd".to_owned()), None, None, false).unwrap();
+    assert_eq!(auth_type, "password");
+    assert_eq!(key_path, None);
+    assert_eq!(
+        decrypt(&context, secret.as_deref().unwrap()).unwrap(),
+        b"p@ssw0rd"
+    );
+}
+
+#[test]
+fn resolve_auth_uses_explicit_key() {
+    let temp = TempDir::new().unwrap();
+    let context = context(&temp);
+    let (auth_type, key_path, secret) = resolve_auth(
+        &context,
+        None,
+        Some(std::path::PathBuf::from("/tmp/id_ed25519")),
+        Some("secret".to_owned()),
+        false,
+    )
+    .unwrap();
+    assert_eq!(auth_type, "key");
+    assert_eq!(key_path.as_deref(), Some("/tmp/id_ed25519"));
+    assert_eq!(
+        decrypt(&context, secret.as_deref().unwrap()).unwrap(),
+        b"secret"
+    );
+}
+
+#[test]
+fn resolve_auth_requires_secret_when_not_interactive() {
+    let temp = TempDir::new().unwrap();
+    let context = context(&temp);
+    let error = resolve_auth(&context, None, None, None, false).unwrap_err();
+    assert!(
+        error.to_string().contains("password or key path"),
+        "{error}"
+    );
 }
