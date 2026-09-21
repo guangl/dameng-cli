@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/dm-plugin-sdk", "examples/hello"]
+members = ["crates/dm-plugin-sdk", "examples/hello", "plugins/ssh"]
 default-members = ["."]
 resolver = "3"
 
@@ -35,6 +35,9 @@ path = "tests/unit/core.rs"
 anyhow = "1.0.104"
 clap = { version = "4.6.7", features = ["derive"] }
 clap_complete = "4.6.5"
+# Pinned: 7.2.2 uses let-chains (Rust 1.88+) and breaks the declared 1.85 MSRV.
+comfy-table = "=7.2.1"
+indicatif = "0.18"
 serde = { version = "1.0.229", features = ["derive"] }
 tempfile = "3.27.0"
 toml = "1.1.6"
@@ -44,3 +47,10 @@ semver = "1.0.28"
 serde_json = "1.0.151"
 sha2 = "0.10.9"
 minisign = "0.9.1"
+
+# Keep the published crate declaration while ensuring local workspace plugins
+# resolve to the in-tree SDK (which uses DM_PLUGIN_HOME rather than the older
+# DM_HOME published in dm-plugin-sdk 0.2.0).
+[patch.crates-io]
+dm-plugin-sdk = { path = "crates/dm-plugin-sdk" }
+

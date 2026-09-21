@@ -20,7 +20,7 @@ cargo doc --workspace --no-deps --locked
 git diff --check
 ```
 
-测试使用临时 `DM_HOME` 和真实 Rust 测试插件，不需要达梦实例。集成测试离线构建无第三方依赖的测试插件；先完成一次宿主依赖下载。
+测试使用临时 `DM_PLUGIN_HOME` 和真实 Rust 测试插件，不需要达梦实例。集成测试离线构建无第三方依赖的测试插件；先完成一次宿主依赖下载。
 
 提交前更新 README、CLI/协议/架构文档、示例和 CHANGELOG 中所有受影响部分。协议变更必须明确兼容性，影响安装、hook、参数透传、升级/回滚或失败恢复时补充对应测试。保持 Cargo.lock 受版本控制。
 

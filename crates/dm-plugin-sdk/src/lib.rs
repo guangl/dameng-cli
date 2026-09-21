@@ -41,7 +41,9 @@ impl Context {
             plugin_dir: env::var_os("DM_PLUGIN_DIR")
                 .ok_or("Missing DM_PLUGIN_DIR")?
                 .into(),
-            home: env::var_os("DM_HOME").ok_or("Missing DM_HOME")?.into(),
+            home: env::var_os("DM_PLUGIN_HOME")
+                .ok_or("Missing DM_PLUGIN_HOME")?
+                .into(),
             config_dir: required_path("DM_PLUGIN_CONFIG_DIR")?,
             data_dir: required_path("DM_PLUGIN_DATA_DIR")?,
             cache_dir: required_path("DM_PLUGIN_CACHE_DIR")?,
@@ -50,7 +52,9 @@ impl Context {
     }
 }
 
-fn required_path(name: &str) -> Result<PathBuf, Box<dyn Error + Send + Sync>> {
+/// Read a required environment path. Public for integration tests.
+#[doc(hidden)]
+pub fn required_path(name: &str) -> Result<PathBuf, Box<dyn Error + Send + Sync>> {
     env::var_os(name)
         .map(PathBuf::from)
         .ok_or_else(|| format!("Missing {name}").into())
@@ -63,13 +67,18 @@ pub trait Plugin {
 
 /// Validate the protocol, run the plugin, report errors and preserve its exit code.
 pub fn run(plugin: impl Plugin) -> ! {
+    std::process::exit(run_code(plugin));
+}
+
+/// Testable core of `run`. Public for integration tests.
+#[doc(hidden)]
+pub fn run_code(plugin: impl Plugin) -> i32 {
     let result = Context::from_env().and_then(|context| plugin.run(context));
-    let code = match result {
+    match result {
         Ok(code) => code,
         Err(error) => {
             eprintln!("dm plugin: {error}");
             1
         }
-    };
-    std::process::exit(code)
+    }
 }

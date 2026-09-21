@@ -78,4 +78,28 @@ fi
 tar -xzf "${work_dir}/${archive}" -C "$work_dir"
 mkdir -p "$install_dir"
 install -m 755 "${work_dir}/dm-${version}-${target}/dm" "${install_dir}/dm"
-echo "Installed dm ${version} to ${install_dir}/dm"
+
+plugin_archive="dm-ssh-${version}-${target}.tar.gz"
+curl -fsSL "${base_url}/${plugin_archive}" -o "${work_dir}/${plugin_archive}"
+curl -fsSL "${base_url}/${plugin_archive}.sha256" -o "${work_dir}/${plugin_archive}.sha256"
+if command -v sha256sum >/dev/null 2>&1; then
+    (cd "$work_dir" && sha256sum -c "${plugin_archive}.sha256")
+elif command -v shasum >/dev/null 2>&1; then
+    expected=$(sed 's/[[:space:]].*$//' "${work_dir}/${plugin_archive}.sha256")
+    actual=$(shasum -a 256 "${work_dir}/${plugin_archive}" | sed 's/[[:space:]].*$//')
+    [ "$expected" = "$actual" ] || {
+        echo "dm installer: dm-plugin-ssh checksum verification failed" >&2
+        exit 1
+    }
+else
+    echo "dm installer: sha256sum or shasum is required" >&2
+    exit 1
+fi
+tar -xzf "${work_dir}/${plugin_archive}" -C "$work_dir"
+plugin_dir="${work_dir}/dm-ssh-${version}-${target}"
+if "${install_dir}/dm" info ssh >/dev/null 2>&1; then
+    "${install_dir}/dm" update ssh
+else
+    "${install_dir}/dm" install "$plugin_dir"
+fi
+echo "Installed dm ${version} and dm-plugin-ssh to ${install_dir}/dm"
