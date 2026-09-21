@@ -11,6 +11,12 @@ pub fn scaffold_plugin(name: &str, destination: &Path) -> Result<()> {
     );
     fs::create_dir_all(destination.join("src"))
         .with_context(|| format!("Create {}", destination.display()))?;
+    finish_scaffold(name, destination)
+}
+
+/// Finish scaffolding after the destination has been created. Public for integration tests.
+#[doc(hidden)]
+pub fn finish_scaffold(name: &str, destination: &Path) -> Result<()> {
     let result = write_project(name, destination);
     if result.is_err() {
         let _ = fs::remove_dir_all(destination);
@@ -18,7 +24,9 @@ pub fn scaffold_plugin(name: &str, destination: &Path) -> Result<()> {
     result
 }
 
-fn write_project(name: &str, destination: &Path) -> Result<()> {
+/// Write every scaffolded file. Public for integration tests.
+#[doc(hidden)]
+pub fn write_project(name: &str, destination: &Path) -> Result<()> {
     let version = env!("CARGO_PKG_VERSION");
     fs::write(
         destination.join("Cargo.toml"),

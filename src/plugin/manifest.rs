@@ -128,7 +128,9 @@ impl Manifest {
             .with_context(|| format!("Invalid manifest {}", path.display()))
     }
 
-    pub(crate) fn from_toml(text: &str) -> Result<Self> {
+    /// Parse and validate a manifest from TOML. Public for integration tests.
+    #[doc(hidden)]
+    pub fn from_toml(text: &str) -> Result<Self> {
         let manifest: Self = toml::from_str(text)?;
         validate_name(&manifest.name)?;
         ensure!(

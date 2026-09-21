@@ -21,15 +21,12 @@ enum Command {
         #[arg(long)]
         generate_lockfile: bool,
     },
-    /// Build and install a Rust plugin from a directory or HTTPS Git repository.
+    /// Install a prebuilt Rust plugin from a directory or HTTPS Git repository.
     Install {
         source: String,
         /// Install an exact Git tag, branch or commit.
         #[arg(long)]
         rev: Option<String>,
-        /// Accept newly declared permissions and environment variables.
-        #[arg(long)]
-        accept_permissions: bool,
     },
     /// List installed plugins.
     List {
@@ -60,9 +57,6 @@ enum Command {
         name: Option<String>,
         #[arg(long, conflicts_with = "name")]
         all: bool,
-        /// Accept newly declared permissions and environment variables.
-        #[arg(long)]
-        accept_permissions: bool,
     },
     /// Roll back to the most recent previous version of a plugin.
     Rollback { name: String },
@@ -169,13 +163,8 @@ pub fn run() -> Result<i32> {
                 println!("Run cargo generate-lockfile in the new directory before installing");
             }
         }
-        Command::Install {
-            source,
-            rev,
-            accept_permissions,
-        } => {
-            let manifest =
-                store.install_with_consent(&source, rev.as_deref(), accept_permissions)?;
+        Command::Install { source, rev } => {
+            let manifest = store.install_with_revision(&source, rev.as_deref())?;
             println!("Installed {} {}", manifest.name, manifest.version);
         }
         Command::List { json } => {
@@ -251,13 +240,9 @@ pub fn run() -> Result<i32> {
                 }
             }
         }
-        Command::Update {
-            name,
-            all,
-            accept_permissions,
-        } => {
+        Command::Update { name, all } => {
             if all {
-                let results = store.update_all_with_consent(accept_permissions);
+                let results = store.update_all();
                 let mut failures = Vec::new();
                 for (name, result) in results {
                     match result {
@@ -270,7 +255,7 @@ pub fn run() -> Result<i32> {
                 }
             } else {
                 let name = name.context("Provide a plugin name or use --all")?;
-                let manifest = store.update_with_consent(&name, accept_permissions)?;
+                let manifest = store.update(&name)?;
                 println!("Updated {} to {}", manifest.name, manifest.version);
             }
         }
