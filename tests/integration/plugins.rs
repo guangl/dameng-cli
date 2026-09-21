@@ -115,7 +115,8 @@ fn rust_plugin_lifecycle_and_process_contract() {
     assert!(
         ok(dm(&home).arg("install").arg(&source).output().unwrap()).contains("Installed probe")
     );
-    assert!(ok(dm(&home).arg("list").output().unwrap()).contains("probe\t0.1.0"));
+    let listed = ok(dm(&home).arg("list").output().unwrap());
+    assert!(listed.contains("probe") && listed.contains("0.1.0"));
     assert_eq!(
         &fs::read(home.join("store.sqlite3")).unwrap()[..16],
         b"SQLite format 3\0"
@@ -552,7 +553,8 @@ fn concurrent_install_publishes_one_complete_plugin() {
         second.wait_with_output().unwrap(),
     ];
     assert_eq!(results.iter().filter(|r| r.status.success()).count(), 1);
-    assert!(ok(dm(&home).arg("list").output().unwrap()).contains("probe\t0.1.0"));
+    let listed = ok(dm(&home).arg("list").output().unwrap());
+    assert!(listed.contains("probe") && listed.contains("0.1.0"));
     assert_eq!(fs::read_dir(home.join("plugins")).unwrap().count(), 1);
     let binary = home
         .join("plugins/probe")

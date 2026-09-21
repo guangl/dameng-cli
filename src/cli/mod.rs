@@ -1,3 +1,5 @@
+mod table;
+
 use anyhow::{Context, Result};
 use clap::{CommandFactory, Parser, Subcommand};
 use dameng_cli::{PluginStore, self_update_with_options};
@@ -87,12 +89,7 @@ pub fn run() -> Result<i32> {
             if json {
                 println!("{}", serde_json::to_string_pretty(&plugins)?);
             } else {
-                for plugin in plugins {
-                    println!(
-                        "{}\t{}\t{}",
-                        plugin.manifest.name, plugin.manifest.version, plugin.manifest.description
-                    );
-                }
+                print!("{}", table::render(&plugins));
             }
         }
         Command::Info { name, json } => {

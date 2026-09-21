@@ -54,7 +54,8 @@ dm uninstall hello
 | --- | --- |
 | `dm install ./path/to/plugin` | 从包含预编译二进制和清单的本地目录安装 |
 | `dm install https://github.com/OWNER/REPO.git --rev v1.2.0` | 从 GitHub Release 安装固定版本的预编译插件 |
-| `dm list [--json]` / `dm info <name> [--json]` | 列出插件或查看来源、revision、校验和与权限 |
+| `dm list [--json]` | 以带边框表格列出已安装插件的 Name、Version、Description、Source、Revision 与 Installed At；`--json` 输出机器可读 JSON |
+| `dm info <name> [--json]` | 查看来源、revision、校验和与权限 |
 | `dm <name> [args...]` | 执行插件，原样转发后续参数，包括 `--help` |
 | `dm update <name>` / `dm update --all` | 下载、校验并原子替换插件，失败时保留旧版本 |
 | `dm outdated [--json]` | 并行检查插件是否有新版本 |

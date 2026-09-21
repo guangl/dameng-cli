@@ -23,7 +23,7 @@ description: dm 命令、环境变量、JSON 输出和常见工作流参考。
 
 | 命令 | 说明 |
 | --- | --- |
-| `dm list [--json]` | 列出版本和说明。 |
+| `dm list [--json]` | 以带边框表格列出 Name、Version、Description、Source、Revision 与 Installed At（UTC）；`--json` 输出机器可读 JSON。 |
 | `dm info <name> [--json]` | 显示来源、revision、SHA-256、权限和环境变量。 |
 | `dm <name> [args...]` | 执行启用的插件并原样转发参数。 |
 | `dm outdated [--json]` | 并行读取各来源的清单版本；固定 ref 仍按原 ref 检查。 |
