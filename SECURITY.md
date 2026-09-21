@@ -18,6 +18,6 @@ HTTPS 传输、Cargo.lock、固定 Git revision 和安装后 SHA-256 都不证�
 
 `dm self-update` 只接受项目 GitHub Release 支持的平台归档，在替换当前程序前同时验证 SHA-256 和内置公钥对应的 minisign 签名。安装脚本始终验证 SHA-256；只有系统存在 `rsign` 或 `minisign` 时才验证签名，否则会明确提示跳过。`DM_MINISIGN_PUBLIC_KEY` 和 `DM_UPDATE_REPOSITORY` 是测试/自建分发用途的信任根覆盖项，生产环境不要从不可信来源设置。
 
-本地名称注册表和远程 JSON 索引只提供名称到 HTTPS Git 地址的发现能力，不验证发布者身份，也不是受审核的插件市场。`dm registry sync` 或 `dm search --remote` 返回的来源仍需独立审查，生产安装应固定完整 commit 或已审查 tag。
+安装来源只提供本地目录或 HTTPS Git URL 的传输与完整性校验，不验证发布者身份，也不是受审核的插件市场。生产安装应固定完整 commit 或已审查 tag。
 
 插件存储目录应仅供当前用户写入。宿主不存储数据库凭证；具体插件负责自己的凭证处理策略。

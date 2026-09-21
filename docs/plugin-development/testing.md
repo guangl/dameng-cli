@@ -12,7 +12,7 @@ description: 插件分层测试、隔离安装、CI 门禁和调试建议。
 
 1. 业务单元测试：直接测试参数解析、SQL 生成和数据库操作封装。
 2. 插件进程测试：验证标准流、退出码和错误消息。
-3. 宿主生命周期测试：真实执行安装、列举、调用、升级、回滚和卸载。
+3. 宿主生命周期测试：真实执行安装、列举、调用、升级和卸载。
 
 ## 基础质量检查
 
@@ -39,7 +39,6 @@ DM_PLUGIN_HOME="$plugin_test_home" dm verify
 DM_PLUGIN_HOME="$plugin_test_home" dm doctor
 DM_PLUGIN_HOME="$plugin_test_home" dm backup --help
 DM_PLUGIN_HOME="$plugin_test_home" dm update backup
-DM_PLUGIN_HOME="$plugin_test_home" dm rollback backup
 DM_PLUGIN_HOME="$plugin_test_home" dm uninstall backup
 ```
 
@@ -55,7 +54,6 @@ DM_PLUGIN_HOME="$plugin_test_home" dm uninstall backup
 - 更新构建失败时，已安装版本仍能运行且通过 `dm verify`。
 - 新增 `permissions` 或 `environment` 时，无 `--accept-permissions` 的安装/升级会被拒绝。
 - 每个生命周期 hook 的工作目录、`DM_HOOK_PHASE` 和失败回滚符合约定。
-- 升级后 `dm rollback` 恢复上一版本；中断事务可由 `dm doctor --repair` 恢复。
 - `dm outdated --json`、`dm list --json` 等机器输出能被测试代码解析，不依赖展示文本。
 - 错误信息不泄漏密码或连接串。
 

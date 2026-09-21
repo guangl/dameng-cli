@@ -52,36 +52,27 @@ dm uninstall hello
 
 | 命令 | 作用 |
 | --- | --- |
-| `dm new <name> [--directory PATH] [--generate-lockfile]` | 生成完整的 Rust 插件项目骨架，可立即生成 `Cargo.lock` |
 | `dm install ./path/to/plugin` | 从包含预编译二进制和清单的本地目录安装 |
 | `dm install https://github.com/OWNER/REPO.git --rev v1.2.0` | 从 GitHub Release 安装固定版本的预编译插件 |
-| `dm install <name>` | 根据本地注册表查找 HTTPS Git 仓库并安装 |
 | `dm list [--json]` / `dm info <name> [--json]` | 列出插件或查看来源、revision、校验和与权限 |
-| `dm search [query] [--remote URL] [--local] [--json]` | 搜索本地或远程配置的插件来源；未指定时可用 `DM_REGISTRY_INDEX` 指定远程索引 |
 | `dm <name> [args...]` | 执行插件，原样转发后续参数，包括 `--help` |
 | `dm update <name>` / `dm update --all` | 下载、校验并原子替换插件，失败时保留旧版本 |
 | `dm outdated [--json]` | 并行检查插件是否有新版本 |
-| `dm rollback <name>` | 回滚到上一次更新前保留的历史版本 |
-| `dm enable/disable <name>` | 启用或停用插件 |
 | `dm verify [name]` | 校验已安装清单与二进制 SHA-256 |
 | `dm doctor [--repair]` | 检查或修复 SQLite、插件目录、残留事务与孤立配置/数据/缓存目录 |
 | `dm uninstall <name>` | 删除插件及其 config/data/cache 隔离目录 |
 | `dm ssh add/list/remove/test/ssh` | 由 `plugins/ssh` 插件提供的 SSH 服务器管理；配置写入宿主 `store.sqlite3` 的 `servers` 表供其他插件共享 |
-| `dm registry add <name> <url> [--verify]` | 在 SQLite 注册表中新增或更新名称与 HTTPS Git 地址，`--verify` 先用 `git ls-remote` 校验可达性 |
-| `dm registry sync [url] [--prune]` | 拉取远程 JSON 索引并合并到本地注册表，`--prune` 删除远端已消失的条目；省略 url 时使用 `DM_REGISTRY_INDEX` |
-| `dm registry list [--json]` | 列出名称注册表 |
-| `dm registry remove <name>` | 删除名称注册表条目 |
 | `dm self-update [--check] [--version X.Y.Z] [--force] [--target TARGET]` | 校验 GitHub Release SHA-256 与 minisign 签名后原子升级宿主；`--force` 允许重装或降级，`--target` 覆盖产物目标 |
 | `dm completions <shell>` | 生成 shell completion |
 | `dm --help` / `dm --version` | 宿主帮助和版本 |
 
 完整参数、JSON 输出、环境变量和退出行为见 [CLI 参考](docs/cli.md)。
 
-同名插件拒绝直接覆盖；使用 `dm update` 无损升级。`dm uninstall` 会一并删除 `config/<name>`、`data/<name>`、`cache/<name>`，`dm doctor --repair` 也会清理这些目录中的孤立残留。名称注册表是本地来源目录，不冒充带审核、签名和发布者身份的中央插件市场。
+同名插件拒绝直接覆盖；使用 `dm update` 无损升级。`dm uninstall` 会一并删除 `config/<name>`、`data/<name>`、`cache/<name>`，`dm doctor --repair` 也会清理这些目录中的孤立残留。
 
-插件可以在 `dm-plugin.toml` 的 `[hooks]` 中声明 `pre_install`、`post_install`、`pre_uninstall` 和 `post_uninstall`。hook 必须是插件根目录内的相对可执行文件，并以对应的源码或安装目录作为工作目录运行；它们与 Cargo 构建脚本一样拥有当前用户权限，只应安装可信插件。更新前的版本保存在 `backups/<name>`，`dm rollback` 可在当前版本和上一版本之间切换；异常中断留下的安装、卸载或回滚事务可由 `dm doctor --repair` 协调恢复。
+插件可以在 `dm-plugin.toml` 的 `[hooks]` 中声明 `pre_install`、`post_install`、`pre_uninstall` 和 `post_uninstall`。hook 必须是插件根目录内的相对可执行文件，并以对应的源码或安装目录作为工作目录运行；它们与 Cargo 构建脚本一样拥有当前用户权限，只应安装可信插件。异常中断留下的安装或卸载事务可由 `dm doctor --repair` 协调恢复。
 
-## 数据目录与名称安装
+## 数据目录
 
 按以下优先级选择目录：
 
@@ -89,17 +80,13 @@ dm uninstall hello
 - Windows：`%LOCALAPPDATA%\dm`。
 - Linux / macOS：`$HOME/.config/dm`。
 
-该目录内的 `store.sqlite3` 保存插件清单、来源、Git revision、SHA-256、启停状态和名称注册表。`plugins/` 保存可执行文件；`backups/<name>` 保留更新前的历史版本，供 `dm rollback` 使用；`config/<name>`、`data/<name>`、`cache/<name>` 是每个插件的隔离目录。使用自己的真实插件仓库地址：
+该目录内的 `store.sqlite3` 保存插件清单、来源、Git revision 和 SHA-256。`plugins/` 保存可执行文件；`config/<name>`、`data/<name>`、`cache/<name>` 是每个插件的隔离目录。使用自己的真实插件仓库地址：
 
 ```sh
-dm registry add backup https://github.com/YOUR_ORG/dm-backup.git
-dm registry list
-dm install backup
+dm install https://github.com/YOUR_ORG/dm-backup.git --rev v1.2.0
 ```
 
-注册表名称必须与目标插件清单名称一致。仓库根目录必须包含插件 crate、`Cargo.lock` 和 `dm-plugin.toml`；示例地址不是已发布的插件。生产环境推荐通过 `--rev` 固定 tag 或完整 commit。旧版 `registry.toml` 不再读取，请用 `dm registry add` 导入其中的条目。
-
-远程注册表索引是 HTTPS 上的 JSON 数组，每个元素形如 `{"name":"...","source":"..."}`；用 `dm registry sync [url]` 合并到本地，或用 `dm search --remote <url>` 直接检索。设置 `DM_REGISTRY_INDEX` 后，`dm search` 和省略 url 的 `dm registry sync` 会默认使用该索引。
+仓库根目录必须包含插件 crate、`Cargo.lock` 和 `dm-plugin.toml`；示例地址不是已发布的插件。生产环境推荐通过 `--rev` 固定 tag 或完整 commit。
 
 宿主 Release 资产附带 SHA-256 与 minisign 签名。`dm self-update` 内嵌公钥并强制执行签名校验；`scripts/install.sh` 在存在 `rsign` 或 `minisign` 时会校验签名，否则保留 SHA-256 校验并提示跳过签名校验。安装脚本支持 `DM_INSTALL_TARGET` 覆盖产物目标（如 `x86_64-unknown-linux-musl`）。
 
@@ -127,7 +114,7 @@ fn main() {
 
 ## 开发与仓库维护
 
-源码按职责组织：`src/plugin/` 保存插件清单与脚手架，`src/infrastructure/` 保存 SQLite 存储、远程注册表和宿主自更新，`src/cli/` 只负责命令解析与调度。测试分别位于 `tests/unit/` 和 `tests/integration/`，避免实现模块与端到端场景混在同一目录。
+源码按职责组织：`src/plugin/` 保存插件清单，`src/infrastructure/` 保存 SQLite 存储和宿主自更新，`src/cli/` 只负责命令解析与调度。测试分别位于 `tests/unit/` 和 `tests/integration/`，避免实现模块与端到端场景混在同一目录。
 
 ```sh
 cargo fmt --all -- --check

@@ -49,7 +49,7 @@ post_uninstall = "hooks/post-uninstall.sh"
 | `permissions` | 可选的 `filesystem`、`network`、`process` 声明，用于审查和展示。 |
 | `[hooks]` | 可选生命周期命令；键为 `pre_install`、`post_install`、`pre_uninstall`、`post_uninstall`。 |
 
-清单拒绝未知字段。所有宿主命令（包括 `registry`、`doctor`、`rollback`、`self-update`）都是保留名；Windows 设备名也会被拒绝。权限声明目前不构成强制沙箱，插件仍是当前用户权限的原生进程。首次安装带权限/环境变量声明的插件，或升级时新增声明，用户必须传入 `--accept-permissions`。
+清单拒绝未知字段。所有宿主命令（包括 `doctor`、`self-update`）都是保留名；Windows 设备名也会被拒绝。权限声明目前不构成强制沙箱，插件仍是当前用户权限的原生进程。首次安装带权限/环境变量声明的插件，或升级时新增声明，用户必须传入 `--accept-permissions`。
 
 ## 生命周期 hook
 
@@ -62,7 +62,7 @@ hook 路径必须是插件根目录内的相对路径，不允许绝对路径、
 | `pre_uninstall` | 当前安装目录；移除前。失败会阻止卸载。 |
 | `post_uninstall` | 暂存的待删除目录；成功后才永久删除。失败会恢复插件。 |
 
-宿主设置 `DM_HOOK_PHASE`、`DM_PLUGIN_HOME` 和 `DM_PLUGIN_DIR`，并清理其他环境，仅保留运行基础变量及清单白名单。hook 与 Cargo 构建脚本拥有当前用户权限，只能来自可信源码。升级会执行新版本的安装 hook，不执行旧版本的卸载 hook；`dm rollback` 只交换已验证的安装目录，不重新运行 hook。
+宿主设置 `DM_HOOK_PHASE`、`DM_PLUGIN_HOME` 和 `DM_PLUGIN_DIR`，并清理其他环境，仅保留运行基础变量及清单白名单。hook 与 Cargo 构建脚本拥有当前用户权限，只能来自可信源码。升级会执行新版本的安装 hook，不执行旧版本的卸载 hook。
 
 ## Cargo 约束
 
