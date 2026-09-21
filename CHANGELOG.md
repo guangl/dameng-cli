@@ -6,6 +6,7 @@
 - 新增 `plugins/ssh` 插件，提供 `dm ssh add/list/remove/test/ssh` SSH 服务器管理；配置写入插件自身的 `data/ssh/servers.sqlite3`，密码与私钥 passphrase 使用本机 AES-GCM 密钥加密。安装脚本会一并安装宿主和该插件。
 - `dm ssh add` 支持在终端下省略任意字段时逐项交互式输入（名称、主机、端口、用户名、认证方式及密码/密钥 passphrase），密码与 passphrase 隐藏回显，避免出现在命令行与 shell 历史中；空 passphrase 视为未加密密钥。
 - `dm install` 改为只安装预编译插件，取消源码编译与 `--accept-permissions`；宿主数据目录环境变量从 `DM_HOME` 改为 `DM_PLUGIN_HOME`，安装/克隆输出默认静默并显示进度条。
+- 宿主执行插件时额外注入与 `DM_PLUGIN_HOME` 同值的 `DM_HOME`，兼容基于已发布 `dm-plugin-sdk` 0.2.0 构建的旧插件。
 - 增加不可写 `DM_PLUGIN_HOME` 的可操作错误提示。
 - 全面同步 README、CLI、安全、架构、插件开发、发布、签名和故障排查文档，并新增完整 CLI 参考。
 - 增加宿主 `dm self-update`，从 GitHub Release 下载目标平台归档、验证 SHA-256 并原子替换当前程序。

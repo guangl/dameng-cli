@@ -60,6 +60,7 @@ impl Plugin for Probe {
     fn run(&self, context: Context) -> PluginResult {
         println!("cwd={}", std::env::current_dir()?.display());
         println!("home={}", context.home.display());
+        println!("legacy_home={}", std::env::var("DM_HOME").unwrap_or_else(|_| "missing".into()));
         println!("plugin={}", context.plugin_dir.display());
         println!("config={}", context.config_dir.display());
         println!("data={}", context.data_dir.display());
@@ -165,6 +166,10 @@ fn rust_plugin_lifecycle_and_process_contract() {
     );
     assert!(stdout.contains(&format!(
         "home={}",
+        fs::canonicalize(&home).unwrap().display()
+    )));
+    assert!(stdout.contains(&format!(
+        "legacy_home={}",
         fs::canonicalize(&home).unwrap().display()
     )));
     assert!(stdout.contains(

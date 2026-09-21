@@ -789,6 +789,7 @@ impl PluginStore {
         for directory in [&config_dir, &data_dir, &cache_dir] {
             fs::create_dir_all(directory)?;
         }
+        let home = fs::canonicalize(&self.home)?;
         let mut command = Command::new(manifest.entrypoint(&root)?);
         command.env_clear();
         inherit_safe_environment(&mut command, &manifest);
@@ -797,7 +798,10 @@ impl PluginStore {
             .env("DM_PLUGIN_API_VERSION", API_VERSION.to_string())
             .env("DM_PLUGIN_CAPABILITIES", "config-dirs-v1")
             .env("DM_PLUGIN_DIR", &root)
-            .env("DM_PLUGIN_HOME", fs::canonicalize(&self.home)?)
+            .env("DM_PLUGIN_HOME", &home)
+            // Backward-compatible alias: plugins built against the published
+            // dm-plugin-sdk 0.2.0 still read DM_HOME.
+            .env("DM_HOME", &home)
             .env("DM_PLUGIN_CONFIG_DIR", fs::canonicalize(config_dir)?)
             .env("DM_PLUGIN_DATA_DIR", fs::canonicalize(data_dir)?)
             .env("DM_PLUGIN_CACHE_DIR", fs::canonicalize(cache_dir)?)
