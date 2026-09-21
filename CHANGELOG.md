@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 全面同步 README、CLI、安全、架构、插件开发、发布、签名和故障排查文档，并新增完整 CLI 参考。
 - 增加宿主 `dm self-update`，从 GitHub Release 下载目标平台归档、验证 SHA-256 并原子替换当前程序。
 - `dm self-update` 增加 minisign 签名强制校验；Release 流程对归档生成签名。
 - `dm self-update` 增加 `--force`（重装/降级）与 `--target`（覆盖产物目标）。

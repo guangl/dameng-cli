@@ -17,7 +17,7 @@ permalink: /plugin-development/
 4. [运行时协议](runtime-contract.html)：参数、环境变量、标准流和退出码的准确约定。
 5. [测试与调试](testing.html)：从业务单元测试到真实安装生命周期测试。
 6. [发布与分发](publishing.html)：准备独立仓库并支持本地、Git URL 和名称安装。
-7. [故障排查](troubleshooting.html)：定位常见的清单、构建、安装和运行错误。
+7. [故障排查](troubleshooting.html)：定位常见的清单、构建、安装、hook 和运行错误。
 
 ## 核心边界
 
@@ -29,6 +29,7 @@ permalink: /plugin-development/
 ## 参考资料
 
 - [插件协议 v1](../plugins.html)
+- [CLI 参考](../cli.html)
 - [宿主架构](../architecture.html)
 - [可运行 hello 示例](https://github.com/guangl/dameng-cli/tree/main/examples/hello)
 - [SDK 源码](https://github.com/guangl/dameng-cli/blob/main/crates/dm-plugin-sdk/src/lib.rs)

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="dameng-cli 插件开发指南：从创建 Rust 项目到本地安装和发布。">
+  <meta name="description" content="dameng-cli 使用与插件开发指南：从 CLI 运维到创建、测试和发布 Rust 插件。">
   <title>dameng-cli 插件开发文档</title>
   <style>
     :root {
@@ -427,9 +427,10 @@
       <div class="section-heading">
         <span class="eyebrow">Developer documentation</span>
         <h2>不只告诉你怎么开始，也讲清每一条契约</h2>
-        <p>从第一个可运行插件到独立仓库发布，按需进入对应章节。每篇文档都包含可执行示例、边界条件与失败处理。</p>
+        <p>从 CLI 运维、第一个可运行插件到独立仓库发布，按需进入对应章节。每篇文档都包含可执行示例、边界条件与失败处理。</p>
       </div>
       <div class="docs-grid">
+        <a class="doc-card" href="cli.html"><small>CLI · OPERATE</small><h3>CLI 参考</h3><p>插件生命周期、注册表、自更新、JSON 输出与环境变量。</p><span>阅读文档 →</span></a>
         <a class="doc-card" href="plugin-development/getting-started.html"><small>01 · START</small><h3>快速开始</h3><p>搭建 crate、接入 SDK、创建清单并完成首次安装。</p><span>阅读文档 →</span></a>
         <a class="doc-card" href="plugin-development/manifest.html"><small>02 · STRUCTURE</small><h3>项目与清单</h3><p>完整字段规则、Cargo target、锁文件与资源处理。</p><span>阅读文档 →</span></a>
         <a class="doc-card" href="plugin-development/sdk-api.html"><small>03 · API</small><h3>SDK API</h3><p>Context、Plugin、PluginResult 和入口函数参考。</p><span>阅读文档 →</span></a>
@@ -539,6 +540,7 @@ permissions = [<span class="token-string">"filesystem"</span>, <span class="toke
             <div class="check-item"><span class="check-mark">✓</span><div><strong>清单与 crate 版本一致</strong><span>避免安装时因版本不匹配被拒绝。</span></div></div>
             <div class="check-item"><span class="check-mark">✓</span><div><strong>提交 Cargo.lock</strong><span>远程安装始终使用 --locked 构建。</span></div></div>
             <div class="check-item"><span class="check-mark">✓</span><div><strong>入口名称符合约定</strong><span>backup 对应 dm-backup，不接受脚本入口。</span></div></div>
+            <div class="check-item"><span class="check-mark">✓</span><div><strong>权限与 hook 可审查</strong><span>声明最小权限，脚本可重复执行且失败时安全退出。</span></div></div>
             <div class="check-item"><span class="check-mark">✓</span><div><strong>错误返回非零退出码</strong><span>标准输出、错误输出和退出码是公共接口。</span></div></div>
           </div>
         </div>
@@ -551,6 +553,7 @@ permissions = [<span class="token-string">"filesystem"</span>, <span class="toke
           <code>dm doctor</code>
           <code>dm backup --help</code>
           <code>dm update backup</code>
+          <code>dm rollback backup</code>
         </aside>
       </div>
     </section>

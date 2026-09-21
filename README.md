@@ -31,7 +31,7 @@ curl -fsSL https://raw.githubusercontent.com/guangl/dameng-cli/main/scripts/inst
 ./scripts/install-local.sh
 ```
 
-两个脚本默认安装到 `$HOME/.local/bin/dm`，可通过 `DM_INSTALL_DIR` 修改。远程脚本会下载与 Release 一起发布的 SHA-256 文件并在安装前校验；Windows 请下载 Release 中的 zip，或执行 `cargo install --path . --locked`。
+两个脚本默认安装到 `$HOME/.local/bin/dm`，可通过 `DM_INSTALL_DIR` 修改。远程脚本会下载与 Release 一起发布的 SHA-256 文件并在安装前校验；检测到 `rsign` 或 `minisign` 时还会验证 minisign 签名。Windows 请下载 Release 中的 zip，或执行 `cargo install --path . --locked`。
 
 ### 安装插件
 
@@ -73,6 +73,8 @@ dm uninstall hello
 | `dm self-update [--check] [--version X.Y.Z] [--force] [--target TARGET]` | 校验 GitHub Release SHA-256 与 minisign 签名后原子升级宿主；`--force` 允许重装或降级，`--target` 覆盖产物目标 |
 | `dm completions <shell>` | 生成 shell completion |
 | `dm --help` / `dm --version` | 宿主帮助和版本 |
+
+完整参数、JSON 输出、环境变量和退出行为见 [CLI 参考](docs/cli.md)。
 
 同名插件拒绝直接覆盖；使用 `dm update` 无损升级。安装或升级时，若清单新增了 `permissions` 或 `environment`，需要显式追加 `--accept-permissions` 确认；`dm uninstall` 会一并删除 `config/<name>`、`data/<name>`、`cache/<name>`，`dm doctor --repair` 也会清理这些目录中的孤立残留。名称注册表是本地来源目录，不冒充带审核、签名和发布者身份的中央插件市场。
 
@@ -120,7 +122,7 @@ fn main() {
 }
 ```
 
-见 [插件开发网站](https://guangl.github.io/dameng-cli/)、[开发文档源码](docs/plugin-development/README.md)、[插件开发协议](docs/plugins.md)、[架构说明](docs/architecture.md) 和可运行的 [hello 示例](examples/hello)。SDK 目前随仓库提供，尚未宣称发布到 crates.io。
+见 [插件开发网站](https://guangl.github.io/dameng-cli/)、[开发文档源码](docs/plugin-development/README.md)、[插件开发协议](docs/plugins.md)、[CLI 参考](docs/cli.md)、[架构说明](docs/architecture.md) 和可运行的 [hello 示例](examples/hello)。SDK 目前随仓库提供，尚未宣称发布到 crates.io。
 
 ## 开发与仓库维护
 
