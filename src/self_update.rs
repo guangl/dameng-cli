@@ -21,6 +21,15 @@ struct Release {
 }
 
 pub fn self_update(requested: Option<&str>, check_only: bool) -> Result<SelfUpdateResult> {
+    self_update_with_options(requested, check_only, false, None)
+}
+
+pub fn self_update_with_options(
+    requested: Option<&str>,
+    check_only: bool,
+    force: bool,
+    target_override: Option<&str>,
+) -> Result<SelfUpdateResult> {
     let repository = env::var("DM_UPDATE_REPOSITORY").unwrap_or_else(|_| DEFAULT_REPOSITORY.into());
     validate_repository(&repository)?;
     let temp = tempfile::tempdir()?;
@@ -40,14 +49,16 @@ pub fn self_update(requested: Option<&str>, check_only: bool) -> Result<SelfUpda
         available_version: available.to_string(),
         updated: false,
     };
-    if available <= current || check_only {
+    if check_only || (available <= current && !force) {
         return Ok(result);
     }
 
-    let target = env!("DM_HOST_TARGET");
+    let target = target_override
+        .map(str::to_owned)
+        .unwrap_or_else(|| env!("DM_HOST_TARGET").to_owned());
     ensure!(
         matches!(
-            target,
+            target.as_str(),
             "x86_64-unknown-linux-gnu"
                 | "aarch64-unknown-linux-gnu"
                 | "x86_64-unknown-linux-musl"
@@ -67,7 +78,7 @@ pub fn self_update(requested: Option<&str>, check_only: bool) -> Result<SelfUpda
     download(&format!("{base}/{archive_name}.minisig"), &signature)?;
     verify_checksum(&fs::read(&archive)?, &fs::read(&checksum)?)?;
     verify_release_signature(&fs::read(&archive)?, &fs::read(&signature)?)?;
-    let replacement = extract_binary(&archive, temp.path(), &tag, target)?;
+    let replacement = extract_binary(&archive, temp.path(), &tag, &target)?;
     replace_current_executable(&replacement)?;
     Ok(SelfUpdateResult {
         updated: true,
@@ -107,6 +118,7 @@ pub fn validate_repository(repository: &str) -> Result<()> {
 }
 
 fn download(url: &str, destination: &std::path::Path) -> Result<()> {
+    eprintln!("Downloading {url}");
     let status = Command::new("curl")
         .args([
             "-fsSL",

@@ -30,6 +30,12 @@ license = "MIT"
 homepage = "https://example.com/my-tool"
 environment = ["DM_DATABASE_URL"]
 permissions = ["filesystem", "network"]
+
+[hooks]
+pre_install = "hooks/pre-install.sh"
+post_install = "hooks/post-install.sh"
+pre_uninstall = "hooks/pre-uninstall.sh"
+post_uninstall = "hooks/post-uninstall.sh"
 ```
 
 `Cargo.toml`：

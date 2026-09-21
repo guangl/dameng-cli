@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use clap::{CommandFactory, Parser, Subcommand};
-use dameng_cli::{PluginStore, scaffold_plugin, self_update};
+use dameng_cli::{PluginStore, scaffold_plugin, self_update_with_options};
 use std::{ffi::OsString, path::PathBuf, process::Command as ProcessCommand};
 
 #[derive(Parser)]
@@ -64,6 +64,8 @@ enum Command {
         #[arg(long)]
         accept_permissions: bool,
     },
+    /// Roll back to the most recent previous version of a plugin.
+    Rollback { name: String },
     /// Check installed plugins for newer versions.
     Outdated {
         #[arg(long)]
@@ -88,6 +90,12 @@ enum Command {
         check: bool,
         #[arg(long)]
         version: Option<String>,
+        /// Reinstall or downgrade even when the requested version is not newer.
+        #[arg(long)]
+        force: bool,
+        /// Override the release target triple for this update.
+        #[arg(long)]
+        target: Option<String>,
         #[arg(long)]
         json: bool,
     },
@@ -266,6 +274,10 @@ pub fn run() -> Result<i32> {
                 println!("Updated {} to {}", manifest.name, manifest.version);
             }
         }
+        Command::Rollback { name } => {
+            let manifest = store.rollback(&name)?;
+            println!("Rolled back {} to {}", manifest.name, manifest.version);
+        }
         Command::Outdated { json } => {
             let statuses = store.outdated()?;
             if json {
@@ -320,9 +332,12 @@ pub fn run() -> Result<i32> {
         Command::SelfUpdate {
             check,
             version,
+            force,
+            target,
             json,
         } => {
-            let result = self_update(version.as_deref(), check)?;
+            let result =
+                self_update_with_options(version.as_deref(), check, force, target.as_deref())?;
             if json {
                 println!("{}", serde_json::to_string_pretty(&result)?);
             } else if result.updated {

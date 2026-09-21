@@ -20,6 +20,7 @@ const RESERVED_NAMES: &[&str] = &[
     "new",
     "outdated",
     "registry",
+    "rollback",
     "search",
     "self-update",
     "uninstall",
@@ -47,6 +48,26 @@ pub struct Manifest {
     /// Declarative permissions shown to users. Native plugins are not sandboxed.
     #[serde(default)]
     pub permissions: Vec<String>,
+    /// Lifecycle hooks run by the host.
+    #[serde(default)]
+    pub hooks: Hooks,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, serde::Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct Hooks {
+    /// Run from the source root before the Rust build.
+    #[serde(default)]
+    pub pre_install: Option<String>,
+    /// Run from the installed plugin directory after a successful install.
+    #[serde(default)]
+    pub post_install: Option<String>,
+    /// Run from the installed plugin directory before uninstall.
+    #[serde(default)]
+    pub pre_uninstall: Option<String>,
+    /// Run from the staged package before it is permanently removed.
+    #[serde(default)]
+    pub post_uninstall: Option<String>,
 }
 
 pub fn validate_name(name: &str) -> Result<()> {
@@ -72,6 +93,27 @@ pub fn validate_name(name: &str) -> Result<()> {
                 && matches!(name.as_bytes()[3], b'1'..=b'9')),
         "Plugin name '{name}' is not portable"
     );
+    Ok(())
+}
+
+fn validate_hook(hook: &str) -> Result<()> {
+    ensure!(!hook.is_empty(), "Hook path must not be empty");
+    ensure!(
+        !hook.starts_with('/') && !hook.starts_with('\\') && !hook.contains(':'),
+        "Hook path must be relative"
+    );
+    for component in hook.split(['/', '\\']) {
+        ensure!(
+            !component.is_empty() && component != "." && component != "..",
+            "Hook path must be a relative executable path"
+        );
+        ensure!(
+            component
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.')),
+            "Hook path contains unsupported characters"
+        );
+    }
     Ok(())
 }
 
@@ -127,6 +169,17 @@ impl Manifest {
                 PERMISSIONS.contains(&permission.as_str()),
                 "Unknown permission '{permission}'; supported values are filesystem, network and process"
             );
+        }
+        for hook in [
+            manifest.hooks.pre_install.as_deref(),
+            manifest.hooks.post_install.as_deref(),
+            manifest.hooks.pre_uninstall.as_deref(),
+            manifest.hooks.post_uninstall.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            validate_hook(hook)?;
         }
         Ok(manifest)
     }

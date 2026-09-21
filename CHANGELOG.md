@@ -4,6 +4,8 @@
 
 - 增加宿主 `dm self-update`，从 GitHub Release 下载目标平台归档、验证 SHA-256 并原子替换当前程序。
 - `dm self-update` 增加 minisign 签名强制校验；Release 流程对归档生成签名。
+- `dm self-update` 增加 `--force`（重装/降级）与 `--target`（覆盖产物目标）。
+- 新增自更新端到端测试：用临时 `dm` 副本 + 假 `curl`/`tar` 验证下载、校验、签名与原子替换。
 - 增加远程 registry 索引支持：`dm registry sync <url>` 与 `dm search --remote <url>`。
 - Release 产物新增 Linux ARM64（aarch64）与 x86_64 musl 静态目标。
 - `dm outdated` 支持检查固定 ref；分支 ref 会跟进，tag/commit 保持固定。
@@ -13,6 +15,10 @@
 - `dm new` 增加 `--generate-lockfile`；`dm registry add` 增加 `--verify` 可达性校验。
 - 支持 `DM_REGISTRY_INDEX` 作为 `dm search` 与 `dm registry sync` 的默认远程索引。
 - `dm self-update` 支持 `DM_MINISIGN_PUBLIC_KEY` 覆盖内置公钥，便于测试与自定义签名。
+- 增加插件生命周期 hooks：`pre_install`、`post_install`、`pre_uninstall`、`post_uninstall`。
+- 增加历史版本备份与 `dm rollback`，更新失败或需回退时恢复上一版本。
+- 网络操作（下载、git clone、索引拉取、更新）增加进度输出。
+- `dm outdated` 并行检查已安装插件。
 - 增加插件原子更新、更新检查、启停、来源/revision/校验和溯源、完整性验证和故障回滚。
 - 增加 `info`、`search`、`outdated`、`verify`、`doctor`、JSON 输出和 shell completion。
 - 增加 `dm new` 插件项目脚手架。

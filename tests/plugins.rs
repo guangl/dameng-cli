@@ -324,6 +324,61 @@ fn plugin_metadata_verification_enablement_and_atomic_update() {
     assert_eq!(current.manifest.version, "0.2.0");
     assert_eq!(current.checksum, good_checksum);
     store.verify(Some("probe")).unwrap();
+
+    assert_eq!(store.rollback("probe").unwrap().version, "0.1.0");
+    assert_eq!(store.info("probe").unwrap().manifest.version, "0.1.0");
+    assert!(home.join("backups/probe").is_dir());
+}
+
+#[cfg(unix)]
+#[test]
+fn lifecycle_hooks_run_in_order() {
+    use std::os::unix::fs::PermissionsExt;
+    let temp = TempDir::new().unwrap();
+    let source = fixture(temp.path());
+    let home = temp.path().join("home");
+    for (name, marker) in [
+        ("pre.sh", "pre"),
+        ("post.sh", "post"),
+        ("preun.sh", "preun"),
+        ("postun.sh", "postun"),
+    ] {
+        let path = source.join(name);
+        fs::write(
+            &path,
+            format!("#!/bin/sh\nprintf '{marker}\\n' >> \"$DM_HOME/hooks.log\"\n"),
+        )
+        .unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    fs::write(
+        source.join("dm-plugin.toml"),
+        r#"name = "probe"
+version = "0.1.0"
+description = "test"
+api_version = 1
+[hooks]
+pre_install = "pre.sh"
+post_install = "post.sh"
+pre_uninstall = "preun.sh"
+post_uninstall = "postun.sh"
+"#,
+    )
+    .unwrap();
+
+    let store = PluginStore::new(&home);
+    store
+        .install_with_consent(source.to_str().unwrap(), None, true)
+        .unwrap();
+    let log = home.join("hooks.log");
+    let after_install = fs::read_to_string(&log).unwrap();
+    assert!(after_install.contains("pre"), "{after_install}");
+    assert!(after_install.contains("post"), "{after_install}");
+
+    store.uninstall("probe").unwrap();
+    let after_uninstall = fs::read_to_string(&log).unwrap();
+    assert!(after_uninstall.contains("preun"), "{after_uninstall}");
+    assert!(after_uninstall.contains("postun"), "{after_uninstall}");
 }
 
 #[test]

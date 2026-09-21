@@ -39,6 +39,7 @@ pub fn fetch_registry_index(url: &str) -> Result<Vec<(String, String)>> {
     );
     let temp = tempfile::tempdir()?;
     let destination = temp.path().join("registry.json");
+    eprintln!("Fetching registry index {url}");
     let status = Command::new("curl")
         .args([
             "-fsSL",

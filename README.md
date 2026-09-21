@@ -60,7 +60,8 @@ dm uninstall hello
 | `dm search [query] [--remote URL] [--local] [--json]` | 搜索本地或远程配置的插件来源；未指定时可用 `DM_REGISTRY_INDEX` 指定远程索引 |
 | `dm <name> [args...]` | 执行插件，原样转发后续参数，包括 `--help` |
 | `dm update <name> [--accept-permissions]` / `dm update --all [--accept-permissions]` | 构建、校验并原子替换插件，失败时保留旧版本 |
-| `dm outdated [--json]` | 检查未固定 revision 的插件是否有新版本 |
+| `dm outdated [--json]` | 并行检查插件是否有新版本 |
+| `dm rollback <name>` | 回滚到上一次更新前保留的历史版本 |
 | `dm enable/disable <name>` | 启用或停用插件 |
 | `dm verify [name]` | 校验已安装清单与二进制 SHA-256 |
 | `dm doctor [--repair]` | 检查或修复 SQLite、插件目录、残留事务与孤立配置/数据/缓存目录 |
@@ -69,7 +70,7 @@ dm uninstall hello
 | `dm registry sync [url] [--prune]` | 拉取远程 JSON 索引并合并到本地注册表，`--prune` 删除远端已消失的条目；省略 url 时使用 `DM_REGISTRY_INDEX` |
 | `dm registry list [--json]` | 列出名称注册表 |
 | `dm registry remove <name>` | 删除名称注册表条目 |
-| `dm self-update [--check] [--version X.Y.Z]` | 校验 GitHub Release SHA-256 与 minisign 签名后原子升级宿主 |
+| `dm self-update [--check] [--version X.Y.Z] [--force] [--target TARGET]` | 校验 GitHub Release SHA-256 与 minisign 签名后原子升级宿主；`--force` 允许重装或降级，`--target` 覆盖产物目标 |
 | `dm completions <shell>` | 生成 shell completion |
 | `dm --help` / `dm --version` | 宿主帮助和版本 |
 
@@ -83,7 +84,7 @@ dm uninstall hello
 - Windows：`%LOCALAPPDATA%\dm`。
 - Linux / macOS：`$XDG_DATA_HOME/dm`，未设置时使用 `$HOME/.local/share/dm`。
 
-该目录内的 `store.sqlite3` 保存插件清单、来源、Git revision、SHA-256、启停状态和名称注册表。`plugins/` 保存可执行文件；`config/<name>`、`data/<name>`、`cache/<name>` 是每个插件的隔离目录。使用自己的真实插件仓库地址：
+该目录内的 `store.sqlite3` 保存插件清单、来源、Git revision、SHA-256、启停状态和名称注册表。`plugins/` 保存可执行文件；`backups/<name>` 保留更新前的历史版本，供 `dm rollback` 使用；`config/<name>`、`data/<name>`、`cache/<name>` 是每个插件的隔离目录。使用自己的真实插件仓库地址：
 
 ```sh
 dm registry add backup https://github.com/YOUR_ORG/dm-backup.git
