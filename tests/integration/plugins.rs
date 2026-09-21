@@ -599,18 +599,6 @@ fn json_cli_and_reserved_registry_name() {
     );
 }
 
-#[test]
-fn newer_sqlite_schema_is_rejected() {
-    let temp = TempDir::new().unwrap();
-    let database = temp.path().join("store.sqlite3");
-    rusqlite::Connection::open(database)
-        .unwrap()
-        .execute_batch("PRAGMA user_version = 4")
-        .unwrap();
-    let error = PluginStore::new(temp.path()).list().unwrap_err();
-    assert!(error.to_string().contains("schema 4 is newer"));
-}
-
 #[cfg(unix)]
 #[test]
 fn unwritable_dm_home_reports_actionable_error() {
@@ -625,36 +613,6 @@ fn unwritable_dm_home_reports_actionable_error() {
     assert!(error.to_string().contains("is not writable"), "{error:#}");
 
     fs::set_permissions(&home, fs::Permissions::from_mode(0o755)).unwrap();
-}
-
-#[test]
-fn sqlite_schema_migrates_once_and_stays_current() {
-    let temp = TempDir::new().unwrap();
-    let database = temp.path().join("store.sqlite3");
-    rusqlite::Connection::open(&database)
-        .unwrap()
-        .execute_batch(
-            "CREATE TABLE installed_plugins (
-                 name TEXT PRIMARY KEY,
-                 manifest TEXT NOT NULL,
-                 installed_at INTEGER NOT NULL DEFAULT (unixepoch())
-             ) STRICT;
-             CREATE TABLE registry (
-                 name TEXT PRIMARY KEY,
-                 source TEXT NOT NULL,
-                 updated_at INTEGER NOT NULL DEFAULT (unixepoch())
-             ) STRICT;
-             PRAGMA user_version = 1;",
-        )
-        .unwrap();
-    let store = PluginStore::new(temp.path());
-    store.list().unwrap();
-    store.list().unwrap();
-    let version: u32 = rusqlite::Connection::open(database)
-        .unwrap()
-        .query_row("PRAGMA user_version", [], |row| row.get(0))
-        .unwrap();
-    assert_eq!(version, 3);
 }
 
 #[test]

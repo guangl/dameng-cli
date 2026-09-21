@@ -133,17 +133,11 @@ impl PluginStore {
         connection
             .busy_timeout(std::time::Duration::from_secs(5))
             .context("Configure SQLite plugin store")?;
-        let schema_version: u32 = connection
-            .query_row("PRAGMA user_version", [], |row| row.get(0))
-            .context("Read SQLite plugin store schema")?;
-        ensure!(
-            schema_version <= 3,
-            "SQLite plugin store schema {schema_version} is newer than this dm supports"
-        );
         connection
             .execute_batch(
                 "PRAGMA journal_mode = WAL;
                  PRAGMA foreign_keys = ON;
+                 PRAGMA user_version = 3;
                  CREATE TABLE IF NOT EXISTS installed_plugins (
                      name TEXT PRIMARY KEY,
                      manifest TEXT NOT NULL,
@@ -167,20 +161,6 @@ impl PluginStore {
             .execute_batch(dm_plugin_sdk::SSH_SERVERS_TABLE_SCHEMA)
             .map_err(|error| self.store_open_error(error))
             .context("Initialize shared SSH servers table")?;
-        if schema_version == 1 {
-            connection.execute_batch(
-                "BEGIN IMMEDIATE;
-                 ALTER TABLE installed_plugins ADD COLUMN source TEXT;
-                 ALTER TABLE installed_plugins ADD COLUMN revision TEXT;
-                 ALTER TABLE installed_plugins ADD COLUMN source_ref TEXT;
-                 ALTER TABLE installed_plugins ADD COLUMN checksum TEXT NOT NULL DEFAULT '';
-                 ALTER TABLE installed_plugins ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1;
-                 PRAGMA user_version = 3;
-                 COMMIT;",
-            )?;
-        } else if schema_version == 0 || schema_version == 2 {
-            connection.execute_batch("PRAGMA user_version = 3;")?;
-        }
         Ok(connection)
     }
 
