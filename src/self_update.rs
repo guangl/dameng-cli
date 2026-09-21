@@ -189,13 +189,25 @@ fn extract_binary(
     tag: &str,
     target: &str,
 ) -> Result<PathBuf> {
-    let status = Command::new("tar")
-        .arg("-xf")
-        .arg(archive)
-        .arg("-C")
-        .arg(root)
-        .status()
-        .context("Self-update requires tar")?;
+    let status = if cfg!(windows) {
+        Command::new("powershell")
+            .args(["-NoProfile", "-Command"])
+            .arg(format!(
+                "Expand-Archive -LiteralPath '{}' -DestinationPath '{}' -Force",
+                archive.display(),
+                root.display()
+            ))
+            .status()
+            .context("Self-update requires PowerShell to extract zip archives")?
+    } else {
+        Command::new("tar")
+            .arg("-xf")
+            .arg(archive)
+            .arg("-C")
+            .arg(root)
+            .status()
+            .context("Self-update requires tar")?
+    };
     ensure!(status.success(), "Could not extract release archive");
     let binary = root
         .join(format!("dm-{tag}-{target}"))

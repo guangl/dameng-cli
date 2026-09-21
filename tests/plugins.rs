@@ -814,13 +814,29 @@ cp "$FAKE_REGISTRY_INDEX" "$dest"
     )
     .unwrap();
 
+    ok(dm(&home)
+        .args([
+            "registry",
+            "add",
+            "stale",
+            "https://example.invalid/stale.git",
+        ])
+        .output()
+        .unwrap());
+
     let mut sync = dm(&home);
     sync.env("PATH", &path).env("FAKE_REGISTRY_INDEX", &index);
     let output = ok(sync
-        .args(["registry", "sync", "https://example.invalid/registry.json"])
+        .args([
+            "registry",
+            "sync",
+            "--prune",
+            "https://example.invalid/registry.json",
+        ])
         .output()
         .unwrap());
     assert!(output.contains("Synced 2"), "{output}");
+    assert!(output.contains("Removed 1 stale entries"), "{output}");
 
     let mut search = dm(&home);
     search.env("PATH", &path).env("FAKE_REGISTRY_INDEX", &index);
@@ -835,6 +851,19 @@ cp "$FAKE_REGISTRY_INDEX" "$dest"
         .unwrap());
     assert!(output.contains("backup"));
     assert!(!output.contains("tools"));
+
+    let json = ok(dm(&home)
+        .args(["registry", "list", "--json"])
+        .output()
+        .unwrap());
+    let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+    let names: Vec<&str> = parsed
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry[0].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["backup", "tools"]);
 }
 
 #[cfg(unix)]

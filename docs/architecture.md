@@ -22,10 +22,12 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
 
 | 模块 | 责任 |
 | --- | --- |
-| `src/main.rs` | 参数解析、内置命令、外部子命令路由、错误展示 |
+| `src/main.rs` / `src/cli.rs` | 程序入口与命令解析、内置命令、外部子命令路由、错误展示 |
 | `src/manifest.rs` | 严格清单解析、名称限制、API 版本、固定入口命名 |
-| `src/store.rs` | SQLite 元数据、来源与 revision、编译安装、原子更新、校验修复、卸载、进程调用 |
-| `src/update.rs` | 宿主 Release 查询、下载、SHA-256 校验、解包和原子自替换 |
+| `src/store/mod.rs` | SQLite 元数据、来源与 revision、编译安装、原子更新、校验修复、卸载、进程调用 |
+| `src/self_update.rs` | 宿主 Release 查询、下载、SHA-256 与 minisign 校验、解包和原子自替换 |
+| `src/registry_index.rs` | 远程 JSON 注册表索引的拉取与解析 |
+| `src/scaffold.rs` | `dm new` 插件项目脚手架 |
 | `crates/dm-plugin-sdk` | `Plugin` / `Context` / `PluginResult` 和协议版本 |
 | `examples/hello` | 唯一演示插件，验证 SDK 使用方法 |
 | `tests/plugins.rs` | 真实 Rust crate 安装和进程协议回归测试 |

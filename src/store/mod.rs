@@ -527,14 +527,6 @@ impl PluginStore {
             .into_iter()
             .map(|info| {
                 let installed = info.manifest.version.clone();
-                if info.source_ref.is_some() {
-                    return Ok(UpdateStatus {
-                        name: info.manifest.name,
-                        installed_version: installed.clone(),
-                        available_version: Some(installed),
-                        update_available: false,
-                    });
-                }
                 let Some(source) = info.source.as_deref() else {
                     return Ok(UpdateStatus {
                         name: info.manifest.name,
@@ -546,7 +538,8 @@ impl PluginStore {
                 let available = if Path::new(source).is_dir() {
                     Manifest::read(Path::new(source))?.version
                 } else {
-                    let (_checkout, root, _revision) = checkout_git(source, None)?;
+                    let (_checkout, root, _revision) =
+                        checkout_git(source, info.source_ref.as_deref())?;
                     Manifest::read(&root)?.version
                 };
                 let update_available = versions_differ(&installed, &available);
@@ -566,7 +559,7 @@ impl PluginStore {
 
     pub fn search_remote(&self, url: &str, query: &str) -> Result<Vec<(String, String)>> {
         Ok(filter_registry(
-            crate::registry::fetch_registry_index(url)?,
+            crate::registry_index::fetch_registry_index(url)?,
             query,
         ))
     }
@@ -789,8 +782,8 @@ impl PluginStore {
         Ok(())
     }
 
-    pub fn registry_sync(&self, url: &str) -> Result<usize> {
-        let entries = crate::registry::fetch_registry_index(url)?;
+    pub fn registry_sync(&self, url: &str, prune: bool) -> Result<(usize, usize)> {
+        let entries = crate::registry_index::fetch_registry_index(url)?;
         let mut connection = self.connect()?;
         let transaction = connection.transaction()?;
         for (name, source) in &entries {
@@ -800,8 +793,22 @@ impl PluginStore {
                 params![name, source],
             )?;
         }
+        let mut removed = 0;
+        if prune {
+            let existing = {
+                let mut statement = transaction.prepare("SELECT name FROM registry")?;
+                let names = statement.query_map([], |row| row.get::<_, String>(0))?;
+                names.collect::<rusqlite::Result<Vec<_>>>()?
+            };
+            for name in existing {
+                if !entries.iter().any(|(entry, _)| entry == &name) {
+                    transaction.execute("DELETE FROM registry WHERE name = ?1", [&name])?;
+                    removed += 1;
+                }
+            }
+        }
         transaction.commit()?;
-        Ok(entries.len())
+        Ok((entries.len(), removed))
     }
 
     pub fn registry_list(&self) -> Result<Vec<(String, String)>> {

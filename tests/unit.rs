@@ -1,6 +1,6 @@
-use dameng_cli::registry::parse_registry_index;
+use dameng_cli::registry_index::parse_registry_index;
 use dameng_cli::scaffold_plugin;
-use dameng_cli::update::{
+use dameng_cli::self_update::{
     normalize_tag, validate_repository, verify_checksum, verify_release_signature,
 };
 use sha2::{Digest, Sha256};

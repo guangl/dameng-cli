@@ -66,8 +66,8 @@ dm uninstall hello
 | `dm doctor [--repair]` | 检查或修复 SQLite、插件目录、残留事务与孤立配置/数据/缓存目录 |
 | `dm uninstall <name>` | 删除插件及其 config/data/cache 隔离目录 |
 | `dm registry add <name> <url>` | 在 SQLite 注册表中新增或更新名称与 HTTPS Git 地址 |
-| `dm registry sync <url>` | 拉取远程 JSON 索引并合并到本地注册表 |
-| `dm registry list` | 列出名称注册表 |
+| `dm registry sync <url> [--prune]` | 拉取远程 JSON 索引并合并到本地注册表，`--prune` 删除远端已消失的条目 |
+| `dm registry list [--json]` | 列出名称注册表 |
 | `dm registry remove <name>` | 删除名称注册表条目 |
 | `dm self-update [--check] [--version X.Y.Z]` | 校验 GitHub Release SHA-256 与 minisign 签名后原子升级宿主 |
 | `dm completions <shell>` | 生成 shell completion |

@@ -6,6 +6,10 @@
 - `dm self-update` 增加 minisign 签名强制校验；Release 流程对归档生成签名。
 - 增加远程 registry 索引支持：`dm registry sync <url>` 与 `dm search --remote <url>`。
 - Release 产物新增 Linux ARM64（aarch64）与 x86_64 musl 静态目标。
+- `dm outdated` 支持检查固定 ref；分支 ref 会跟进，tag/commit 保持固定。
+- 增加 `dm registry sync --prune` 与 `dm registry list --json`。
+- Windows 自更新改用 PowerShell 解压 zip，不再依赖系统 tar。
+- 源码模块化：CLI 拆到 `src/cli.rs`，存储拆到 `src/store/`，宿主自更新拆到 `src/self_update.rs`，远程索引拆到 `src/registry_index.rs`。
 - 增加插件原子更新、更新检查、启停、来源/revision/校验和溯源、完整性验证和故障回滚。
 - 增加 `info`、`search`、`outdated`、`verify`、`doctor`、JSON 输出和 shell completion。
 - 增加 `dm new` 插件项目脚手架。
