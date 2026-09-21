@@ -324,6 +324,126 @@ fn plugin_metadata_verification_enablement_and_atomic_update() {
     assert_eq!(current.manifest.version, "0.2.0");
     assert_eq!(current.checksum, good_checksum);
     store.verify(Some("probe")).unwrap();
+
+    assert_eq!(store.rollback("probe").unwrap().version, "0.1.0");
+    assert_eq!(store.info("probe").unwrap().manifest.version, "0.1.0");
+    assert!(home.join("backups/probe").is_dir());
+}
+
+#[test]
+fn doctor_recovers_an_interrupted_rollback() {
+    let temp = TempDir::new().unwrap();
+    let source = fixture(temp.path());
+    let home = temp.path().join("home");
+    let store = PluginStore::new(&home);
+    store.install(source.to_str().unwrap()).unwrap();
+
+    fs::write(
+        source.join("dm-plugin.toml"),
+        manifest("probe").replace("0.1.0", "0.2.0"),
+    )
+    .unwrap();
+    let cargo = fs::read_to_string(source.join("Cargo.toml")).unwrap();
+    fs::write(source.join("Cargo.toml"), cargo.replace("0.1.0", "0.2.0")).unwrap();
+    ok(Command::new("cargo")
+        .args(["generate-lockfile", "--offline", "--manifest-path"])
+        .arg(source.join("Cargo.toml"))
+        .output()
+        .unwrap());
+    store.update("probe").unwrap();
+
+    // Simulate interruption after the backup became active but before SQLite
+    // was updated to describe it.
+    let transaction = home.join("plugins/.rollback-test");
+    fs::create_dir(&transaction).unwrap();
+    fs::rename(home.join("plugins/probe"), transaction.join("previous")).unwrap();
+    fs::rename(home.join("backups/probe"), home.join("plugins/probe")).unwrap();
+
+    let report = store.doctor(true).unwrap();
+    assert!(
+        report
+            .repairs
+            .iter()
+            .any(|repair| repair.contains("interrupted rollback")),
+        "{report:?}"
+    );
+    assert_eq!(store.info("probe").unwrap().manifest.version, "0.2.0");
+    assert_eq!(
+        Manifest::read(&home.join("plugins/probe")).unwrap().version,
+        "0.2.0"
+    );
+    assert_eq!(
+        Manifest::read(&home.join("backups/probe")).unwrap().version,
+        "0.1.0"
+    );
+    assert!(!transaction.exists());
+
+    // Also cover interruption after SQLite already describes the rolled-back
+    // version but before the former active version is archived.
+    store.rollback("probe").unwrap();
+    let transaction = home.join("plugins/.rollback-test-finished");
+    fs::create_dir(&transaction).unwrap();
+    fs::rename(home.join("backups/probe"), transaction.join("previous")).unwrap();
+    store.doctor(true).unwrap();
+    assert_eq!(store.info("probe").unwrap().manifest.version, "0.1.0");
+    assert_eq!(
+        Manifest::read(&home.join("backups/probe")).unwrap().version,
+        "0.2.0"
+    );
+    assert!(!transaction.exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn lifecycle_hooks_run_in_order() {
+    use std::os::unix::fs::PermissionsExt;
+    let temp = TempDir::new().unwrap();
+    let source = fixture(temp.path());
+    let home = temp.path().join("home");
+    for (name, marker) in [
+        ("pre.sh", "pre"),
+        ("post.sh", "post"),
+        ("preun.sh", "preun"),
+        ("postun.sh", "postun"),
+    ] {
+        let path = source.join(name);
+        fs::write(
+            &path,
+            format!(
+                "#!/bin/sh\ntest \"$PWD\" = \"$DM_PLUGIN_DIR\" || exit 42\nprintf '{marker}\\n' >> \"$DM_HOME/hooks.log\"\n"
+            ),
+        )
+        .unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    fs::write(
+        source.join("dm-plugin.toml"),
+        r#"name = "probe"
+version = "0.1.0"
+description = "test"
+api_version = 1
+[hooks]
+pre_install = "pre.sh"
+post_install = "post.sh"
+pre_uninstall = "preun.sh"
+post_uninstall = "postun.sh"
+"#,
+    )
+    .unwrap();
+
+    let store = PluginStore::new(&home);
+    store
+        .install_with_consent(source.to_str().unwrap(), None, true)
+        .unwrap();
+    let log = home.join("hooks.log");
+    let after_install = fs::read_to_string(&log).unwrap();
+    assert!(after_install.contains("pre"), "{after_install}");
+    assert!(after_install.contains("post"), "{after_install}");
+
+    store.uninstall("probe").unwrap();
+    let after_uninstall = fs::read_to_string(&log).unwrap();
+    assert!(after_uninstall.contains("preun"), "{after_uninstall}");
+    assert!(after_uninstall.contains("postun"), "{after_uninstall}");
 }
 
 #[test]
@@ -664,6 +784,24 @@ fn registry_resolution_and_git_failure_with_fake_transport() {
             .env("FAKE_GIT_LOG", &log);
         cmd
     };
+
+    let verified = command()
+        .args([
+            "registry",
+            "add",
+            "--verify",
+            "reachable",
+            "https://example.invalid/reachable.git",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        verified.status.success(),
+        "{}",
+        String::from_utf8_lossy(&verified.stderr)
+    );
+    assert!(ok(dm(&home).args(["registry", "list"]).output().unwrap()).contains("reachable"));
+
     let mismatch = command().args(["install", "wrong"]).output().unwrap();
     assert!(!mismatch.status.success());
     assert!(String::from_utf8_lossy(&mismatch.stderr).contains("does not match"));
@@ -679,6 +817,19 @@ fn registry_resolution_and_git_failure_with_fake_transport() {
     assert!(!failed.status.success());
     assert!(String::from_utf8_lossy(&failed.stderr).contains("Git could not fetch"));
     assert_eq!(fs::read_dir(home.join("plugins")).unwrap().count(), 1);
+
+    let bad_verify = command()
+        .args([
+            "registry",
+            "add",
+            "--verify",
+            "bad",
+            "https://example.invalid/bad.git",
+        ])
+        .output()
+        .unwrap();
+    assert!(!bad_verify.status.success());
+    assert!(!ok(dm(&home).args(["registry", "list"]).output().unwrap()).contains("bad"));
 }
 
 #[test]
@@ -709,6 +860,16 @@ fn new_command_scaffolds_a_project() {
             .success()
     );
     assert!(!reserved.exists());
+
+    let offline = temp.path().join("offline");
+    let output = dm(&home)
+        .args(["new", "backup", "--directory"])
+        .arg(&offline)
+        .args(["--generate-lockfile"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(!offline.exists());
 }
 
 #[test]
@@ -814,13 +975,29 @@ cp "$FAKE_REGISTRY_INDEX" "$dest"
     )
     .unwrap();
 
+    ok(dm(&home)
+        .args([
+            "registry",
+            "add",
+            "stale",
+            "https://example.invalid/stale.git",
+        ])
+        .output()
+        .unwrap());
+
     let mut sync = dm(&home);
     sync.env("PATH", &path).env("FAKE_REGISTRY_INDEX", &index);
     let output = ok(sync
-        .args(["registry", "sync", "https://example.invalid/registry.json"])
+        .args([
+            "registry",
+            "sync",
+            "--prune",
+            "https://example.invalid/registry.json",
+        ])
         .output()
         .unwrap());
     assert!(output.contains("Synced 2"), "{output}");
+    assert!(output.contains("Removed 1 stale entries"), "{output}");
 
     let mut search = dm(&home);
     search.env("PATH", &path).env("FAKE_REGISTRY_INDEX", &index);
@@ -835,6 +1012,19 @@ cp "$FAKE_REGISTRY_INDEX" "$dest"
         .unwrap());
     assert!(output.contains("backup"));
     assert!(!output.contains("tools"));
+
+    let json = ok(dm(&home)
+        .args(["registry", "list", "--json"])
+        .output()
+        .unwrap());
+    let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+    let names: Vec<&str> = parsed
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry[0].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["backup", "tools"]);
 }
 
 #[cfg(unix)]

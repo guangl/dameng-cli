@@ -1,4 +1,4 @@
-use crate::{API_VERSION, Manifest, manifest::validate_name};
+use crate::{API_VERSION, Manifest, plugin::manifest::validate_name};
 use anyhow::{Context, Result, bail, ensure};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::Serialize;
@@ -78,6 +78,10 @@ impl PluginStore {
 
     fn plugins(&self) -> PathBuf {
         self.home.join("plugins")
+    }
+
+    fn backups(&self) -> PathBuf {
+        self.home.join("backups")
     }
 
     fn per_plugin_directories(&self, name: &str) -> [PathBuf; 3] {
@@ -280,6 +284,9 @@ impl PluginStore {
             .tempdir_in(&plugins)?;
         let package = stage.path().join("package");
         validate_crate(&source, &manifest)?;
+        if let Some(hook) = manifest.hooks.pre_install.as_deref() {
+            self.run_hook(&source, hook, "pre-install", &manifest)?;
+        }
         let build = stage.path().join("build");
         let status = Command::new("cargo")
             .args(["build", "--release", "--locked", "--manifest-path"])
@@ -317,6 +324,7 @@ impl PluginStore {
             toml::to_string(&manifest)?,
         )?;
         manifest.entrypoint(&package)?;
+        self.copy_hooks(&source, &package, &manifest)?;
         let checksum = sha256_file(&package.join(manifest.executable_name()))?;
         let previous = stage.path().join("previous");
         if mode == InstallMode::Update {
@@ -327,6 +335,15 @@ impl PluginStore {
                 let _ = fs::rename(&previous, &destination);
             }
             return Err(error).context("Publish installed plugin");
+        }
+        if let Some(hook) = manifest.hooks.post_install.as_deref() {
+            if let Err(error) = self.run_hook(&destination, hook, "post-install", &manifest) {
+                let _ = fs::remove_dir_all(&destination);
+                if mode == InstallMode::Update {
+                    let _ = fs::rename(&previous, &destination);
+                }
+                return Err(error).context("Run post-install hook");
+            }
         }
         let transaction = connection.transaction()?;
         let database_result = match mode {
@@ -364,6 +381,9 @@ impl PluginStore {
                 let _ = fs::rename(&previous, &destination);
             }
             return Err(error).context("Record installed plugin in SQLite");
+        }
+        if mode == InstallMode::Update {
+            self.archive_previous(&previous, &manifest.name)?;
         }
         Ok(manifest)
     }
@@ -514,6 +534,7 @@ impl PluginStore {
                 .into_iter()
                 .map(|plugin| {
                     let name = plugin.manifest.name;
+                    eprintln!("Updating {name}");
                     let result = self.update_with_consent(&name, accept_permissions);
                     (name, result)
                 })
@@ -523,41 +544,48 @@ impl PluginStore {
     }
 
     pub fn outdated(&self) -> Result<Vec<UpdateStatus>> {
-        self.list_info()?
-            .into_iter()
-            .map(|info| {
-                let installed = info.manifest.version.clone();
-                if info.source_ref.is_some() {
-                    return Ok(UpdateStatus {
-                        name: info.manifest.name,
-                        installed_version: installed.clone(),
-                        available_version: Some(installed),
-                        update_available: false,
-                    });
-                }
-                let Some(source) = info.source.as_deref() else {
-                    return Ok(UpdateStatus {
-                        name: info.manifest.name,
-                        installed_version: installed,
-                        available_version: None,
-                        update_available: false,
-                    });
-                };
-                let available = if Path::new(source).is_dir() {
-                    Manifest::read(Path::new(source))?.version
-                } else {
-                    let (_checkout, root, _revision) = checkout_git(source, None)?;
-                    Manifest::read(&root)?.version
-                };
-                let update_available = versions_differ(&installed, &available);
-                Ok(UpdateStatus {
-                    name: info.manifest.name,
-                    installed_version: installed,
-                    available_version: Some(available),
-                    update_available,
-                })
-            })
-            .collect()
+        let infos = self.list_info()?;
+        let mut results = Vec::with_capacity(infos.len());
+        std::thread::scope(|scope| -> Result<()> {
+            let handles: Vec<_> = infos
+                .into_iter()
+                .map(|info| scope.spawn(move || self.outdated_one(info)))
+                .collect();
+            for handle in handles {
+                results.push(
+                    handle
+                        .join()
+                        .map_err(|_| anyhow::anyhow!("outdated worker panicked"))??,
+                );
+            }
+            Ok(())
+        })?;
+        Ok(results)
+    }
+
+    fn outdated_one(&self, info: PluginInfo) -> Result<UpdateStatus> {
+        let installed = info.manifest.version.clone();
+        let Some(source) = info.source.as_deref() else {
+            return Ok(UpdateStatus {
+                name: info.manifest.name,
+                installed_version: installed,
+                available_version: None,
+                update_available: false,
+            });
+        };
+        let available = if Path::new(source).is_dir() {
+            Manifest::read(Path::new(source))?.version
+        } else {
+            let (_checkout, root, _revision) = checkout_git(source, info.source_ref.as_deref())?;
+            Manifest::read(&root)?.version
+        };
+        let update_available = versions_differ(&installed, &available);
+        Ok(UpdateStatus {
+            name: info.manifest.name,
+            installed_version: installed,
+            available_version: Some(available),
+            update_available,
+        })
     }
 
     pub fn search(&self, query: &str) -> Result<Vec<(String, String)>> {
@@ -566,7 +594,7 @@ impl PluginStore {
 
     pub fn search_remote(&self, url: &str, query: &str) -> Result<Vec<(String, String)>> {
         Ok(filter_registry(
-            crate::registry::fetch_registry_index(url)?,
+            crate::registry_index::fetch_registry_index(url)?,
             query,
         ))
     }
@@ -586,6 +614,13 @@ impl PluginStore {
         for entry in fs::read_dir(self.plugins())? {
             let entry = entry?;
             let name = entry.file_name().to_string_lossy().into_owned();
+            if name.starts_with(".rollback-") {
+                issues.push(format!("stale rollback transaction directory: {name}"));
+                if repair {
+                    repairs.push(self.repair_rollback_transaction(&entry.path())?);
+                }
+                continue;
+            }
             if name.starts_with(".install-") || name.starts_with(".remove-") {
                 issues.push(format!("stale transaction directory: {name}"));
                 if repair {
@@ -757,12 +792,26 @@ impl PluginStore {
             metadata.is_dir(),
             "Installed plugin must be a regular directory"
         );
+        let manifest = Manifest::read(&path).ok();
+        if let Some(manifest) = manifest.as_ref() {
+            if let Some(hook) = manifest.hooks.pre_uninstall.as_deref() {
+                self.run_hook(&path, hook, "pre-uninstall", manifest)?;
+            }
+        }
         // Rename first so a database error can restore the complete installation.
         let stage = tempfile::Builder::new()
             .prefix(".remove-")
             .tempdir_in(self.plugins())?;
         let removed = stage.path().join("package");
         fs::rename(&path, &removed).context("Stage plugin removal")?;
+        if let Some(manifest) = manifest.as_ref() {
+            if let Some(hook) = manifest.hooks.post_uninstall.as_deref() {
+                if let Err(error) = self.run_hook(&removed, hook, "post-uninstall", manifest) {
+                    let _ = fs::rename(&removed, &path);
+                    return Err(error).context("Run post-uninstall hook");
+                }
+            }
+        }
         if let Err(error) =
             connection.execute("DELETE FROM installed_plugins WHERE name = ?1", [name])
         {
@@ -772,6 +821,7 @@ impl PluginStore {
         for directory in self.per_plugin_directories(name) {
             let _ = fs::remove_dir_all(directory);
         }
+        let _ = fs::remove_dir_all(self.backups().join(name));
         Ok(())
     }
 
@@ -789,8 +839,29 @@ impl PluginStore {
         Ok(())
     }
 
-    pub fn registry_sync(&self, url: &str) -> Result<usize> {
-        let entries = crate::registry::fetch_registry_index(url)?;
+    pub fn verify_registry_source(&self, source: &str) -> Result<()> {
+        ensure!(
+            source.starts_with("https://") && source.len() > 8,
+            "Registry source must be an HTTPS Git repository URL"
+        );
+        let status = Command::new("git")
+            .args([
+                "-c",
+                "protocol.https.allow=always",
+                "-c",
+                "protocol.allow=never",
+                "ls-remote",
+            ])
+            .arg(source)
+            .env("GIT_TERMINAL_PROMPT", "0")
+            .status()
+            .context("Verify registry source; HTTPS registry verification requires Git")?;
+        ensure!(status.success(), "Git source is not reachable: {source}");
+        Ok(())
+    }
+
+    pub fn registry_sync(&self, url: &str, prune: bool) -> Result<(usize, usize)> {
+        let entries = crate::registry_index::fetch_registry_index(url)?;
         let mut connection = self.connect()?;
         let transaction = connection.transaction()?;
         for (name, source) in &entries {
@@ -800,8 +871,22 @@ impl PluginStore {
                 params![name, source],
             )?;
         }
+        let mut removed = 0;
+        if prune {
+            let existing = {
+                let mut statement = transaction.prepare("SELECT name FROM registry")?;
+                let names = statement.query_map([], |row| row.get::<_, String>(0))?;
+                names.collect::<rusqlite::Result<Vec<_>>>()?
+            };
+            for name in existing {
+                if !entries.iter().any(|(entry, _)| entry == &name) {
+                    transaction.execute("DELETE FROM registry WHERE name = ?1", [&name])?;
+                    removed += 1;
+                }
+            }
+        }
         transaction.commit()?;
-        Ok(entries.len())
+        Ok((entries.len(), removed))
     }
 
     pub fn registry_list(&self) -> Result<Vec<(String, String)>> {
@@ -821,6 +906,157 @@ impl PluginStore {
             "Plugin '{name}' is not registered"
         );
         Ok(())
+    }
+
+    fn copy_hooks(&self, source: &Path, package: &Path, manifest: &Manifest) -> Result<()> {
+        for hook in [
+            manifest.hooks.post_install.as_deref(),
+            manifest.hooks.pre_uninstall.as_deref(),
+            manifest.hooks.post_uninstall.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            let from = source.join(hook);
+            let to = package.join(hook);
+            if let Some(parent) = to.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::copy(&from, &to).with_context(|| format!("Copy hook '{hook}'"))?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mode = fs::metadata(&from)?.permissions().mode();
+                fs::set_permissions(&to, fs::Permissions::from_mode(mode | 0o111))?;
+            }
+        }
+        Ok(())
+    }
+
+    fn run_hook(&self, root: &Path, hook: &str, phase: &str, manifest: &Manifest) -> Result<()> {
+        let root = fs::canonicalize(root).context("Resolve plugin hook directory")?;
+        let executable = root.join(hook);
+        let metadata =
+            fs::symlink_metadata(&executable).with_context(|| format!("Missing hook '{hook}'"))?;
+        ensure!(metadata.is_file(), "Hook '{hook}' must be a regular file");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            ensure!(
+                metadata.permissions().mode() & 0o111 != 0,
+                "Hook '{hook}' is not executable"
+            );
+        }
+        let mut command = Command::new(&executable);
+        command.env_clear();
+        inherit_safe_environment(&mut command, manifest);
+        command
+            .arg(phase)
+            .current_dir(&root)
+            .env("DM_HOME", fs::canonicalize(&self.home)?)
+            .env("DM_PLUGIN_DIR", &root)
+            .env("DM_HOOK_PHASE", phase);
+        let status = command
+            .status()
+            .with_context(|| format!("Run {phase} hook '{hook}'"))?;
+        ensure!(status.success(), "Plugin hook '{hook}' failed for {phase}");
+        Ok(())
+    }
+
+    fn archive_previous(&self, previous: &Path, name: &str) -> Result<()> {
+        let backups = self.backups();
+        fs::create_dir_all(&backups)?;
+        let target = backups.join(name);
+        if target.exists() {
+            fs::remove_dir_all(&target)?;
+        }
+        fs::rename(previous, &target).with_context(|| format!("Archive previous {name}"))?;
+        Ok(())
+    }
+
+    fn repair_rollback_transaction(&self, transaction: &Path) -> Result<String> {
+        let previous = transaction.join("previous");
+        if !previous.exists() {
+            fs::remove_dir_all(transaction)?;
+            return Ok(format!(
+                "removed completed rollback transaction {}",
+                transaction.display()
+            ));
+        }
+
+        let previous_manifest =
+            Manifest::read(&previous).context("Read previous plugin from interrupted rollback")?;
+        let name = &previous_manifest.name;
+        let stored = self.info(name)?;
+        let current = self.plugins().join(name);
+        let current_manifest = Manifest::read(&current).ok();
+
+        if stored.manifest == previous_manifest {
+            // SQLite still describes the pre-rollback version. Abort the interrupted
+            // rollback and put that version back in the active plugin directory.
+            if current.exists() {
+                let current_manifest = current_manifest
+                    .as_ref()
+                    .context("Interrupted rollback left an invalid active plugin")?;
+                ensure!(
+                    current_manifest.name == *name,
+                    "Interrupted rollback active plugin name does not match '{name}'"
+                );
+                self.archive_previous(&current, name)?;
+            }
+            fs::rename(&previous, &current)
+                .with_context(|| format!("Restore interrupted rollback for {name}"))?;
+        } else if current_manifest
+            .as_ref()
+            .is_some_and(|manifest| *manifest == stored.manifest)
+        {
+            // SQLite and the active directory already contain the rolled-back
+            // version. Finish the transaction by retaining the former version as
+            // the next rollback target.
+            self.archive_previous(&previous, name)?;
+        } else {
+            bail!(
+                "Cannot safely repair interrupted rollback for '{name}': neither staged nor active manifest matches SQLite"
+            );
+        }
+
+        fs::remove_dir_all(transaction)?;
+        Ok(format!("recovered interrupted rollback for {name}"))
+    }
+
+    pub fn rollback(&self, name: &str) -> Result<Manifest> {
+        validate_name(name)?;
+        let current = self.plugins().join(name);
+        let backup = self.backups().join(name);
+        ensure!(current.is_dir(), "Plugin '{name}' is not installed");
+        ensure!(
+            backup.is_dir(),
+            "Plugin '{name}' has no backup to roll back to"
+        );
+        let restored = Manifest::read(&backup)?;
+        ensure!(restored.name == name, "Backup name does not match '{name}'");
+        let stage = tempfile::Builder::new()
+            .prefix(".rollback-")
+            .tempdir_in(self.plugins())?;
+        let old = stage.path().join("previous");
+        fs::rename(&current, &old)?;
+        if let Err(error) = fs::rename(&backup, &current) {
+            let _ = fs::rename(&old, &current);
+            return Err(error).context("Restore backup");
+        }
+        let manifest = Manifest::read(&current)?;
+        let checksum = sha256_file(&manifest.entrypoint(&current)?)?;
+        let connection = self.connect()?;
+        if let Err(error) = connection.execute(
+            "UPDATE installed_plugins SET manifest = ?2, checksum = ?3, installed_at = unixepoch() WHERE name = ?1",
+            params![name, toml::to_string(&manifest)?, checksum],
+        ) {
+            let _ = fs::rename(&current, &backup);
+            let _ = fs::rename(&old, &current);
+            return Err(error).context("Record rolled back plugin");
+        }
+        fs::rename(&old, &backup)?;
+        Ok(manifest)
     }
 
     pub fn run(&self, name: &str, args: &[OsString]) -> Result<i32> {
@@ -911,6 +1147,7 @@ fn checkout_git(
     }
     let checkout = tempfile::tempdir()?;
     let destination = checkout.path().join("source");
+    eprintln!("Cloning {source}");
     let mut clone = Command::new("git");
     clone.args([
         "-c",

@@ -1,4 +1,4 @@
-use crate::manifest::validate_name;
+use super::manifest::validate_name;
 use anyhow::{Context, Result, ensure};
 use std::{fs, path::Path};
 

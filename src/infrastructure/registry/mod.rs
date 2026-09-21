@@ -1,4 +1,4 @@
-use crate::manifest::validate_name;
+use crate::plugin::manifest::validate_name;
 use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 use std::{fs, process::Command};
@@ -39,6 +39,7 @@ pub fn fetch_registry_index(url: &str) -> Result<Vec<(String, String)>> {
     );
     let temp = tempfile::tempdir()?;
     let destination = temp.path().join("registry.json");
+    eprintln!("Fetching registry index {url}");
     let status = Command::new("curl")
         .args([
             "-fsSL",
