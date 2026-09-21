@@ -22,11 +22,11 @@ dm --version
 ## 1. 创建项目
 
 ```sh
-dm new backup
+dm new backup --generate-lockfile
 cd dm-plugin-backup
 ```
 
-该命令生成清单、固定 binary target、SDK 依赖、README 和入口源码。也可以手工创建：`cargo new --bin dm-plugin-backup`。
+该命令生成清单、固定 binary target、SDK 依赖、README、入口源码和 `Cargo.lock`。不加 `--generate-lockfile` 时，脚手架完成后需自行运行 `cargo generate-lockfile`。也可以手工创建：`cargo new --bin dm-plugin-backup`。
 
 插件仓库根目录最终应包含：
 
@@ -109,6 +109,6 @@ dm list
 dm backup --help
 ```
 
-安装成功后，插件运行不再依赖原源码目录和 Cargo 构建目录。修改源码并提升版本后运行 `dm update backup`，宿主会先完成构建和校验，再原子切换到新版本。
+使用 `dm new --generate-lockfile` 时可以省略第一条命令。安装成功后，插件运行不再依赖原源码目录和 Cargo 构建目录。修改源码并提升版本后运行 `dm update backup`，宿主会先完成构建和校验，再原子切换到新版本；旧版本保留在备份目录，可用 `dm rollback backup` 切回。
 
 下一步阅读[项目结构与清单](manifest.html)。

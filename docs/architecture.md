@@ -8,12 +8,13 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
 
 ```text
 用户 -> dm (CLI)
-          ├─ install/update -> SQLite 名称注册表 / 本地路径 / HTTPS Git revision
-          │             -> Rust crate + API 校验
+          ├─ registry/search -> 本地 SQLite / 远程 HTTPS JSON 索引
+          ├─ install/update -> 名称注册表 / 本地路径 / HTTPS Git revision
+          │             -> 清单、权限与 API 校验 -> 生命周期 hook
           │             -> Cargo locked release build
-          │             -> 临时目录校验 -> 原子重命名
-          ├─ list/info/verify/doctor -> 本地插件存储、来源与 SHA-256
-          ├─ self-update -> GitHub Release + SHA-256 -> 原子替换宿主
+          │             -> 临时目录校验 -> 原子重命名 -> 旧版本备份
+          ├─ list/info/outdated/verify/doctor/rollback -> 本地插件状态与恢复
+          ├─ self-update -> GitHub Release + SHA-256 + minisign -> 原子替换宿主
           └─ <plugin> [args] -> Rust 插件独立进程 -> 数据库工具逻辑
                                   └─ dm-plugin-sdk
 ```
@@ -37,7 +38,7 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
 插件只能从 Rust 源码安装，必须显式依赖 `dm-plugin-sdk` 并声明 `dm-<name>` binary target。
 本地源码不复制，远程源码浅克隆到临时目录；宿主通过 Cargo 编译到插件存储内的独立临时目录，显式指定宿主 target，避免用户默认交叉编译目标导致安装错误产物。
 只将清单与编译后的可执行文件装入最终目录；源文件、Git 元数据和构建缓存不会进入安装结果。资源应通过 Rust 的 `include_str!` / `include_bytes!` 嵌入。
-编译失败时清理临时目录；成功后使用同文件系统目录重命名发布，再将经过校验的清单、来源、revision 和 SHA-256 写入 SQLite。数据库写入失败时恢复旧插件。拒绝同名直接覆盖，并发安装只有一个成功；进程被强制杀死时可能留下隐藏事务目录，`dm doctor --repair` 会识别安装、卸载和回滚事务，并根据 SQLite 中已提交的清单协调活动目录与备份目录。
+安装/升级先检查新增的 `permissions` 与 `environment`，需要用户显式确认；清单声明的 hook 会在对应阶段以当前用户权限运行。编译失败时清理临时目录；成功后使用同文件系统目录重命名发布，再将经过校验的清单、来源、revision 和 SHA-256 写入 SQLite。数据库写入失败时恢复旧插件。升级前的版本保存在 `backups/<name>`，`dm rollback` 通过同文件系统重命名交换当前版本与备份。拒绝同名直接覆盖，并发安装只有一个成功；进程被强制杀死时可能留下隐藏事务目录，`dm doctor --repair` 会识别安装、卸载和回滚事务，并根据 SQLite 中已提交的清单协调活动目录与备份目录。
 不支持安装过程中修改源码或同时卸载正在运行的插件。
 
 ```text
@@ -64,5 +65,5 @@ SDK 使用 Rust trait 统一开发接口；跨进程只约定参数、环境变�
 
 ## 后续扩展位置
 
-源解析集中在 `PluginStore::install_with_revision`，名称注册表通过 `dm registry` 管理并与已安装插件元数据共同存入 SQLite。客户端已经支持固定 Git revision、来源记录和安装校验；后续接入远程中央注册表时还需要发布者身份、签名、撤回、安全公告和按平台二进制分发等服务端能力。
+源解析集中在 `PluginStore` 的安装事务中，名称注册表通过 `dm registry` 管理并与已安装插件元数据共同存入 SQLite。远程 JSON 索引只提供发现和同步，不提供发布者身份、签名、撤回或安全公告；若未来接入中央市场，这些能力仍需服务端协议支持。
 业务能力始终在独立 Rust 插件仓库实现，不向宿主添加数据库业务子命令。
