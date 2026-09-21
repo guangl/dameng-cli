@@ -2,3 +2,6 @@ name = "hello"
 version = "0.1.0"
 description = "Rust plugin protocol example"
 api_version = 1
+min_host_version = "0.2.0"
+license = "MIT"
+homepage = "https://github.com/guangl/dameng-cli"

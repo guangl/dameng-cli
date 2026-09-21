@@ -5,14 +5,19 @@ repository=${DM_INSTALL_REPO:-guangl/dameng-cli}
 install_dir=${DM_INSTALL_DIR:-"${HOME}/.local/bin"}
 version=${1:-${DM_INSTALL_VERSION:-latest}}
 
-case "$(uname -s):$(uname -m)" in
-    Linux:x86_64|Linux:amd64) target=x86_64-unknown-linux-gnu ;;
-    Darwin:arm64|Darwin:aarch64) target=aarch64-apple-darwin ;;
-    *)
-        echo "dm installer: unsupported platform $(uname -s)/$(uname -m)" >&2
-        exit 1
-        ;;
-esac
+if [ -n "${DM_INSTALL_TARGET:-}" ]; then
+    target=${DM_INSTALL_TARGET}
+else
+    case "$(uname -s):$(uname -m)" in
+        Linux:x86_64|Linux:amd64) target=x86_64-unknown-linux-gnu ;;
+        Linux:aarch64|Linux:arm64) target=aarch64-unknown-linux-gnu ;;
+        Darwin:arm64|Darwin:aarch64) target=aarch64-apple-darwin ;;
+        *)
+            echo "dm installer: unsupported platform $(uname -s)/$(uname -m)" >&2
+            exit 1
+            ;;
+    esac
+fi
 
 if ! command -v curl >/dev/null 2>&1; then
     echo "dm installer: curl is required" >&2
@@ -61,6 +66,15 @@ else
     exit 1
 fi
 
+public_key="RWS7NJlQNVKoGLzXSP3muZIGev+TRvqCjlwAuP+NH2xqWrQtrSZ1JiYA"
+curl -fsSL "${base_url}/${archive}.minisig" -o "${work_dir}/${archive}.minisig"
+if command -v rsign >/dev/null 2>&1; then
+    rsign verify "${work_dir}/${archive}" -P "$public_key" -x "${work_dir}/${archive}.minisig" -q
+elif command -v minisign >/dev/null 2>&1; then
+    minisign -V -P "$public_key" -m "${work_dir}/${archive}" -x "${work_dir}/${archive}.minisig" -q
+else
+    echo "dm installer: warning: rsign/minisign not found; skipping release signature verification" >&2
+fi
 tar -xzf "${work_dir}/${archive}" -C "$work_dir"
 mkdir -p "$install_dir"
 install -m 755 "${work_dir}/dm-${version}-${target}/dm" "${install_dir}/dm"

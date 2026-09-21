@@ -16,7 +16,7 @@ description: 定位插件清单、构建、安装、运行协议和数据库环�
 | `must declare [[bin]]` | binary target 名称不是 `dm-<name>`。 | 补充正确的 `[[bin]]` 配置。 |
 | locked build 失败 | 缺少或过期的 `Cargo.lock`。 | 运行 `cargo generate-lockfile`，本地执行 `cargo build --release --locked` 后提交。 |
 | Git 无法获取插件 | URL 不是 HTTPS、需要交互认证或网络不可用。 | 使用可访问的 HTTPS Git URL；私有仓库需由用户提前配置非交互 Git 凭证。 |
-| 插件已安装 | 同名目录已经存在。 | 先执行 `dm uninstall <name>`，再安装新版本。 |
+| 插件已安装 | 同名目录已经存在。 | 升级使用 `dm update <name>`；需要更换来源时才卸载后重装。 |
 
 ## 运行错误
 
@@ -24,9 +24,11 @@ description: 定位插件清单、构建、安装、运行协议和数据库环�
 | --- | --- | --- |
 | `Run this plugin through dm <plugin>` | 直接运行了插件 binary。 | 使用 `dm <name>` 调用。 |
 | `Unsupported host plugin API` | 宿主与插件协议版本不同。 | 使用兼容的宿主和 SDK，检查 `api_version`。 |
-| `Missing DM_PLUGIN_DIR` / `DM_HOME` | 协议环境不完整。 | 不要手动启动 binary；通过宿主运行。 |
+| `Missing DM_PLUGIN_*` | 协议环境或能力不完整。 | 不要手动启动 binary；通过宿主运行。 |
+| 插件读取不到环境变量 | 清单未声明该变量。 | 将变量名加入 `environment`，重新安装或更新插件。 |
 | 插件参数乱码 | 将非 UTF-8 `OsString` 强制转换。 | 保留 `OsString`，仅在必要位置验证 UTF-8。 |
-| `dm list` 或运行时清单错误 | 安装目录被手工修改或损坏。 | 卸载并从可信源码重新安装。 |
+| `dm list` 或运行时清单错误 | 安装目录、SQLite 或事务目录损坏。 | 先运行 `dm doctor`，确认报告后运行 `dm doctor --repair`。 |
+| `checksum mismatch` | binary 被修改或元数据不一致。 | 不要自动信任或覆盖；审查后从固定 revision 重新安装。 |
 
 ## 数据库相关问题
 

@@ -500,7 +500,10 @@ dm-plugin-sdk = { path = <span class="token-string">"../dameng-cli/crates/dm-plu
             <pre><code>name = <span class="token-string">"backup"</span>
 version = <span class="token-string">"0.1.0"</span>
 description = <span class="token-string">"Backup a Dameng database"</span>
-api_version = <span class="token-key">1</span></code></pre>
+api_version = <span class="token-key">1</span>
+min_host_version = <span class="token-string">"0.2.0"</span>
+environment = [<span class="token-string">"DM_DATABASE_URL"</span>]
+permissions = [<span class="token-string">"filesystem"</span>, <span class="token-string">"network"</span>]</code></pre>
           </div>
           <div class="code-panel" id="rust" role="tabpanel">
             <button class="copy" type="button">复制</button>
@@ -544,8 +547,10 @@ api_version = <span class="token-key">1</span></code></pre>
           <code>cargo generate-lockfile</code>
           <code>dm install ./my-plugin</code>
           <code>dm list</code>
+          <code>dm verify</code>
+          <code>dm doctor</code>
           <code>dm backup --help</code>
-          <code>dm uninstall backup</code>
+          <code>dm update backup</code>
         </aside>
       </div>
     </section>

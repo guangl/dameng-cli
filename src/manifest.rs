@@ -7,15 +7,46 @@ use std::{
 
 pub const MANIFEST_FILE: &str = "dm-plugin.toml";
 pub use dm_plugin_sdk::API_VERSION;
-const RESERVED_NAMES: &[&str] = &["install", "uninstall", "list", "help", "version"];
+pub const SUPPORTED_API_VERSIONS: &[u32] = &[API_VERSION];
+const RESERVED_NAMES: &[&str] = &[
+    "disable",
+    "doctor",
+    "enable",
+    "completions",
+    "help",
+    "info",
+    "install",
+    "list",
+    "new",
+    "outdated",
+    "registry",
+    "search",
+    "self-update",
+    "uninstall",
+    "update",
+    "verify",
+    "version",
+];
 
-#[derive(Debug, Deserialize, serde::Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, serde::Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct Manifest {
     pub name: String,
     pub version: String,
     pub description: String,
     pub api_version: u32,
+    #[serde(default)]
+    pub min_host_version: Option<String>,
+    #[serde(default)]
+    pub license: Option<String>,
+    #[serde(default)]
+    pub homepage: Option<String>,
+    /// Environment variables explicitly inherited by the plugin process.
+    #[serde(default)]
+    pub environment: Vec<String>,
+    /// Declarative permissions shown to users. Native plugins are not sandboxed.
+    #[serde(default)]
+    pub permissions: Vec<String>,
 }
 
 pub fn validate_name(name: &str) -> Result<()> {
@@ -59,9 +90,10 @@ impl Manifest {
         let manifest: Self = toml::from_str(text)?;
         validate_name(&manifest.name)?;
         ensure!(
-            manifest.api_version == API_VERSION,
-            "Unsupported plugin API {}; this host supports {API_VERSION}",
-            manifest.api_version
+            SUPPORTED_API_VERSIONS.contains(&manifest.api_version),
+            "Unsupported plugin API {}; this host supports {:?}",
+            manifest.api_version,
+            SUPPORTED_API_VERSIONS
         );
         ensure!(
             !manifest.version.trim().is_empty() && !manifest.version.chars().any(char::is_control),
@@ -71,7 +103,46 @@ impl Manifest {
             !manifest.description.chars().any(char::is_control),
             "Description must be a single line"
         );
+        if let Some(version) = &manifest.min_host_version {
+            let minimum = semver::Version::parse(version).context("Invalid min_host_version")?;
+            let current = semver::Version::parse(env!("CARGO_PKG_VERSION"))?;
+            ensure!(
+                current >= minimum,
+                "Plugin requires dm {minimum} or newer; this host is {current}"
+            );
+        }
+        for variable in &manifest.environment {
+            ensure!(
+                !variable.is_empty()
+                    && variable.bytes().all(|byte| byte.is_ascii_uppercase()
+                        || byte.is_ascii_digit()
+                        || byte == b'_')
+                    && variable.as_bytes()[0].is_ascii_uppercase(),
+                "Environment variable '{variable}' must use uppercase ASCII letters, digits and '_'"
+            );
+        }
+        const PERMISSIONS: &[&str] = &["filesystem", "network", "process"];
+        for permission in &manifest.permissions {
+            ensure!(
+                PERMISSIONS.contains(&permission.as_str()),
+                "Unknown permission '{permission}'; supported values are filesystem, network and process"
+            );
+        }
         Ok(manifest)
+    }
+
+    /// True when this manifest requests permissions or environment variables the previous manifest did not.
+    pub fn requests_consent_from(&self, previous: Option<&Self>) -> bool {
+        let Some(previous) = previous else {
+            return !self.permissions.is_empty() || !self.environment.is_empty();
+        };
+        self.permissions
+            .iter()
+            .any(|permission| !previous.permissions.contains(permission))
+            || self
+                .environment
+                .iter()
+                .any(|variable| !previous.environment.contains(variable))
     }
 
     pub fn binary_name(&self) -> String {

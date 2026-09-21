@@ -60,6 +60,11 @@ impl Plugin for Probe {
         println!("cwd={}", std::env::current_dir()?.display());
         println!("home={}", context.home.display());
         println!("plugin={}", context.plugin_dir.display());
+        println!("config={}", context.config_dir.display());
+        println!("data={}", context.data_dir.display());
+        println!("cache={}", context.cache_dir.display());
+        println!("capabilities={}", context.capabilities.join(","));
+        println!("secret={}", std::env::var("DM_TEST_SECRET").unwrap_or_else(|_| "filtered".into()));
         for arg in &context.args { println!("arg={}", arg.to_string_lossy()); }
         eprintln!("plugin stderr");
         let mut input = String::new();
@@ -108,6 +113,7 @@ fn rust_plugin_lifecycle_and_process_contract() {
     fs::remove_dir_all(&source).unwrap();
     let mut child = dm(&home)
         .args(["probe", "hello world", "--help", "--", "--fail"])
+        .env("DM_TEST_SECRET", "must-not-leak")
         .current_dir(temp.path())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -143,11 +149,24 @@ fn rust_plugin_lifecycle_and_process_contract() {
     assert!(stdout.contains(
         &format!("plugin={}", fs::canonicalize(home.join("plugins/probe")).unwrap().display())
     ));
+    for directory in ["config", "data", "cache"] {
+        assert!(stdout.contains(&format!(
+            "{directory}={}",
+            fs::canonicalize(home.join(directory).join("probe"))
+                .unwrap()
+                .display()
+        )));
+    }
+    assert!(stdout.contains("capabilities=config-dirs-v1"));
+    assert!(stdout.contains("secret=filtered"));
     assert!(String::from_utf8_lossy(&output.stderr).contains("plugin stderr"));
     // A broken plugin must remain removable.
     fs::write(home.join("plugins/probe/dm-plugin.toml"), "broken").unwrap();
     ok(dm(&home).args(["uninstall", "probe"]).output().unwrap());
     assert!(ok(dm(&home).arg("list").output().unwrap()).is_empty());
+    for directory in ["config", "data", "cache"] {
+        assert!(!home.join(directory).join("probe").exists());
+    }
     assert!(!dm(&home).arg("probe").output().unwrap().status.success());
 }
 
@@ -179,6 +198,9 @@ fn manifest_rejects_invalid_names_versions_and_foreign_entrypoints() {
         "help",
         "version",
         "uninstall",
+        "registry",
+        "doctor",
+        "self-update",
         "Upper",
         "",
         "a/b",
@@ -256,15 +278,255 @@ fn sqlite_registry_is_persistent_sorted_and_manageable() {
 }
 
 #[test]
+fn plugin_metadata_verification_enablement_and_atomic_update() {
+    let temp = TempDir::new().unwrap();
+    let source = fixture(temp.path());
+    let home = temp.path().join("home");
+    let store = PluginStore::new(&home);
+    store.install(source.to_str().unwrap()).unwrap();
+
+    let info = store.info("probe").unwrap();
+    assert_eq!(info.manifest.version, "0.1.0");
+    assert_eq!(info.checksum.len(), 64);
+    assert_eq!(
+        info.source.as_deref(),
+        source.canonicalize().unwrap().to_str()
+    );
+    assert_eq!(store.verify(Some("probe")).unwrap(), ["probe"]);
+    store.set_enabled("probe", false).unwrap();
+    assert!(
+        store
+            .run("probe", &[])
+            .unwrap_err()
+            .to_string()
+            .contains("disabled")
+    );
+    store.set_enabled("probe", true).unwrap();
+
+    fs::write(
+        source.join("dm-plugin.toml"),
+        manifest("probe").replace("0.1.0", "0.2.0"),
+    )
+    .unwrap();
+    let cargo = fs::read_to_string(source.join("Cargo.toml")).unwrap();
+    fs::write(source.join("Cargo.toml"), cargo.replace("0.1.0", "0.2.0")).unwrap();
+    ok(Command::new("cargo")
+        .args(["generate-lockfile", "--offline", "--manifest-path"])
+        .arg(source.join("Cargo.toml"))
+        .output()
+        .unwrap());
+    assert_eq!(store.update("probe").unwrap().version, "0.2.0");
+    let good_checksum = store.info("probe").unwrap().checksum;
+
+    fs::write(source.join("src/main.rs"), "not valid Rust").unwrap();
+    assert!(store.update("probe").is_err());
+    let current = store.info("probe").unwrap();
+    assert_eq!(current.manifest.version, "0.2.0");
+    assert_eq!(current.checksum, good_checksum);
+    store.verify(Some("probe")).unwrap();
+}
+
+#[test]
+fn permission_consent_gates_new_capabilities() {
+    let temp = TempDir::new().unwrap();
+    let source = fixture(temp.path());
+    fs::write(
+        source.join("dm-plugin.toml"),
+        format!(
+            r#"{}permissions = ["network"]
+environment = ["DM_DATABASE_URL"]
+"#,
+            manifest("probe")
+        ),
+    )
+    .unwrap();
+    let home = temp.path().join("home");
+    let store = PluginStore::new(&home);
+
+    let error = store
+        .install(source.to_str().unwrap())
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("--accept-permissions"), "{error}");
+    assert!(!home.join("plugins/probe").exists());
+
+    store
+        .install_with_consent(source.to_str().unwrap(), None, true)
+        .unwrap();
+    assert_eq!(
+        store.info("probe").unwrap().manifest.permissions,
+        vec!["network"]
+    );
+
+    fs::write(
+        source.join("dm-plugin.toml"),
+        format!(
+            r#"{}permissions = ["network", "filesystem"]
+environment = ["DM_DATABASE_URL"]
+"#,
+            manifest("probe")
+        ),
+    )
+    .unwrap();
+    assert!(
+        store
+            .update("probe")
+            .unwrap_err()
+            .to_string()
+            .contains("--accept-permissions")
+    );
+    store.update_with_consent("probe", true).unwrap();
+    let info = store.info("probe").unwrap();
+    assert!(
+        info.manifest
+            .permissions
+            .contains(&"filesystem".to_string())
+    );
+    assert_eq!(
+        info.manifest.environment,
+        vec!["DM_DATABASE_URL".to_string()]
+    );
+}
+
+#[test]
+fn doctor_repairs_missing_checksums_and_stale_transactions() {
+    let temp = TempDir::new().unwrap();
+    let source = fixture(temp.path());
+    let home = temp.path().join("home");
+    let store = PluginStore::new(&home);
+    store.install(source.to_str().unwrap()).unwrap();
+    rusqlite::Connection::open(home.join("store.sqlite3"))
+        .unwrap()
+        .execute(
+            "UPDATE installed_plugins SET checksum = '' WHERE name = 'probe'",
+            [],
+        )
+        .unwrap();
+    let stale = home.join("plugins/.install-stale");
+    fs::create_dir(&stale).unwrap();
+
+    let report = store.doctor(false).unwrap();
+    assert_eq!(report.issues.len(), 2);
+    let repaired = store.doctor(true).unwrap();
+    assert_eq!(repaired.repairs.len(), 2);
+    assert!(!stale.exists());
+    store.verify(Some("probe")).unwrap();
+}
+
+#[test]
+fn doctor_restores_an_interrupted_removal() {
+    let temp = TempDir::new().unwrap();
+    let source = fixture(temp.path());
+    let home = temp.path().join("home");
+    let store = PluginStore::new(&home);
+    store.install(source.to_str().unwrap()).unwrap();
+    let interrupted = home.join("plugins/.remove-interrupted");
+    fs::create_dir(&interrupted).unwrap();
+    fs::rename(home.join("plugins/probe"), interrupted.join("package")).unwrap();
+
+    let report = store.doctor(true).unwrap();
+    assert!(
+        report
+            .repairs
+            .iter()
+            .any(|repair| repair.contains("restored interrupted"))
+    );
+    store.verify(Some("probe")).unwrap();
+}
+
+#[test]
+fn doctor_cleans_orphaned_per_plugin_directories() {
+    let temp = TempDir::new().unwrap();
+    let home = temp.path().join("home");
+    let store = PluginStore::new(&home);
+    for directory in ["config", "data", "cache"] {
+        let orphan = home.join(directory).join("orphan");
+        fs::create_dir_all(&orphan).unwrap();
+        fs::write(orphan.join("leftover"), "leftover").unwrap();
+    }
+
+    let report = store.doctor(false).unwrap();
+    assert_eq!(report.issues.len(), 3);
+    let repaired = store.doctor(true).unwrap();
+    assert!(
+        repaired
+            .repairs
+            .iter()
+            .any(|repair| repair.contains("config/orphan"))
+    );
+    for directory in ["config", "data", "cache"] {
+        assert!(!home.join(directory).join("orphan").exists());
+    }
+}
+
+#[test]
+fn json_cli_and_reserved_registry_name() {
+    let temp = TempDir::new().unwrap();
+    let source = fixture(temp.path());
+    let home = temp.path().join("home");
+    ok(dm(&home)
+        .args(["install", source.to_str().unwrap()])
+        .output()
+        .unwrap());
+    let output = ok(dm(&home).args(["list", "--json"]).output().unwrap());
+    let json: serde_json::Value = serde_json::from_str(&output).unwrap();
+    assert_eq!(json[0]["manifest"]["name"], "probe");
+    assert!(ok(dm(&home).args(["completions", "bash"]).output().unwrap()).contains("_dm"));
+    assert!(
+        !dm(&home)
+            .args([
+                "registry",
+                "add",
+                "registry",
+                "https://example.invalid/registry.git"
+            ])
+            .output()
+            .unwrap()
+            .status
+            .success()
+    );
+}
+
+#[test]
 fn newer_sqlite_schema_is_rejected() {
     let temp = TempDir::new().unwrap();
     let database = temp.path().join("store.sqlite3");
     rusqlite::Connection::open(database)
         .unwrap()
-        .execute_batch("PRAGMA user_version = 2")
+        .execute_batch("PRAGMA user_version = 3")
         .unwrap();
     let error = PluginStore::new(temp.path()).list().unwrap_err();
-    assert!(error.to_string().contains("schema 2 is newer"));
+    assert!(error.to_string().contains("schema 3 is newer"));
+}
+
+#[test]
+fn sqlite_schema_migrates_once_and_stays_current() {
+    let temp = TempDir::new().unwrap();
+    let database = temp.path().join("store.sqlite3");
+    rusqlite::Connection::open(&database)
+        .unwrap()
+        .execute_batch(
+            "CREATE TABLE installed_plugins (
+                 name TEXT PRIMARY KEY,
+                 manifest TEXT NOT NULL,
+                 installed_at INTEGER NOT NULL DEFAULT (unixepoch())
+             ) STRICT;
+             CREATE TABLE registry (
+                 name TEXT PRIMARY KEY,
+                 source TEXT NOT NULL,
+                 updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+             ) STRICT;
+             PRAGMA user_version = 1;",
+        )
+        .unwrap();
+    let store = PluginStore::new(temp.path());
+    store.list().unwrap();
+    store.list().unwrap();
+    let version: u32 = rusqlite::Connection::open(database)
+        .unwrap()
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(version, 2);
 }
 
 #[test]
@@ -388,7 +650,7 @@ fn registry_resolution_and_git_failure_with_fake_transport() {
     let tools = temp.path().join("tools");
     fs::create_dir(&tools).unwrap();
     let git = tools.join("git");
-    fs::write(&git, "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$FAKE_GIT_LOG\"\nfor destination do :; done\ncp -R \"$FAKE_GIT_SOURCE\" \"$destination\"\n").unwrap();
+    fs::write(&git, "#!/bin/sh\nprintf '%s\\n' \"$@\" >> \"$FAKE_GIT_LOG\"\nfor destination do :; done\ncase \" $* \" in *\" clone \"*) cp -R \"$FAKE_GIT_SOURCE\" \"$destination\" ;; *\" rev-parse \"*) printf '%040d\\n' 1 ;; esac\n").unwrap();
     fs::set_permissions(&git, fs::Permissions::from_mode(0o755)).unwrap();
     let path = std::env::join_paths(
         std::iter::once(tools).chain(std::env::split_paths(&std::env::var_os("PATH").unwrap())),
@@ -417,6 +679,162 @@ fn registry_resolution_and_git_failure_with_fake_transport() {
     assert!(!failed.status.success());
     assert!(String::from_utf8_lossy(&failed.stderr).contains("Git could not fetch"));
     assert_eq!(fs::read_dir(home.join("plugins")).unwrap().count(), 1);
+}
+
+#[test]
+fn new_command_scaffolds_a_project() {
+    let temp = TempDir::new().unwrap();
+    let home = temp.path().join("home");
+    let destination = temp.path().join("created");
+    let output = ok(dm(&home)
+        .args(["new", "backup", "--directory"])
+        .arg(&destination)
+        .output()
+        .unwrap());
+    assert!(output.contains("Created"), "{output}");
+    assert!(destination.join("Cargo.toml").is_file());
+    assert!(destination.join("dm-plugin.toml").is_file());
+    assert!(destination.join("src/main.rs").is_file());
+    let cargo = fs::read_to_string(destination.join("Cargo.toml")).unwrap();
+    assert!(cargo.contains(r#"name = "dm-plugin-backup""#));
+    assert!(cargo.contains(r#"tag = "v0.2.0""#));
+    let reserved = temp.path().join("reserved");
+    assert!(
+        !dm(&home)
+            .args(["new", "registry", "--directory"])
+            .arg(&reserved)
+            .output()
+            .unwrap()
+            .status
+            .success()
+    );
+    assert!(!reserved.exists());
+}
+
+#[test]
+fn search_command_filters_registry() {
+    let temp = TempDir::new().unwrap();
+    let home = temp.path().join("home");
+    ok(dm(&home)
+        .args([
+            "registry",
+            "add",
+            "backup",
+            "https://example.invalid/backup.git",
+        ])
+        .output()
+        .unwrap());
+    ok(dm(&home)
+        .args([
+            "registry",
+            "add",
+            "tools",
+            "https://example.invalid/tools.git",
+        ])
+        .output()
+        .unwrap());
+    let output = ok(dm(&home).args(["search", "back"]).output().unwrap());
+    assert!(output.contains("backup"));
+    assert!(output.contains("https://example.invalid/backup.git"));
+    assert!(!output.contains("tools"));
+    let json = ok(dm(&home).args(["search", "--json"]).output().unwrap());
+    let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+    assert_eq!(parsed.as_array().unwrap().len(), 2);
+}
+
+#[test]
+fn outdated_command_reports_newer_local_version() {
+    let temp = TempDir::new().unwrap();
+    let source = fixture(temp.path());
+    let home = temp.path().join("home");
+    ok(dm(&home)
+        .args(["install", source.to_str().unwrap()])
+        .output()
+        .unwrap());
+    assert!(ok(dm(&home).args(["outdated"]).output().unwrap()).contains("current"));
+
+    fs::write(
+        source.join("dm-plugin.toml"),
+        manifest("probe").replace("0.1.0", "0.2.0"),
+    )
+    .unwrap();
+    let output = ok(dm(&home).args(["outdated"]).output().unwrap());
+    assert!(output.contains("0.2.0"));
+    assert!(output.contains("update available"));
+    let json = ok(dm(&home).args(["outdated", "--json"]).output().unwrap());
+    let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+    assert_eq!(parsed[0]["update_available"], true);
+}
+
+#[test]
+fn update_all_command_updates_installed_plugins() {
+    let temp = TempDir::new().unwrap();
+    let source = fixture(temp.path());
+    let home = temp.path().join("home");
+    ok(dm(&home)
+        .args(["install", source.to_str().unwrap()])
+        .output()
+        .unwrap());
+    let output = ok(dm(&home).args(["update", "--all"]).output().unwrap());
+    assert!(output.contains("Updated probe to 0.1.0"), "{output}");
+    assert!(home.join("plugins/probe/dm-plugin.toml").is_file());
+}
+
+#[cfg(unix)]
+#[test]
+fn remote_registry_index_sync_and_search() {
+    use std::os::unix::fs::PermissionsExt;
+    let temp = TempDir::new().unwrap();
+    let home = temp.path().join("home");
+    let index = temp.path().join("registry.json");
+    fs::write(
+        &index,
+        r#"[{"name":"backup","source":"https://example.invalid/backup.git"},{"name":"tools","source":"https://example.invalid/tools.git"}]"#,
+    )
+    .unwrap();
+    let tools = temp.path().join("tools");
+    fs::create_dir(&tools).unwrap();
+    let curl = tools.join("curl");
+    fs::write(
+        &curl,
+        r#"#!/bin/sh
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --output) dest="$2"; shift 2;;
+    *) shift;;
+  esac
+done
+cp "$FAKE_REGISTRY_INDEX" "$dest"
+"#,
+    )
+    .unwrap();
+    fs::set_permissions(&curl, fs::Permissions::from_mode(0o755)).unwrap();
+    let path = std::env::join_paths(
+        std::iter::once(tools).chain(std::env::split_paths(&std::env::var_os("PATH").unwrap())),
+    )
+    .unwrap();
+
+    let mut sync = dm(&home);
+    sync.env("PATH", &path).env("FAKE_REGISTRY_INDEX", &index);
+    let output = ok(sync
+        .args(["registry", "sync", "https://example.invalid/registry.json"])
+        .output()
+        .unwrap());
+    assert!(output.contains("Synced 2"), "{output}");
+
+    let mut search = dm(&home);
+    search.env("PATH", &path).env("FAKE_REGISTRY_INDEX", &index);
+    let output = ok(search
+        .args([
+            "search",
+            "--remote",
+            "https://example.invalid/registry.json",
+            "back",
+        ])
+        .output()
+        .unwrap());
+    assert!(output.contains("backup"));
+    assert!(!output.contains("tools"));
 }
 
 #[cfg(unix)]

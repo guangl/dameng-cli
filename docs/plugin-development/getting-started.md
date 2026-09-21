@@ -22,9 +22,11 @@ dm --version
 ## 1. 创建项目
 
 ```sh
-cargo new --bin dm-plugin-backup
+dm new backup
 cd dm-plugin-backup
 ```
+
+该命令生成清单、固定 binary target、SDK 依赖、README 和入口源码。也可以手工创建：`cargo new --bin dm-plugin-backup`。
 
 插件仓库根目录最终应包含：
 
@@ -72,6 +74,7 @@ name = "backup"
 version = "0.1.0"
 description = "Backup a Dameng database"
 api_version = 1
+min_host_version = "0.2.0"
 ```
 
 `name = "backup"` 决定用户命令是 `dm backup`，Cargo binary 必须对应为 `dm-backup`。
@@ -106,6 +109,6 @@ dm list
 dm backup --help
 ```
 
-安装成功后，插件运行不再依赖原源码目录和 Cargo 构建目录。修改源码后需要先 `dm uninstall backup`，再重新安装。
+安装成功后，插件运行不再依赖原源码目录和 Cargo 构建目录。修改源码并提升版本后运行 `dm update backup`，宿主会先完成构建和校验，再原子切换到新版本。
 
 下一步阅读[项目结构与清单](manifest.html)。
