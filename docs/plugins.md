@@ -62,7 +62,7 @@ dm-plugin-sdk = { path = "../dameng-cli/crates/dm-plugin-sdk" }
 
 - `name`、`version`、`description`、`api_version` 必填；其余字段可选，且不接受未知字段。
 - 名称为 1–64 个小写字母、数字或 `-`，且必须以字母开头。
-- 所有宿主命令名均为保留名，包括 `install`、`update`、`registry`、`doctor`、`self-update`；拒绝 Windows 设备名。
+- 所有宿主命令名均为保留名，包括 `install`、`update`、`doctor`、`self-update`；拒绝 Windows 设备名。
 - 清单 version 是非空单行版本字符串，必须与 Cargo package 的显式 version 一致；实际版本语法由 Cargo 校验。
 - `api_version` 必须为 `1`。协议有破坏性变更时提升此版本。
 - `min_host_version` 可选，使用 SemVer；宿主版本不足时拒绝安装。

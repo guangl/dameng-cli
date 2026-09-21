@@ -1,7 +1,7 @@
 ---
 layout: doc
 title: 发布与分发
-description: 独立插件仓库、本地安装、Git 安装、名称安装和版本策略。
+description: 独立插件仓库、本地安装、Git 安装和版本策略。
 ---
 
 # 发布与分发
@@ -54,18 +54,15 @@ https://github.com/OWNER/REPO/releases/download/v<version>/dm-<name>-<target>[.e
 
 `<target>` 映射为 `aarch64-macos`、`x86_64-macos`、`aarch64-linux`、`x86_64-linux`、`x86_64-windows`。发布工作流应同时构建插件入口 `dm-<name>`（不是独立 CLI），并发布同名 `.sha256` 文件；宿主发现 `.sha256` 时会强制校验，缺失时警告并信任 HTTPS。没有匹配产物时安装失败。
 
-## 名称安装
+## 安装来源
 
-名称安装依赖 SQLite 中的本地注册表。注册表中的名称必须与下载后清单的 `name` 完全一致：
+插件仓库通过 HTTPS Git URL 安装：
 
 ```sh
-dm registry add backup https://github.com/your-org/dm-plugin-backup.git
-dm install backup
+dm install https://github.com/your-org/dm-plugin-backup.git --rev v1.0.0
 ```
 
-可以使用 `dm registry add ... --verify` 先检查 Git 端点，使用 `dm registry list` 查看条目，使用 `dm registry remove backup` 删除条目。插件仓库不能通过修改自身清单冒充另一个注册名称。
-
-团队也可以发布 HTTPS JSON 索引，并通过 `dm registry sync <url>` 合并来源；索引格式是 `[{"name":"backup","source":"https://...git"}]`。设置 `DM_REGISTRY_INDEX` 后，`dm search` 和省略 URL 的 `registry sync` 会使用该索引。`--prune` 会删除本地存在但远程已移除的名称映射，因此应先审查索引变化。注册表不提供发布者认证或插件签名。
+仓库根目录必须包含插件 crate、`Cargo.lock` 和 `dm-plugin.toml`。生产环境推荐通过 `--rev` 固定 tag 或完整 commit。安装只验证 HTTPS 与本地校验和，不提供发布者认证或插件签名。
 
 ## 版本策略
 
@@ -73,7 +70,7 @@ dm install backup
 - 破坏性命令行或配置变更应提升主版本并写迁移说明。
 - 宿主 API 仍为 v1 时保持 `api_version = 1`。
 - `dm update` 在临时目录完成下载和校验，再原子切换安装目录；下载或元数据写入失败会保留旧版本。
-- 上一次更新前的版本保存在 `backups/<name>`，可用 `dm rollback <name>` 与当前版本交换；这不是长期版本仓库。
+- 升级通过原子替换完成；需要保留历史版本时请使用 Git tag 与固定 revision。
 - `permissions` 与 `environment` 随清单记录，升级时直接更新，不再要求交互确认。
 - 使用固定 `--rev` 的插件不会被 `dm outdated` 误报为跟踪默认分支；变更固定版本时重新安装或明确选择新 revision。
 

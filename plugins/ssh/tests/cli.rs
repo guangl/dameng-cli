@@ -162,11 +162,12 @@ fn password_auth_test_and_ssh_exit_codes_are_preserved() {
 }
 
 #[test]
-fn add_reports_error_for_malformed_shared_store() {
+fn add_reports_error_for_malformed_store() {
     let temp = TempDir::new().unwrap();
     let home = temp.path().join("home");
-    fs::create_dir_all(&home).unwrap();
-    let database = home.join("store.sqlite3");
+    let data_dir = home.join("data/ssh");
+    fs::create_dir_all(&data_dir).unwrap();
+    let database = data_dir.join("servers.sqlite3");
     let connection = rusqlite::Connection::open(&database).unwrap();
     connection
         .execute_batch("CREATE TABLE servers (name TEXT PRIMARY KEY)")
