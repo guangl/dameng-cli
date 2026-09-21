@@ -145,15 +145,10 @@ impl PluginStore {
                      revision TEXT,
                      source_ref TEXT,
                      checksum TEXT NOT NULL DEFAULT ''
-                 ) STRICT;
-                 DROP TABLE IF EXISTS ssh_servers;",
+                 ) STRICT;",
             )
             .map_err(|error| self.store_open_error(error))
             .context("Initialize SQLite plugin store")?;
-        connection
-            .execute_batch(dm_plugin_sdk::SSH_SERVERS_TABLE_SCHEMA)
-            .map_err(|error| self.store_open_error(error))
-            .context("Initialize shared SSH servers table")?;
         Ok(connection)
     }
 

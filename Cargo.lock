@@ -292,6 +292,7 @@ dependencies = [
  "clap",
  "dm-plugin-sdk",
  "rand",
+ "rpassword",
  "rusqlite",
  "tempfile",
 ]
