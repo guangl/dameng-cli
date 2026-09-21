@@ -782,6 +782,27 @@ impl PluginStore {
         Ok(())
     }
 
+    pub fn verify_registry_source(&self, source: &str) -> Result<()> {
+        ensure!(
+            source.starts_with("https://") && source.len() > 8,
+            "Registry source must be an HTTPS Git repository URL"
+        );
+        let status = Command::new("git")
+            .args([
+                "-c",
+                "protocol.https.allow=always",
+                "-c",
+                "protocol.allow=never",
+                "ls-remote",
+            ])
+            .arg(source)
+            .env("GIT_TERMINAL_PROMPT", "0")
+            .status()
+            .context("Verify registry source; HTTPS registry verification requires Git")?;
+        ensure!(status.success(), "Git source is not reachable: {source}");
+        Ok(())
+    }
+
     pub fn registry_sync(&self, url: &str, prune: bool) -> Result<(usize, usize)> {
         let entries = crate::registry_index::fetch_registry_index(url)?;
         let mut connection = self.connect()?;

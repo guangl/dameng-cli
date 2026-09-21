@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use clap::{CommandFactory, Parser, Subcommand};
 use dameng_cli::{PluginStore, scaffold_plugin, self_update};
-use std::{ffi::OsString, path::PathBuf};
+use std::{ffi::OsString, path::PathBuf, process::Command as ProcessCommand};
 
 #[derive(Parser)]
 #[command(name = "dm", version, about = "Plugin host for Dameng database tools")]
@@ -17,6 +17,9 @@ enum Command {
         name: String,
         #[arg(long)]
         directory: Option<PathBuf>,
+        /// Generate Cargo.lock immediately after scaffolding.
+        #[arg(long)]
+        generate_lockfile: bool,
     },
     /// Build and install a Rust plugin from a directory or HTTPS Git repository.
     Install {
@@ -46,6 +49,9 @@ enum Command {
         /// Search a remote HTTPS registry index instead of the local registry.
         #[arg(long)]
         remote: Option<String>,
+        /// Force a local registry search even when DM_REGISTRY_INDEX is set.
+        #[arg(long, conflicts_with = "remote")]
+        local: bool,
         #[arg(long)]
         json: bool,
     },
@@ -102,10 +108,17 @@ enum Command {
 #[derive(Subcommand)]
 enum RegistryCommand {
     /// Add or replace a name-to-HTTPS-Git mapping.
-    Add { name: String, source: String },
+    Add {
+        name: String,
+        source: String,
+        /// Verify the source is reachable with git before adding it.
+        #[arg(long)]
+        verify: bool,
+    },
     /// Fetch and merge a remote JSON registry index.
     Sync {
-        url: String,
+        /// Optional URL; defaults to DM_REGISTRY_INDEX when omitted.
+        url: Option<String>,
         /// Remove local entries that are no longer present in the index.
         #[arg(long)]
         prune: bool,
@@ -123,12 +136,30 @@ pub fn run() -> Result<i32> {
     let cli = Cli::parse();
     let store = PluginStore::from_env()?;
     match cli.command {
-        Command::New { name, directory } => {
+        Command::New {
+            name,
+            directory,
+            generate_lockfile,
+        } => {
             let destination =
                 directory.unwrap_or_else(|| PathBuf::from(format!("dm-plugin-{name}")));
             scaffold_plugin(&name, &destination)?;
+            if generate_lockfile {
+                let status = ProcessCommand::new("cargo")
+                    .arg("generate-lockfile")
+                    .arg("--manifest-path")
+                    .arg(destination.join("Cargo.toml"))
+                    .status()
+                    .context("Generate Cargo.lock; cargo is required")?;
+                if !status.success() {
+                    let _ = std::fs::remove_dir_all(&destination);
+                    return Err(anyhow::anyhow!("cargo generate-lockfile failed"));
+                }
+            }
             println!("Created {}", destination.display());
-            println!("Run cargo generate-lockfile in the new directory before installing");
+            if !generate_lockfile {
+                println!("Run cargo generate-lockfile in the new directory before installing");
+            }
         }
         Command::Install {
             source,
@@ -191,8 +222,14 @@ pub fn run() -> Result<i32> {
         Command::Search {
             query,
             remote,
+            local,
             json,
         } => {
+            let remote = if local {
+                None
+            } else {
+                remote.or_else(|| std::env::var("DM_REGISTRY_INDEX").ok())
+            };
             let results = if let Some(url) = remote {
                 store.search_remote(&url, &query)?
             } else {
@@ -310,11 +347,21 @@ pub fn run() -> Result<i32> {
             println!("Uninstalled {name}");
         }
         Command::Registry { command } => match command {
-            RegistryCommand::Add { name, source } => {
+            RegistryCommand::Add {
+                name,
+                source,
+                verify,
+            } => {
+                if verify {
+                    store.verify_registry_source(&source)?;
+                }
                 store.registry_add(&name, &source)?;
                 println!("Registered {name}");
             }
             RegistryCommand::Sync { url, prune } => {
+                let url = url
+                    .or_else(|| std::env::var("DM_REGISTRY_INDEX").ok())
+                    .context("Provide a registry index URL or set DM_REGISTRY_INDEX")?;
                 let (synced, removed) = store.registry_sync(&url, prune)?;
                 println!("Synced {synced} plugin sources");
                 if prune {

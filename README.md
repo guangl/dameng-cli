@@ -52,12 +52,12 @@ dm uninstall hello
 
 | 命令 | 作用 |
 | --- | --- |
-| `dm new <name> [--directory PATH]` | 生成完整的 Rust 插件项目骨架 |
+| `dm new <name> [--directory PATH] [--generate-lockfile]` | 生成完整的 Rust 插件项目骨架，可立即生成 `Cargo.lock` |
 | `dm install ./path/to/plugin [--accept-permissions]` | 从本地 Rust crate 编译安装 |
 | `dm install https://github.com/OWNER/REPO.git --rev v1.2.0 [--accept-permissions]` | 安装固定 Git tag、branch 或 commit |
 | `dm install <name>` | 根据本地注册表查找 HTTPS Git 仓库并安装 |
 | `dm list [--json]` / `dm info <name> [--json]` | 列出插件或查看来源、revision、校验和与权限 |
-| `dm search [query] [--remote URL] [--json]` | 搜索本地或远程配置的插件来源 |
+| `dm search [query] [--remote URL] [--local] [--json]` | 搜索本地或远程配置的插件来源；未指定时可用 `DM_REGISTRY_INDEX` 指定远程索引 |
 | `dm <name> [args...]` | 执行插件，原样转发后续参数，包括 `--help` |
 | `dm update <name> [--accept-permissions]` / `dm update --all [--accept-permissions]` | 构建、校验并原子替换插件，失败时保留旧版本 |
 | `dm outdated [--json]` | 检查未固定 revision 的插件是否有新版本 |
@@ -65,8 +65,8 @@ dm uninstall hello
 | `dm verify [name]` | 校验已安装清单与二进制 SHA-256 |
 | `dm doctor [--repair]` | 检查或修复 SQLite、插件目录、残留事务与孤立配置/数据/缓存目录 |
 | `dm uninstall <name>` | 删除插件及其 config/data/cache 隔离目录 |
-| `dm registry add <name> <url>` | 在 SQLite 注册表中新增或更新名称与 HTTPS Git 地址 |
-| `dm registry sync <url> [--prune]` | 拉取远程 JSON 索引并合并到本地注册表，`--prune` 删除远端已消失的条目 |
+| `dm registry add <name> <url> [--verify]` | 在 SQLite 注册表中新增或更新名称与 HTTPS Git 地址，`--verify` 先用 `git ls-remote` 校验可达性 |
+| `dm registry sync [url] [--prune]` | 拉取远程 JSON 索引并合并到本地注册表，`--prune` 删除远端已消失的条目；省略 url 时使用 `DM_REGISTRY_INDEX` |
 | `dm registry list [--json]` | 列出名称注册表 |
 | `dm registry remove <name>` | 删除名称注册表条目 |
 | `dm self-update [--check] [--version X.Y.Z]` | 校验 GitHub Release SHA-256 与 minisign 签名后原子升级宿主 |
@@ -93,7 +93,7 @@ dm install backup
 
 注册表名称必须与目标插件清单名称一致。仓库根目录必须包含插件 crate、`Cargo.lock` 和 `dm-plugin.toml`；示例地址不是已发布的插件。生产环境推荐通过 `--rev` 固定 tag 或完整 commit。旧版 `registry.toml` 不再读取，请用 `dm registry add` 导入其中的条目。
 
-远程注册表索引是 HTTPS 上的 JSON 数组，每个元素形如 `{"name":"...","source":"..."}`；用 `dm registry sync <url>` 合并到本地，或用 `dm search --remote <url>` 直接检索。
+远程注册表索引是 HTTPS 上的 JSON 数组，每个元素形如 `{"name":"...","source":"..."}`；用 `dm registry sync [url]` 合并到本地，或用 `dm search --remote <url>` 直接检索。设置 `DM_REGISTRY_INDEX` 后，`dm search` 和省略 url 的 `dm registry sync` 会默认使用该索引。
 
 宿主 Release 资产附带 SHA-256 与 minisign 签名。`dm self-update` 内嵌公钥并强制执行签名校验；`scripts/install.sh` 在存在 `rsign` 或 `minisign` 时会校验签名，否则保留 SHA-256 校验并提示跳过签名校验。安装脚本支持 `DM_INSTALL_TARGET` 覆盖产物目标（如 `x86_64-unknown-linux-musl`）。
 

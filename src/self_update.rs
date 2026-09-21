@@ -143,8 +143,12 @@ pub fn verify_checksum(archive: &[u8], checksum: &[u8]) -> Result<()> {
 }
 
 pub fn verify_release_signature(archive: &[u8], signature: &[u8]) -> Result<()> {
-    let public_key = PublicKey::from_base64(MINISIGN_PUBLIC_KEY)
-        .context("Invalid embedded minisign public key")?;
+    let public_key = if let Ok(override_key) = env::var("DM_MINISIGN_PUBLIC_KEY") {
+        PublicKey::from_base64(&override_key).context("Invalid DM_MINISIGN_PUBLIC_KEY")?
+    } else {
+        PublicKey::from_base64(MINISIGN_PUBLIC_KEY)
+            .context("Invalid embedded minisign public key")?
+    };
     let signature = SignatureBox::from_string(std::str::from_utf8(signature)?)
         .context("Invalid minisign signature")?;
     minisign::verify(

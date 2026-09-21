@@ -664,6 +664,24 @@ fn registry_resolution_and_git_failure_with_fake_transport() {
             .env("FAKE_GIT_LOG", &log);
         cmd
     };
+
+    let verified = command()
+        .args([
+            "registry",
+            "add",
+            "--verify",
+            "reachable",
+            "https://example.invalid/reachable.git",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        verified.status.success(),
+        "{}",
+        String::from_utf8_lossy(&verified.stderr)
+    );
+    assert!(ok(dm(&home).args(["registry", "list"]).output().unwrap()).contains("reachable"));
+
     let mismatch = command().args(["install", "wrong"]).output().unwrap();
     assert!(!mismatch.status.success());
     assert!(String::from_utf8_lossy(&mismatch.stderr).contains("does not match"));
@@ -679,6 +697,19 @@ fn registry_resolution_and_git_failure_with_fake_transport() {
     assert!(!failed.status.success());
     assert!(String::from_utf8_lossy(&failed.stderr).contains("Git could not fetch"));
     assert_eq!(fs::read_dir(home.join("plugins")).unwrap().count(), 1);
+
+    let bad_verify = command()
+        .args([
+            "registry",
+            "add",
+            "--verify",
+            "bad",
+            "https://example.invalid/bad.git",
+        ])
+        .output()
+        .unwrap();
+    assert!(!bad_verify.status.success());
+    assert!(!ok(dm(&home).args(["registry", "list"]).output().unwrap()).contains("bad"));
 }
 
 #[test]
@@ -709,6 +740,16 @@ fn new_command_scaffolds_a_project() {
             .success()
     );
     assert!(!reserved.exists());
+
+    let offline = temp.path().join("offline");
+    let output = dm(&home)
+        .args(["new", "backup", "--directory"])
+        .arg(&offline)
+        .args(["--generate-lockfile"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(!offline.exists());
 }
 
 #[test]

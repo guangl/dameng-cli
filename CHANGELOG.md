@@ -10,6 +10,9 @@
 - 增加 `dm registry sync --prune` 与 `dm registry list --json`。
 - Windows 自更新改用 PowerShell 解压 zip，不再依赖系统 tar。
 - 源码模块化：CLI 拆到 `src/cli.rs`，存储拆到 `src/store/`，宿主自更新拆到 `src/self_update.rs`，远程索引拆到 `src/registry_index.rs`。
+- `dm new` 增加 `--generate-lockfile`；`dm registry add` 增加 `--verify` 可达性校验。
+- 支持 `DM_REGISTRY_INDEX` 作为 `dm search` 与 `dm registry sync` 的默认远程索引。
+- `dm self-update` 支持 `DM_MINISIGN_PUBLIC_KEY` 覆盖内置公钥，便于测试与自定义签名。
 - 增加插件原子更新、更新检查、启停、来源/revision/校验和溯源、完整性验证和故障回滚。
 - 增加 `info`、`search`、`outdated`、`verify`、`doctor`、JSON 输出和 shell completion。
 - 增加 `dm new` 插件项目脚手架。
