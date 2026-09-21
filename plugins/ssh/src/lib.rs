@@ -5,7 +5,7 @@ use clap::{Parser, Subcommand};
 use dm_plugin_sdk::{Context as PluginContext, Plugin, PluginResult};
 use rand::{RngCore, rngs::OsRng};
 use rusqlite::{Connection, params};
-use std::{ffi::OsString, fs, path::PathBuf, process::Command};
+use std::{ffi::OsString, fs, io::IsTerminal, path::PathBuf, process::Command};
 
 pub struct Server {
     pub name: String,
@@ -26,19 +26,26 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum SshCommand {
-    /// Add or replace a saved SSH server.
+    /// Add or replace a saved SSH server; prompts interactively for any value that is omitted.
     Add {
-        name: String,
+        /// SSH server name (prompted when omitted on a terminal).
+        name: Option<String>,
+        /// SSH host (prompted when omitted on a terminal).
         #[arg(long)]
-        host: String,
-        #[arg(long, default_value_t = 22)]
-        port: u16,
+        host: Option<String>,
+        /// SSH port, default 22 (prompted when omitted on a terminal).
         #[arg(long)]
-        username: String,
+        port: Option<u16>,
+        /// SSH username (prompted when omitted on a terminal).
+        #[arg(long)]
+        username: Option<String>,
+        /// Password for password authentication; prompted when omitted on a terminal.
         #[arg(long)]
         password: Option<String>,
+        /// Private key path for key authentication; prompted when key authentication is chosen.
         #[arg(long)]
         key: Option<PathBuf>,
+        /// Key passphrase; prompted when omitted on a terminal.
         #[arg(long)]
         passphrase: Option<String>,
     },
@@ -66,28 +73,40 @@ impl Plugin for SshPlugin {
     }
 }
 
+const SERVERS_TABLE_SCHEMA: &str = "CREATE TABLE IF NOT EXISTS servers (
+    name TEXT PRIMARY KEY,
+    host TEXT NOT NULL,
+    port INTEGER NOT NULL DEFAULT 22,
+    username TEXT NOT NULL,
+    auth_type TEXT NOT NULL DEFAULT 'password',
+    secret TEXT,
+    key_path TEXT,
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+) STRICT";
+
 pub fn database_path(context: &PluginContext) -> PathBuf {
-    context.home.join("store.sqlite3")
+    context.data_dir.join("servers.sqlite3")
 }
 
 pub fn key_path(context: &PluginContext) -> PathBuf {
-    context.home.join(".ssh-key")
+    context.data_dir.join(".ssh-key")
 }
 
 pub fn open_database(context: &PluginContext) -> Result<Connection> {
-    let connection =
-        Connection::open(database_path(context)).context("Open shared SQLite store")?;
-    connection.execute_batch(dm_plugin_sdk::SSH_SERVERS_TABLE_SCHEMA)?;
+    fs::create_dir_all(&context.data_dir).context("Create SSH plugin data directory")?;
+    let connection = Connection::open(database_path(context)).context("Open SSH servers store")?;
+    connection.execute_batch(SERVERS_TABLE_SCHEMA)?;
     Ok(connection)
 }
 
 pub fn machine_key(context: &PluginContext) -> Result<[u8; 32]> {
+    fs::create_dir_all(&context.data_dir).context("Create SSH plugin data directory")?;
     let path = key_path(context);
     if path.is_file() {
-        let bytes = fs::read(&path).context("Read shared SSH encryption key")?;
+        let bytes = fs::read(&path).context("Read SSH encryption key")?;
         ensure!(
             bytes.len() == 32,
-            "Shared SSH encryption key is invalid; remove {} and retry",
+            "SSH encryption key is invalid; remove {} and retry",
             path.display()
         );
         let mut key = [0_u8; 32];
@@ -96,7 +115,7 @@ pub fn machine_key(context: &PluginContext) -> Result<[u8; 32]> {
     }
     let mut key = [0_u8; 32];
     OsRng.fill_bytes(&mut key);
-    fs::write(&path, key).context("Write shared SSH encryption key")?;
+    fs::write(&path, key).context("Write SSH encryption key")?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -209,6 +228,151 @@ pub fn remove_server(context: &PluginContext, name: &str) -> Result<()> {
     Ok(())
 }
 
+const AUTH_REQUIRED: &str =
+    "SSH password or key path is required; pass --password or --key, or run from a terminal";
+
+/// Read one line from stdin, trimming surrounding whitespace. Prompts are
+/// written to stdout so they appear before input is read on an interactive
+/// terminal.
+fn prompt_line(prompt: &str) -> Result<String> {
+    use std::io::Write;
+    print!("{prompt}");
+    std::io::stdout().flush().context("Flush prompt")?;
+    let mut input = String::new();
+    std::io::stdin()
+        .read_line(&mut input)
+        .context("Read input")?;
+    Ok(input.trim().to_owned())
+}
+
+/// Resolve a required plain-text field, prompting interactively when it was not
+/// supplied and stdin is attached to a terminal.
+pub fn resolve_required(
+    value: Option<String>,
+    prompt: &str,
+    missing: &str,
+    interactive: bool,
+) -> Result<String> {
+    match value {
+        Some(value) => Ok(value),
+        None if interactive => prompt_line(prompt),
+        None => anyhow::bail!("{missing}"),
+    }
+}
+
+/// Resolve the SSH port, defaulting to 22 when omitted.
+pub fn resolve_port(port: Option<u16>, interactive: bool) -> Result<u16> {
+    match port {
+        Some(port) => Ok(port),
+        None if interactive => {
+            let value = prompt_line("Port [22]: ")?;
+            if value.is_empty() {
+                Ok(22)
+            } else {
+                value
+                    .parse::<u16>()
+                    .with_context(|| format!("SSH port must be a number, got '{value}'"))
+            }
+        }
+        None => Ok(22),
+    }
+}
+
+/// Resolve the password for `add`, prompting on the terminal when one was not
+/// supplied and the process is attached to a terminal.
+pub fn resolve_password(password: Option<String>, interactive: bool) -> Result<String> {
+    match password {
+        Some(password) => {
+            ensure!(!password.is_empty(), "SSH password must not be empty");
+            Ok(password)
+        }
+        None if interactive => {
+            let password = rpassword::prompt_password("Password: ").context("Read SSH password")?;
+            ensure!(!password.is_empty(), "SSH password must not be empty");
+            Ok(password)
+        }
+        None => anyhow::bail!(AUTH_REQUIRED),
+    }
+}
+
+/// Resolve the optional key passphrase for `add`. An empty passphrase means the
+/// key is not protected by one. Prompting only happens on a terminal.
+pub fn resolve_passphrase(passphrase: Option<String>, interactive: bool) -> Result<Option<String>> {
+    match passphrase {
+        Some(passphrase) if passphrase.is_empty() => Ok(None),
+        Some(passphrase) => Ok(Some(passphrase)),
+        None if interactive => {
+            let passphrase = rpassword::prompt_password("Passphrase (leave empty for none): ")
+                .context("Read SSH key passphrase")?;
+            Ok((!passphrase.is_empty()).then_some(passphrase))
+        }
+        None => Ok(None),
+    }
+}
+
+/// Resolve the authentication method and its encrypted secret for `add`.
+/// Explicit `--key` or `--password` wins; otherwise an interactive terminal
+/// chooses the method and enters the matching secret.
+pub fn resolve_auth(
+    context: &PluginContext,
+    password: Option<String>,
+    key: Option<PathBuf>,
+    passphrase: Option<String>,
+    interactive: bool,
+) -> Result<(String, Option<String>, Option<String>)> {
+    if let Some(key_path) = key {
+        ensure!(
+            !key_path.as_os_str().is_empty(),
+            "SSH key path must not be empty"
+        );
+        let passphrase = resolve_passphrase(passphrase, interactive)?;
+        return Ok((
+            "key".to_owned(),
+            Some(key_path.display().to_string()),
+            passphrase
+                .map(|passphrase| encrypt(context, passphrase.as_bytes()))
+                .transpose()?,
+        ));
+    }
+    if let Some(password) = password {
+        let password = resolve_password(Some(password), interactive)?;
+        return Ok((
+            "password".to_owned(),
+            None,
+            Some(encrypt(context, password.as_bytes())?),
+        ));
+    }
+    if !interactive {
+        anyhow::bail!(AUTH_REQUIRED);
+    }
+    let method = prompt_line("Authentication method [password/key] (password): ")?;
+    match method.as_str() {
+        "password" | "" => {
+            let password = resolve_password(None, true)?;
+            Ok((
+                "password".to_owned(),
+                None,
+                Some(encrypt(context, password.as_bytes())?),
+            ))
+        }
+        "key" => {
+            let key_path = prompt_line("Key path: ")?;
+            ensure!(!key_path.is_empty(), "SSH key path must not be empty");
+            let passphrase = resolve_passphrase(None, true)?;
+            Ok((
+                "key".to_owned(),
+                Some(key_path),
+                passphrase
+                    .map(|passphrase| encrypt(context, passphrase.as_bytes()))
+                    .transpose()?,
+            ))
+        }
+        other => {
+            anyhow::bail!("Unknown authentication method '{other}'; choose 'password' or 'key'")
+        }
+    }
+}
+
 pub fn run_cli(context: &PluginContext) -> Result<i32> {
     let mut argv = vec![OsString::from("dm ssh")];
     argv.extend(context.args.iter().cloned());
@@ -223,30 +387,22 @@ pub fn run_cli(context: &PluginContext) -> Result<i32> {
             key,
             passphrase,
         } => {
+            let interactive = std::io::stdin().is_terminal();
+            let name =
+                resolve_required(name, "Name: ", "SSH server name is required", interactive)?;
             validate_name(&name)?;
+            let host = resolve_required(host, "Host: ", "SSH host is required", interactive)?;
             ensure!(!host.is_empty(), "SSH host must not be empty");
+            let port = resolve_port(port, interactive)?;
+            let username = resolve_required(
+                username,
+                "Username: ",
+                "SSH username is required",
+                interactive,
+            )?;
             ensure!(!username.is_empty(), "SSH username must not be empty");
-            let (auth_type, key_path, secret) = if let Some(key_path) = key {
-                ensure!(
-                    !key_path.as_os_str().is_empty(),
-                    "SSH key path must not be empty"
-                );
-                (
-                    "key".to_owned(),
-                    Some(key_path.display().to_string()),
-                    passphrase
-                        .map(|passphrase| encrypt(context, passphrase.as_bytes()))
-                        .transpose()?,
-                )
-            } else {
-                let password = password.context("SSH password or key path is required")?;
-                ensure!(!password.is_empty(), "SSH password must not be empty");
-                (
-                    "password".to_owned(),
-                    None,
-                    Some(encrypt(context, password.as_bytes())?),
-                )
-            };
+            let (auth_type, key_path, secret) =
+                resolve_auth(context, password, key, passphrase, interactive)?;
             upsert_server(
                 context,
                 &Server {

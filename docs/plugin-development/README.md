@@ -16,7 +16,7 @@ permalink: /plugin-development/
 3. [SDK API](sdk-api.html)：使用 `Context`、`Plugin`、`PluginResult` 和入口函数。
 4. [运行时协议](runtime-contract.html)：参数、环境变量、标准流和退出码的准确约定。
 5. [测试与调试](testing.html)：从业务单元测试到真实安装生命周期测试。
-6. [发布与分发](publishing.html)：准备独立仓库并支持本地、Git URL 和名称安装。
+6. [发布与分发](publishing.html)：准备独立仓库并支持本地和 Git URL 安装。
 7. [故障排查](troubleshooting.html)：定位常见的清单、构建、安装、hook 和运行错误。
 
 ## 核心边界
