@@ -3,19 +3,6 @@ use std::{env, error::Error, ffi::OsString, path::PathBuf};
 
 pub const API_VERSION: u32 = 1;
 pub const CAPABILITY_CONFIG_DIRS: &str = "config-dirs-v1";
-
-/// Shared SQLite schema for SSH server credentials. The host creates this table
-/// so plugins can share one connection store instead of each maintaining their own.
-pub const SSH_SERVERS_TABLE_SCHEMA: &str = "CREATE TABLE IF NOT EXISTS servers (
-    name TEXT PRIMARY KEY,
-    host TEXT NOT NULL,
-    port INTEGER NOT NULL DEFAULT 22,
-    username TEXT NOT NULL,
-    auth_type TEXT NOT NULL DEFAULT 'password',
-    secret TEXT,
-    key_path TEXT,
-    updated_at INTEGER NOT NULL DEFAULT (unixepoch())
-) STRICT";
 pub type PluginResult = Result<i32, Box<dyn Error + Send + Sync>>;
 
 /// Inputs supplied by the host. Standard I/O and the working directory are inherited.

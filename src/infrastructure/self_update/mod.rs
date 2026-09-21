@@ -205,7 +205,8 @@ fn extract_binary(
     tag: &str,
     target: &str,
 ) -> Result<PathBuf> {
-    let status = if cfg!(windows) {
+    #[cfg(windows)]
+    let status = {
         Command::new("powershell")
             .args(["-NoProfile", "-Command"])
             .arg(format!(
@@ -215,7 +216,9 @@ fn extract_binary(
             ))
             .status()
             .context("Self-update requires PowerShell to extract zip archives")?
-    } else {
+    };
+    #[cfg(not(windows))]
+    let status = {
         Command::new("tar")
             .arg("-xf")
             .arg(archive)

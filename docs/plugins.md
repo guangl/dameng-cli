@@ -62,14 +62,14 @@ dm-plugin-sdk = { path = "../dameng-cli/crates/dm-plugin-sdk" }
 
 - `name`、`version`、`description`、`api_version` 必填；其余字段可选，且不接受未知字段。
 - 名称为 1–64 个小写字母、数字或 `-`，且必须以字母开头。
-- 所有宿主命令名均为保留名，包括 `install`、`update`、`registry`、`doctor`、`self-update`；拒绝 Windows 设备名。
+- 所有宿主命令名均为保留名，包括 `install`、`update`、`doctor`、`self-update`；拒绝 Windows 设备名。
 - 清单 version 是非空单行版本字符串，必须与 Cargo package 的显式 version 一致；实际版本语法由 Cargo 校验。
 - `api_version` 必须为 `1`。协议有破坏性变更时提升此版本。
 - `min_host_version` 可选，使用 SemVer；宿主版本不足时拒绝安装。
 - `license` 与 `homepage` 可选，用于来源与许可展示。
 - `environment` 是插件需要继承的环境变量白名单，只接受大写 ASCII 名称。默认不会把数据库密码等用户环境传给插件。
 - `permissions` 可声明 `filesystem`、`network`、`process`。它们用于审查和展示；当前原生进程宿主不宣称可跨平台强制执行权限沙箱。
-- `[hooks]` 中的路径必须指向插件根目录内的相对可执行文件。安装前 hook 在源码根目录运行，其余 hook 在已安装或待卸载的插件根目录运行；宿主设置 `DM_HOOK_PHASE`、`DM_HOME` 和 `DM_PLUGIN_DIR`，以 `DM_PLUGIN_DIR` 作为工作目录，并把 phase 名称作为第一个参数传入。hook 失败会阻止或回滚对应事务。
+- `[hooks]` 中的路径必须指向插件根目录内的相对可执行文件。安装前 hook 在源码根目录运行，其余 hook 在已安装或待卸载的插件根目录运行；宿主设置 `DM_HOOK_PHASE`、`DM_PLUGIN_HOME` 和 `DM_PLUGIN_DIR`，以 `DM_PLUGIN_DIR` 作为工作目录，并把 phase 名称作为第一个参数传入。hook 失败会阻止或回滚对应事务。
 - 显式声明依赖键 `dm-plugin-sdk`；显式声明 `[[bin]] name = "dm-<name>"`。
 - 不接受脚本入口、自定义 executable 字段、任意预编译可执行文件包。
 - 安装的是本机编译的 binary；资源须嵌入。插件应自带说明文件与许可证。
@@ -82,7 +82,7 @@ dm-plugin-sdk = { path = "../dameng-cli/crates/dm-plugin-sdk" }
 | --- | --- |
 | `args: Vec<OsString>` | 保留系统原始参数，支持非 UTF-8 参数 |
 | `plugin_dir: PathBuf` | `DM_PLUGIN_DIR`，插件安装目录绝对路径 |
-| `home: PathBuf` | `DM_HOME`，宿主数据目录绝对路径 |
+| `home: PathBuf` | `DM_PLUGIN_HOME`，宿主数据目录绝对路径 |
 | `config_dir: PathBuf` | `DM_PLUGIN_CONFIG_DIR`，该插件的持久配置目录 |
 | `data_dir: PathBuf` | `DM_PLUGIN_DATA_DIR`，该插件的持久数据目录 |
 | `cache_dir: PathBuf` | `DM_PLUGIN_CACHE_DIR`，该插件的可再生成缓存目录 |
