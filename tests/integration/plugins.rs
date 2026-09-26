@@ -1636,3 +1636,38 @@ fn configured_plugin_environment_is_inherited_by_plugins() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("DM_PLUGIN_ENVIRONMENT"), "{stderr}");
 }
+#[test]
+fn info_points_at_the_plugin_owned_configuration() {
+    let temp = TempDir::new().unwrap();
+    let source = fixture(temp.path());
+    let home = temp.path().join("home");
+    let store = PluginStore::new(&home);
+    store.install(source.to_str().unwrap()).unwrap();
+
+    let info = ok(dm(&home).args(["info", "probe"]).output().unwrap());
+    assert!(info.contains("Config dir:"), "{info}");
+    assert!(info.contains("Data dir:"), "{info}");
+    assert!(info.contains("Cache dir:"), "{info}");
+    assert!(info.contains("(absent)"), "{info}");
+
+    // The plugin owns this file; the host only reports where it belongs.
+    fs::create_dir_all(home.join("config/probe")).unwrap();
+    fs::write(home.join("config/probe/config.toml"), "greeting = \"hi\"\n").unwrap();
+    let info = ok(dm(&home).args(["info", "probe"]).output().unwrap());
+    assert!(info.contains("(present)"), "{info}");
+
+    let json = ok(dm(&home)
+        .args(["info", "--json", "probe"])
+        .output()
+        .unwrap());
+    let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+    assert_eq!(parsed["paths"]["config_file_present"], true);
+    let config = parsed["paths"]["config"].as_str().unwrap();
+    assert!(config.ends_with("config/probe"), "{config}");
+    assert!(
+        parsed["paths"]["config_file"]
+            .as_str()
+            .unwrap()
+            .ends_with("config/probe/config.toml")
+    );
+}

@@ -105,8 +105,20 @@ pub fn run(config: &Config) -> Result<i32> {
         }
         Command::Info { name, json } => {
             let plugin = store.info(&name)?;
+            // Plugins configure themselves inside their own directory; expose the
+            // paths so users can find (and edit) the right file.
+            let directories = store.plugin_directories(&plugin.manifest.name);
+            let config_file = Config::path_in(&directories[0]);
             if json {
-                println!("{}", serde_json::to_string_pretty(&plugin)?);
+                let mut value = serde_json::to_value(&plugin)?;
+                value["paths"] = serde_json::json!({
+                    "config": directories[0],
+                    "data": directories[1],
+                    "cache": directories[2],
+                    "config_file": config_file,
+                    "config_file_present": config_file.is_file(),
+                });
+                println!("{}", serde_json::to_string_pretty(&value)?);
             } else {
                 println!("Name: {}", plugin.manifest.name);
                 println!("Version: {}", plugin.manifest.version);
@@ -122,6 +134,18 @@ pub fn run(config: &Config) -> Result<i32> {
                 if !plugin.manifest.environment.is_empty() {
                     println!("Environment: {}", plugin.manifest.environment.join(", "));
                 }
+                println!("Config dir: {}", directories[0].display());
+                println!("Data dir: {}", directories[1].display());
+                println!("Cache dir: {}", directories[2].display());
+                println!(
+                    "Config file: {} ({})",
+                    config_file.display(),
+                    if config_file.is_file() {
+                        "present"
+                    } else {
+                        "absent"
+                    }
+                );
             }
         }
         Command::Update { name, all } => {

@@ -1,0 +1,22 @@
+# dm ssh 插件自己的配置示例（config.toml）
+#
+# 每个插件由自己的目录配置，宿主只创建目录并把路径传给插件：
+#   <DM_PLUGIN_HOME>/config/ssh/config.toml
+# 用 `dm info ssh` 可以查看该目录与文件是否存在（默认 ~/.config/dm/config/ssh）。
+# 文件不存在时插件使用同样的默认值；未知表、未知键或非法值会让命令直接失败并打印该文件路径。
+
+# dm ssh add 中省略参数时使用的默认值（命令行显式传参始终优先）。
+[defaults]
+# 省略 --port 时使用的端口；交互式提示直接回车也用它。
+port = 22
+# 省略 --username 时使用的用户名。
+# username = "root"
+# 交互式 add 在认证方式提示处按回车时预选的方式：password 或 key。
+# auth = "password"
+# 省略 --key 时使用的私钥路径（改用它即按密钥认证）。
+# key = "~/.ssh/id_ed25519"
+
+# dm ssh test 的连接参数。
+[test]
+# SSH ConnectTimeout（秒），默认 10。
+connect_timeout = 10

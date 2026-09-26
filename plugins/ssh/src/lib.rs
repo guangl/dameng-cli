@@ -5,6 +5,7 @@ use clap::{Parser, Subcommand};
 use dm_plugin_sdk::{Context as PluginContext, Plugin, PluginResult};
 use rand::{RngCore, rngs::OsRng};
 use rusqlite::{Connection, params};
+use serde::Deserialize;
 use std::{ffi::OsString, fs, io::IsTerminal, path::PathBuf, process::Command};
 
 pub struct Server {
@@ -18,7 +19,11 @@ pub struct Server {
 }
 
 #[derive(Parser)]
-#[command(name = "dm ssh", about = "Manage saved SSH server connections")]
+#[command(
+    name = "dm ssh",
+    about = "Manage saved SSH server connections",
+    after_help = "This plugin reads its own configuration file (<config dir>/config.toml, see `dm info ssh`):\n  [defaults] port, username, auth, key\n  [test] connect_timeout"
+)]
 struct Cli {
     #[command(subcommand)]
     command: SshCommand,
@@ -232,6 +237,107 @@ pub fn remove_server(context: &PluginContext, name: &str) -> Result<()> {
 const AUTH_REQUIRED: &str =
     "SSH password or key path is required; pass --password or --key, or run from a terminal";
 
+/// Default connection timeout in seconds for `dm ssh test`.
+const DEFAULT_CONNECT_TIMEOUT: u64 = 10;
+
+/// Settings read from the plugin's own `<config_dir>/config.toml`.
+///
+/// The host only creates and passes the directory; the schema below is the
+/// plugin's own, so these keys never appear in the host configuration file.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SshConfig {
+    /// Values used by `dm ssh add` when a flag is omitted.
+    #[serde(default)]
+    pub defaults: SshDefaults,
+    /// How `dm ssh test` connects.
+    #[serde(default)]
+    pub test: SshTestSettings,
+}
+
+/// `[defaults]` table.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SshDefaults {
+    /// Port used when `--port` is omitted and the prompt is answered with Enter.
+    #[serde(default)]
+    pub port: Option<u16>,
+    /// Username used when `--username` is omitted and the prompt is answered with Enter.
+    #[serde(default)]
+    pub username: Option<String>,
+    /// Authentication method preselected by the interactive prompt: `password` or `key`.
+    #[serde(default)]
+    pub auth: Option<String>,
+    /// Private key path used when `--key` is omitted.
+    #[serde(default)]
+    pub key: Option<String>,
+}
+
+/// `[test]` table.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SshTestSettings {
+    /// Connection timeout in seconds for `dm ssh test`; defaults to 10.
+    #[serde(default)]
+    pub connect_timeout: Option<u64>,
+}
+
+/// Path of the plugin's own configuration file.
+pub fn config_path(context: &PluginContext) -> PathBuf {
+    context.config_dir.join(dm_plugin_sdk::CONFIG_FILE)
+}
+
+/// Load the plugin configuration. A missing file means "all defaults".
+pub fn load_config(context: &PluginContext) -> Result<SshConfig> {
+    let path = config_path(context);
+    let text = match fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(SshConfig::default());
+        }
+        Err(error) => return Err(error).with_context(|| format!("Read {}", path.display())),
+    };
+    let config: SshConfig = toml::from_str(&text).with_context(|| {
+        format!(
+            "Invalid SSH plugin configuration {}; supported tables are [defaults] and [test]",
+            path.display()
+        )
+    })?;
+    if let Some(auth) = config.defaults.auth.as_deref() {
+        ensure!(
+            matches!(auth, "password" | "key"),
+            "SSH plugin configuration {}: defaults.auth must be 'password' or 'key', got '{auth}'",
+            path.display()
+        );
+    }
+    if let Some(timeout) = config.test.connect_timeout {
+        ensure!(
+            timeout > 0,
+            "SSH plugin configuration {}: test.connect_timeout must be greater than zero",
+            path.display()
+        );
+    }
+    ensure!(
+        !config
+            .defaults
+            .username
+            .as_deref()
+            .is_some_and(|value| value.trim().is_empty()),
+        "SSH plugin configuration {}: defaults.username must not be empty",
+        path.display()
+    );
+    ensure!(
+        !config
+            .defaults
+            .key
+            .as_deref()
+            .is_some_and(|value| value.trim().is_empty()),
+        "SSH plugin configuration {}: defaults.key must not be empty",
+        path.display()
+    );
+    Ok(config)
+}
+
 /// Source of interactive answers.
 ///
 /// Production prompts the controlling terminal; tests script the answers so the
@@ -357,6 +463,7 @@ pub fn resolve_auth(
     key: Option<PathBuf>,
     passphrase: Option<String>,
     prompter: Option<&dyn Prompter>,
+    default_method: Option<&'static str>,
 ) -> Result<(String, Option<String>, Option<String>)> {
     if let Some(key_path) = key {
         ensure!(
@@ -384,9 +491,18 @@ pub fn resolve_auth(
         Some(prompter) => prompter,
         None => anyhow::bail!(AUTH_REQUIRED),
     };
-    let method = prompter.line("Authentication method [password/key] (password): ")?;
-    match method.as_str() {
-        "password" | "" => {
+    // `[defaults] auth` from the plugin configuration preselects the method.
+    let method = prompter.line(&format!(
+        "Authentication method [password/key] ({}): ",
+        default_method.unwrap_or("password")
+    ))?;
+    let method = if method.is_empty() {
+        default_method.unwrap_or("password")
+    } else {
+        method.as_str()
+    };
+    match method {
+        "password" => {
             let password = resolve_password(None, Some(prompter))?;
             Ok((
                 "password".to_owned(),
@@ -427,16 +543,29 @@ pub fn run_cli(context: &PluginContext) -> Result<i32> {
             passphrase,
         } => {
             let prompter = terminal_prompter();
+            // Values omitted on the command line fall back to the plugin's own
+            // configuration file before any prompt.
+            let config = load_config(context)?;
             let name = resolve_required(name, "Name: ", "SSH server name is required", prompter)?;
             validate_name(&name)?;
             let host = resolve_required(host, "Host: ", "SSH host is required", prompter)?;
             ensure!(!host.is_empty(), "SSH host must not be empty");
-            let port = resolve_port(port, prompter)?;
-            let username =
-                resolve_required(username, "Username: ", "SSH username is required", prompter)?;
+            let port = resolve_port(port.or(config.defaults.port), prompter)?;
+            let username = resolve_required(
+                username.or(config.defaults.username.clone()),
+                "Username: ",
+                "SSH username is required",
+                prompter,
+            )?;
             ensure!(!username.is_empty(), "SSH username must not be empty");
+            let key = key.or_else(|| config.defaults.key.clone().map(PathBuf::from));
+            let default_method = match config.defaults.auth.as_deref() {
+                Some("key") => Some("key"),
+                Some(_) => Some("password"),
+                None => None,
+            };
             let (auth_type, key_path, secret) =
-                resolve_auth(context, password, key, passphrase, prompter)?;
+                resolve_auth(context, password, key, passphrase, prompter, default_method)?;
             upsert_server(
                 context,
                 &Server {
@@ -539,11 +668,15 @@ pub fn ssh_command(context: &PluginContext, name: &str, test: bool) -> Result<Co
     let destination = format!("{}@{}", server.username, server.host);
     let mut common: Vec<String> = vec!["-p".to_owned(), server.port.to_string()];
     if test {
+        let timeout = load_config(context)?
+            .test
+            .connect_timeout
+            .unwrap_or(DEFAULT_CONNECT_TIMEOUT);
         common.extend([
             "-o".to_owned(),
             "BatchMode=yes".to_owned(),
             "-o".to_owned(),
-            "ConnectTimeout=10".to_owned(),
+            format!("ConnectTimeout={timeout}"),
         ]);
     }
     let mut command;

@@ -46,6 +46,11 @@ fn context_from_env_success() {
     assert_eq!(context.plugin_dir, PathBuf::from("/tmp/plugin"));
     assert_eq!(context.home, PathBuf::from("/tmp/home"));
     assert_eq!(context.capabilities, vec!["config-dirs-v1"]);
+    // Plugins own their configuration file inside the directory the host passes.
+    assert_eq!(
+        context.config_file(),
+        PathBuf::from("/tmp/config").join(dm_plugin_sdk::CONFIG_FILE)
+    );
 }
 
 #[test]

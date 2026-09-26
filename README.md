@@ -55,14 +55,14 @@ dm uninstall hello
 | `dm install ./path/to/plugin` | 从包含预编译二进制和清单的本地目录安装 |
 | `dm install https://github.com/OWNER/REPO.git --rev v1.2.0` | 从 GitHub Release 安装固定版本的预编译插件 |
 | `dm list [--json]` | 以带边框表格列出已安装插件的 Name、Version、Description、Source、Revision 与 Installed At；`--json` 输出机器可读 JSON |
-| `dm info <name> [--json]` | 查看来源、revision、校验和与权限 |
+| `dm info <name> [--json]` | 查看来源、revision、校验和、权限，以及该插件自己的 config/data/cache 目录 |
 | `dm <name> [args...]` | 执行插件，原样转发后续参数，包括 `--help` |
 | `dm update <name>` / `dm update --all` | 下载、校验并原子替换插件，失败时保留旧版本 |
 | `dm outdated [--json]` | 并行检查插件是否有新版本 |
 | `dm verify [name]` | 校验已安装清单与二进制 SHA-256 |
 | `dm doctor [--repair]` | 检查或修复 SQLite、插件目录、残留事务与孤立配置/数据/缓存目录 |
 | `dm uninstall <name>` | 删除插件及其 config/data/cache 隔离目录 |
-| `dm ssh add/list/remove/test/ssh` | 由 `plugins/ssh` 插件提供的 SSH 服务器管理；配置写入插件自身的 `data/ssh/servers.sqlite3`，`add` 在终端下省略任意字段时逐项交互式输入，密码/口令隐藏回显 |
+| `dm ssh add/list/remove/test/ssh` | 由 `plugins/ssh` 插件提供的 SSH 服务器管理；配置写入插件自身的 `data/ssh/servers.sqlite3`，`add` 在终端下省略任意字段时逐项交互式输入，密码/口令隐藏回显；插件自己的默认值写在 `config/ssh/config.toml`（`[defaults]`、`[test]`） |
 | `dm self-update [--check] [--version X.Y.Z] [--force] [--target TARGET]` | 校验 GitHub Release SHA-256 后原子升级宿主；`--force` 允许重装或降级，`--target` 覆盖产物目标 |
 | `dm completions <shell>` | 生成 shell completion |
 | `dm --help` / `dm --version` | 宿主帮助和版本 |
@@ -81,7 +81,7 @@ dm uninstall hello
 - Windows：`%LOCALAPPDATA%\dm`。
 - Linux / macOS：`$HOME/.config/dm`。
 
-该目录内的 `store.sqlite3` 保存插件清单、来源、Git revision 和 SHA-256。可选的 `config.toml` 按用途分成 `[log]`、`[update]`、`[output]`、`[plugin]` 四张表，分别保存日志级别、自更新仓库与产物目标、进度条开关、额外继承给插件的环境变量；优先级为 命令行 > 环境变量 > 配置文件 > 默认值；模板见 [examples/config.toml](examples/config.toml)，复制到该目录即可生效。`plugins/` 保存可执行文件；`config/<name>`、`data/<name>`、`cache/<name>` 是每个插件的隔离目录。诊断日志写入 stderr，可用 `DM_LOG` 调整级别（`off`/`error`/`warn`/`info`/`debug`/`trace`，默认 `info`），stdout 始终保留给命令结果和 JSON。使用自己的真实插件仓库地址：
+该目录内的 `store.sqlite3` 保存插件清单、来源、Git revision 和 SHA-256。可选的 `config.toml` 只保存**宿主**设置，按用途分成 `[log]`、`[update]`、`[output]`、`[plugin]` 四张表，分别对应日志级别、自更新仓库与产物目标、进度条开关、额外继承给插件的环境变量；优先级为 命令行 > 环境变量 > 配置文件 > 默认值。**插件由各自的目录配置**：`config/<name>/config.toml`（插件自定义格式，宿主不读写），路径可用 `dm info <name>` 查看。模板见 [examples/config.toml](examples/config.toml)，复制到该目录即可生效。`plugins/` 保存可执行文件；`config/<name>`、`data/<name>`、`cache/<name>` 是每个插件的隔离目录。诊断日志写入 stderr，可用 `DM_LOG` 调整级别（`off`/`error`/`warn`/`info`/`debug`/`trace`，默认 `info`），stdout 始终保留给命令结果和 JSON。使用自己的真实插件仓库地址：
 
 ```sh
 dm install https://github.com/YOUR_ORG/dm-backup.git --rev v1.2.0

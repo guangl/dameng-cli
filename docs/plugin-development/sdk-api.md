@@ -35,12 +35,24 @@ pub struct Context {
 | `args` | 插件名之后的原始系统参数，不经 shell 拼接，可能不是 UTF-8。 |
 | `plugin_dir` | 当前插件的安装目录绝对路径。 |
 | `home` | 宿主数据目录绝对路径，与 `DM_PLUGIN_HOME` 一致。 |
-| `config_dir` | 当前插件的持久配置目录。 |
+| `config_dir` | 当前插件的持久配置目录；约定文件为 `config.toml`，见 `Context::config_file()`。 |
 | `data_dir` | 当前插件的持久数据目录。 |
 | `cache_dir` | 当前插件的可再生成缓存目录。 |
 | `capabilities` | 宿主提供的兼容能力；v0.2 要求 `config-dirs-v1`。 |
 
 只有在确实要求 UTF-8 时才调用 `to_str()`；用于展示时可以使用 `to_string_lossy()`。
+
+### 插件自己的配置
+
+```rust
+pub const CONFIG_FILE: &str = "config.toml";
+
+impl Context {
+    pub fn config_file(&self) -> PathBuf;   // config_dir.join(CONFIG_FILE)
+}
+```
+
+`config_file()` 只给出路径约定，不解析内容、也不读取文件：宿主不知道插件的配置格式，插件可以自行选择 TOML、JSON 或自己的解析器。文件不存在时按“全部默认值”处理是推荐做法，这样插件在未配置时也能直接运行。
 
 ## `Plugin`
 

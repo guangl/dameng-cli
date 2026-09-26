@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 明确插件由各自的目录配置：新增 SDK 约定 `Context::config_file()` / `CONFIG_FILE`（`<config_dir>/config.toml`），宿主不读取插件配置，`dm info <name>` 增加该插件的 config/data/cache 目录与配置文件是否存在（`--json` 为 `paths`）；`dm ssh` 插件改为读取自己的 `config/ssh/config.toml`（`[defaults]` 的 port/username/auth/key 与 `[test] connect_timeout`），首次给出可运行的插件配置范例。
 - 配置文件改为按用途分表：`[log] level`、`[update] repository/target`、`[output] progress`、`[plugin] environment`；平铺旧键不再接受。新增 `[update] target`（环境变量 `DM_UPDATE_TARGET`）、`[output] progress`（`DM_PROGRESS`）与 `[plugin] environment`（`DM_PLUGIN_ENVIRONMENT`）；自更新拒绝未发布 target 时会列出可选值，配置键名错误仍会直接失败并指出文件。
 - 行覆盖率提升到 97%，并在 CI 中以 `cargo llvm-cov --fail-under-lines 95` 强制不低于 95%；补齐 SSH 插件交互输入（提示抽象为可注入的 `Prompter`，测试用脚本化回答驱动）、宿主空状态、损坏 store、doctor 事务恢复和错误提示分支的测试。
 - 新增宿主配置文件 `<DM_PLUGIN_HOME>/config.toml`，可设置 `log`（日志过滤级别）与 `update_repository`（`dm self-update` 仓库）；优先级为 命令行 > 环境变量 > 配置文件 > 默认值。未知键、空值或非法 TOML 会给出指向该文件的 `错误`/`提示`，文件不存在时行为与之前完全一致；仓库提供带注释的示例 `examples/config.toml`，并有回归测试保证示例始终可被宿主解析。

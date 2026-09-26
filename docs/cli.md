@@ -24,7 +24,7 @@ description: dm 命令、环境变量、JSON 输出和常见工作流参考。
 | 命令 | 说明 |
 | --- | --- |
 | `dm list [--json]` | 以带边框表格列出 Name、Version、Description、Source、Revision 与 Installed At（UTC）；`--json` 输出机器可读 JSON。 |
-| `dm info <name> [--json]` | 显示来源、revision、SHA-256、权限和环境变量。 |
+| `dm info <name> [--json]` | 显示来源、revision、SHA-256、权限、环境变量，以及该插件的 config/data/cache 目录与配置文件是否存在（`--json` 中为 `paths`）。 |
 | `dm <name> [args...]` | 执行启用的插件并原样转发参数。 |
 | `dm outdated [--json]` | 并行读取各来源的清单版本；固定 ref 仍按原 ref 检查。 |
 | `dm verify [name]` | 校验磁盘清单与记录的 binary SHA-256。 |
@@ -48,7 +48,7 @@ description: dm 命令、环境变量、JSON 输出和常见工作流参考。
 
 ## 配置文件
 
-宿主读取 `<DM_PLUGIN_HOME>/config.toml`（默认 `~/.config/dm/config.toml`，Windows 为 `%LOCALAPPDATA%\dm\config.toml`）。设置按用途分成四张表：`log`、`update`、`output`、`plugin`。可直接复制仓库中的示例：[examples/config.toml](https://github.com/guangl/dameng-cli/blob/main/examples/config.toml)。文件不存在时全部使用默认值；文件存在但不是合法 TOML、出现未知表/未知键、空值或类型错误时，命令直接失败，并在 `提示` 中给出该文件路径。
+宿主读取 `<DM_PLUGIN_HOME>/config.toml`（默认 `~/.config/dm/config.toml`，Windows 为 `%LOCALAPPDATA%\dm\config.toml`）。**这里只写宿主自己的设置，不写插件设置**——每个插件由自己的目录配置，见下文「插件配置」。宿主设置按用途分成四张表：`log`、`update`、`output`、`plugin`。可直接复制仓库中的示例：[examples/config.toml](https://github.com/guangl/dameng-cli/blob/main/examples/config.toml)。文件不存在时全部使用默认值；文件存在但不是合法 TOML、出现未知表/未知键、空值或类型错误时，命令直接失败，并在 `提示` 中给出该文件路径。
 
 ```toml
 # <DM_PLUGIN_HOME>/config.toml
@@ -74,7 +74,19 @@ environment = ["DM_DATABASE_URL"]     # 等价于 DM_PLUGIN_ENVIRONMENT
 | `[output]` | `progress` | boolean | `DM_PROGRESS` | 默认 `true`。设为 `false` 彻底关闭进度条（CI、重定向日志时使用）；任何取值下，进度条都只在 stderr 是终端时绘制。 |
 | `[plugin]` | `environment` | string 数组 | `DM_PLUGIN_ENVIRONMENT` | 除插件清单的 `environment` 之外，额外允许继承给插件进程与 hook 的环境变量名。宿主设置的 `DM_PLUGIN_*` 与 `DM_HOME` 优先。 |
 
-平铺写法的旧键（`log`、`update_repository`、`update_target`、`progress`、`plugin_environment`）不再被接受，请放进对应表。
+平铺写法的旧键（`log`、`update_repository`、`update_target`、`progress`、`plugin_environment`）不再被接受，请放进对应表。`[plugin]` 表描述的是宿主如何启动插件进程（环境变量白名单），不是插件自身的配置。
+
+## 插件配置
+
+插件由**自己的目录**配置：`<DM_PLUGIN_HOME>/config/<name>/`，约定文件为 `config.toml`，格式与校验由插件自己定义，宿主既不读取也不改写。`dm info <name>` 会打印该插件的 config/data/cache 目录和配置文件是否存在：
+
+```sh
+dm info ssh
+# Config dir: /home/me/.config/dm/config/ssh
+# Config file: /home/me/.config/dm/config/ssh/config.toml (absent)
+```
+
+运行中的插件同时通过 `DM_PLUGIN_CONFIG_DIR`、`DM_PLUGIN_DATA_DIR`、`DM_PLUGIN_CACHE_DIR` 拿到这三个目录（见[运行时协议](plugin-development/runtime-contract.html)）。`dm uninstall <name>` 会删除它们，`dm doctor --repair` 会清理已卸载插件的残留。
 
 优先级为 命令行参数 > 环境变量 > 配置文件 > 内置默认值，因此临时覆盖不必修改文件。配置文件位于数据目录内，不能通过它迁移数据目录本身；需要更换目录请设置 `DM_PLUGIN_HOME`。插件自身的配置仍由插件管理（见 `config/<name>` 与 `data/<name>`）。
 
