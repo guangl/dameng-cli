@@ -1604,7 +1604,7 @@ fn configured_plugin_environment_is_inherited_by_plugins() {
     // config.toml can grant it globally instead of per manifest.
     fs::write(
         home.join("config.toml"),
-        "plugin_environment = [\"DM_TEST_SECRET\"]\n",
+        "[plugin]\nenvironment = [\"DM_TEST_SECRET\"]\n",
     )
     .unwrap();
     let inherited = ok(dm(&home)

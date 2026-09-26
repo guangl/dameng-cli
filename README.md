@@ -81,7 +81,7 @@ dm uninstall hello
 - Windows：`%LOCALAPPDATA%\dm`。
 - Linux / macOS：`$HOME/.config/dm`。
 
-该目录内的 `store.sqlite3` 保存插件清单、来源、Git revision 和 SHA-256。可选的 `config.toml` 保存宿主设置：`log`（日志级别）、`update_repository`（自更新仓库）、`update_target`（自更新产物目标）、`progress`（进度条开关）与 `plugin_environment`（额外继承给插件的环境变量），优先级为 命令行 > 环境变量 > 配置文件 > 默认值；模板见 [examples/config.toml](examples/config.toml)，复制到该目录即可生效。`plugins/` 保存可执行文件；`config/<name>`、`data/<name>`、`cache/<name>` 是每个插件的隔离目录。诊断日志写入 stderr，可用 `DM_LOG` 调整级别（`off`/`error`/`warn`/`info`/`debug`/`trace`，默认 `info`），stdout 始终保留给命令结果和 JSON。使用自己的真实插件仓库地址：
+该目录内的 `store.sqlite3` 保存插件清单、来源、Git revision 和 SHA-256。可选的 `config.toml` 按用途分成 `[log]`、`[update]`、`[output]`、`[plugin]` 四张表，分别保存日志级别、自更新仓库与产物目标、进度条开关、额外继承给插件的环境变量；优先级为 命令行 > 环境变量 > 配置文件 > 默认值；模板见 [examples/config.toml](examples/config.toml)，复制到该目录即可生效。`plugins/` 保存可执行文件；`config/<name>`、`data/<name>`、`cache/<name>` 是每个插件的隔离目录。诊断日志写入 stderr，可用 `DM_LOG` 调整级别（`off`/`error`/`warn`/`info`/`debug`/`trace`，默认 `info`），stdout 始终保留给命令结果和 JSON。使用自己的真实插件仓库地址：
 
 ```sh
 dm install https://github.com/YOUR_ORG/dm-backup.git --rev v1.2.0

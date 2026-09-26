@@ -23,7 +23,7 @@ fn stderr(output: &std::process::Output) -> String {
 #[test]
 fn config_file_sets_log_filter() {
     let temp = TempDir::new().unwrap();
-    write_config(temp.path(), "log = \"debug\"\n");
+    write_config(temp.path(), "[log]\nlevel = \"debug\"\n");
 
     let output = dm(temp.path()).arg("list").output().unwrap();
     assert!(output.status.success(), "{}", stderr(&output));
@@ -43,7 +43,7 @@ fn config_file_sets_log_filter() {
 #[test]
 fn environment_overrides_repository_from_config_file() {
     let temp = TempDir::new().unwrap();
-    write_config(temp.path(), "update_repository = \"config-only\"\n");
+    write_config(temp.path(), "[update]\nrepository = \"config-only\"\n");
 
     let args = ["self-update", "--check", "--version", "0.0.1", "--json"];
     let output = dm(temp.path()).args(args).output().unwrap();
@@ -68,7 +68,7 @@ fn environment_overrides_repository_from_config_file() {
 #[test]
 fn invalid_config_file_reports_actionable_error() {
     let temp = TempDir::new().unwrap();
-    write_config(temp.path(), "log = \"debug\"\nunknown_key = 1\n");
+    write_config(temp.path(), "[log]\nlevel = \"debug\"\nunknown_key = 1\n");
 
     let output = dm(temp.path()).arg("list").output().unwrap();
     assert!(!output.status.success());
@@ -84,7 +84,7 @@ fn invalid_config_file_reports_actionable_error() {
 #[test]
 fn empty_config_value_is_rejected() {
     let temp = TempDir::new().unwrap();
-    write_config(temp.path(), "log = \"  \"\n");
+    write_config(temp.path(), "[log]\nlevel = \"  \"\n");
 
     let output = dm(temp.path()).arg("list").output().unwrap();
     assert!(!output.status.success());
@@ -133,16 +133,16 @@ fn shipped_example_config_is_accepted_by_the_host() {
 
     // `deny_unknown_fields` means this also proves the demo only uses supported keys.
     let parsed = dameng_cli::Config::from_toml(&text).unwrap();
-    assert_eq!(parsed.log.as_deref(), Some("info"));
+    assert_eq!(parsed.log.level.as_deref(), Some("info"));
     assert_eq!(
-        parsed.update_repository.as_deref(),
+        parsed.update.repository.as_deref(),
         Some("guangl/dameng-cli")
     );
 
     // Optional keys stay commented out, so copying the example cannot change behavior.
-    assert_eq!(parsed.update_target, None);
-    assert_eq!(parsed.progress, None);
-    assert!(parsed.plugin_environment.is_empty());
+    assert_eq!(parsed.update.target, None);
+    assert_eq!(parsed.output.progress, None);
+    assert!(parsed.plugin.environment.is_empty());
 
     let temp = TempDir::new().unwrap();
     write_config(temp.path(), &text);
@@ -153,12 +153,12 @@ fn shipped_example_config_is_accepted_by_the_host() {
 #[test]
 fn invalid_plugin_environment_entry_names_the_key() {
     let temp = TempDir::new().unwrap();
-    write_config(temp.path(), "plugin_environment = [\"DB-URL\"]\n");
+    write_config(temp.path(), "[plugin]\nenvironment = [\"DB-URL\"]\n");
 
     let output = dm(temp.path()).arg("list").output().unwrap();
     assert!(!output.status.success());
     let stderr = stderr(&output);
-    assert!(stderr.contains("plugin_environment"), "stderr: {stderr}");
+    assert!(stderr.contains("plugin.environment"), "stderr: {stderr}");
     assert!(stderr.contains("提示："), "stderr: {stderr}");
 }
 
@@ -182,7 +182,7 @@ fn invalid_progress_override_in_the_environment_is_rejected() {
 #[test]
 fn progress_switch_is_accepted_from_the_file_and_the_environment() {
     let temp = TempDir::new().unwrap();
-    write_config(temp.path(), "progress = false\n");
+    write_config(temp.path(), "[output]\nprogress = false\n");
     assert!(
         dm(temp.path())
             .arg("list")
@@ -209,7 +209,10 @@ fn progress_switch_is_accepted_from_the_file_and_the_environment() {
 #[test]
 fn configured_update_target_is_validated_before_any_download() {
     let temp = TempDir::new().unwrap();
-    write_config(temp.path(), "update_target = \"mips-unknown-linux-gnu\"\n");
+    write_config(
+        temp.path(),
+        "[update]\ntarget = \"mips-unknown-linux-gnu\"\n",
+    );
 
     // `--force` skips the version comparison so the target check runs; it happens
     // before the first download, so this stays offline.
@@ -227,7 +230,7 @@ fn configured_update_target_is_validated_before_any_download() {
     );
 
     // DM_UPDATE_TARGET wins over the file value and is validated the same way.
-    write_config(temp.path(), "update_target = \"aarch64-apple-darwin\"\n");
+    write_config(temp.path(), "[update]\ntarget = \"aarch64-apple-darwin\"\n");
     let output = dm(temp.path())
         .env("DM_UPDATE_TARGET", "sparc-unknown-linux-gnu")
         .args(args)

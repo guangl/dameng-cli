@@ -48,24 +48,33 @@ description: dm 命令、环境变量、JSON 输出和常见工作流参考。
 
 ## 配置文件
 
-宿主读取 `<DM_PLUGIN_HOME>/config.toml`（默认 `~/.config/dm/config.toml`，Windows 为 `%LOCALAPPDATA%\dm\config.toml`）。可直接复制仓库中的示例：[examples/config.toml](https://github.com/guangl/dameng-cli/blob/main/examples/config.toml)。文件不存在时全部使用默认值；文件存在但不是合法 TOML、含未知键或存在空值时，命令直接失败，并在 `提示` 中给出该文件路径。
+宿主读取 `<DM_PLUGIN_HOME>/config.toml`（默认 `~/.config/dm/config.toml`，Windows 为 `%LOCALAPPDATA%\dm\config.toml`）。设置按用途分成四张表：`log`、`update`、`output`、`plugin`。可直接复制仓库中的示例：[examples/config.toml](https://github.com/guangl/dameng-cli/blob/main/examples/config.toml)。文件不存在时全部使用默认值；文件存在但不是合法 TOML、出现未知表/未知键、空值或类型错误时，命令直接失败，并在 `提示` 中给出该文件路径。
 
 ```toml
 # <DM_PLUGIN_HOME>/config.toml
-log = "info"                              # 等价于 DM_LOG
-update_repository = "guangl/dameng-cli"   # 等价于 DM_UPDATE_REPOSITORY
-update_target = "aarch64-apple-darwin"    # 等价于 DM_UPDATE_TARGET（默认跟随本机平台）
-progress = false                          # 等价于 DM_PROGRESS（默认 true，仅终端下绘制）
-plugin_environment = ["DM_DATABASE_URL"]  # 额外继承给插件的环境变量名
+[log]
+level = "info"                        # 等价于 DM_LOG
+
+[update]
+repository = "guangl/dameng-cli"      # 等价于 DM_UPDATE_REPOSITORY
+target = "aarch64-apple-darwin"       # 等价于 DM_UPDATE_TARGET（默认跟随本机平台）
+
+[output]
+progress = false                      # 等价于 DM_PROGRESS（默认 true，仅终端下绘制）
+
+[plugin]
+environment = ["DM_DATABASE_URL"]     # 等价于 DM_PLUGIN_ENVIRONMENT
 ```
 
-| 键 | 类型 | 等价环境变量 | 说明 |
-| --- | --- | --- | --- |
-| `log` | string | `DM_LOG` | 日志过滤表达式，例如 `info`、`debug`、`dm=debug`；写入 stderr。 |
-| `update_repository` | string | `DM_UPDATE_REPOSITORY` | `dm self-update` 使用的 `owner/repository`。 |
-| `update_target` | string | `DM_UPDATE_TARGET` | 自更新取用 Release 产物的 target triple，默认跟随本机平台；取值见 `dm self-update`。 |
-| `progress` | boolean | `DM_PROGRESS` | 默认 `true`。设为 `false` 彻底关闭进度条（CI、重定向日志时使用）；任何取值下，进度条都只在 stderr 是终端时绘制。 |
-| `plugin_environment` | string 数组 | `DM_PLUGIN_ENVIRONMENT` | 除插件清单的 `environment` 之外，额外允许继承给插件进程与 hook 的环境变量名。宿主设置的 `DM_PLUGIN_*` 与 `DM_HOME` 优先。 |
+| 表 | 键 | 类型 | 等价环境变量 | 说明 |
+| --- | --- | --- | --- | --- |
+| `[log]` | `level` | string | `DM_LOG` | 日志过滤表达式，例如 `info`、`debug`、`dm=debug`；写入 stderr。 |
+| `[update]` | `repository` | string | `DM_UPDATE_REPOSITORY` | `dm self-update` 使用的 `owner/repository`。 |
+| `[update]` | `target` | string | `DM_UPDATE_TARGET` | 自更新取用 Release 产物的 target triple，默认跟随本机平台；取值见 `dm self-update`。 |
+| `[output]` | `progress` | boolean | `DM_PROGRESS` | 默认 `true`。设为 `false` 彻底关闭进度条（CI、重定向日志时使用）；任何取值下，进度条都只在 stderr 是终端时绘制。 |
+| `[plugin]` | `environment` | string 数组 | `DM_PLUGIN_ENVIRONMENT` | 除插件清单的 `environment` 之外，额外允许继承给插件进程与 hook 的环境变量名。宿主设置的 `DM_PLUGIN_*` 与 `DM_HOME` 优先。 |
+
+平铺写法的旧键（`log`、`update_repository`、`update_target`、`progress`、`plugin_environment`）不再被接受，请放进对应表。
 
 优先级为 命令行参数 > 环境变量 > 配置文件 > 内置默认值，因此临时覆盖不必修改文件。配置文件位于数据目录内，不能通过它迁移数据目录本身；需要更换目录请设置 `DM_PLUGIN_HOME`。插件自身的配置仍由插件管理（见 `config/<name>` 与 `data/<name>`）。
 
