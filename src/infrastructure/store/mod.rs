@@ -1,6 +1,7 @@
 use crate::{API_VERSION, Manifest, plugin::manifest::validate_name};
 use anyhow::{Context, Result, bail, ensure};
 use indicatif::ProgressBar;
+use log::{debug, info, warn};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -129,6 +130,7 @@ impl PluginStore {
         let connection = Connection::open(self.database())
             .map_err(|error| self.store_open_error(error))
             .context("Open SQLite plugin store")?;
+        debug!("opened plugin store {}", self.database().display());
         connection
             .busy_timeout(std::time::Duration::from_secs(5))
             .context("Configure SQLite plugin store")?;
@@ -157,6 +159,7 @@ impl PluginStore {
     }
 
     pub fn install_with_revision(&self, source: &str, revision: Option<&str>) -> Result<Manifest> {
+        info!("install source={source} rev={}", revision.unwrap_or("-"));
         if Path::new(source).is_dir() {
             ensure!(
                 revision.is_none(),
@@ -197,6 +200,12 @@ impl PluginStore {
     ) -> Result<Manifest> {
         let source = fs::canonicalize(source)?;
         let manifest = Manifest::read(&source)?;
+        info!(
+            "installing plugin {} {} from {}",
+            manifest.name,
+            manifest.version,
+            source.display()
+        );
         fs::create_dir_all(self.plugins())?;
         let plugins = fs::canonicalize(self.plugins())?;
         ensure!(
@@ -407,6 +416,7 @@ impl PluginStore {
     }
 
     pub fn update(&self, name: &str) -> Result<Manifest> {
+        info!("updating plugin {name}");
         let info = self.info(name)?;
         let source = info
             .source
@@ -449,7 +459,7 @@ impl PluginStore {
                 .into_iter()
                 .map(|plugin| {
                     let name = plugin.manifest.name;
-                    eprintln!("Updating {name}");
+                    info!("updating plugin {name}");
                     let result = self.update(&name);
                     (name, result)
                 })
@@ -504,6 +514,7 @@ impl PluginStore {
     }
 
     pub fn doctor(&self, repair: bool) -> Result<DoctorReport> {
+        info!("running doctor repair={repair}");
         fs::create_dir_all(self.plugins())?;
         let connection = self.connect()?;
         let database_names = {
@@ -676,6 +687,7 @@ impl PluginStore {
     }
 
     pub fn uninstall(&self, name: &str) -> Result<()> {
+        info!("uninstalling plugin {name}");
         validate_name(name)?;
         let connection = self.connect()?;
         ensure!(
@@ -765,6 +777,7 @@ impl PluginStore {
                 "Hook '{hook}' is not executable"
             );
         }
+        info!("running {phase} hook '{hook}' for plugin {}", manifest.name);
         let mut command = Command::new(&executable);
         command.env_clear();
         inherit_safe_environment(&mut command, manifest);
@@ -782,6 +795,7 @@ impl PluginStore {
     }
 
     pub fn run(&self, name: &str, args: &[OsString]) -> Result<i32> {
+        info!("running plugin {name}");
         let (root, manifest) = self.load(name)?;
         let config_dir = self.home.join("config").join(name);
         let data_dir = self.home.join("data").join(name);
@@ -821,6 +835,7 @@ impl PluginStore {
                 }
             }
         };
+        debug!("plugin {name} exited with code {code}");
         Ok(code)
     }
 }
@@ -859,7 +874,7 @@ fn checkout_git(
     let destination = checkout.path().join("source");
     let bar = progress_bar(2);
     bar.set_message("Cloning plugin repository");
-    eprintln!("Cloning {source}");
+    info!("cloning {source}");
     let mut clone = Command::new("git");
     clone.args([
         "-c",
@@ -887,6 +902,7 @@ fn checkout_git(
     );
     bar.inc(1);
     if let Some(revision) = revision {
+        info!("checking out revision {revision}");
         let output = Command::new("git")
             .args(["-c", "core.hooksPath=/dev/null", "checkout", "--detach"])
             .arg(revision)
@@ -982,7 +998,7 @@ fn verify_optional_prebuilt_checksum(binary_url: &str, binary: &Path) -> Result<
     let checksum_path = binary.with_extension("sha256");
     let downloaded = download_prebuilt_asset(&format!("{binary_url}.sha256"), &checksum_path);
     if !downloaded {
-        eprintln!("warning: prebuilt plugin has no SHA-256 sidecar; trusting HTTPS transport");
+        warn!("prebuilt plugin has no SHA-256 sidecar; trusting HTTPS transport");
         return Ok(());
     }
     let expected = fs::read_to_string(&checksum_path)?;
@@ -1025,6 +1041,7 @@ fn try_download_prebuilt(
     for tag in release_tag_candidates(manifest, revision) {
         let url =
             format!("https://github.com/{owner}/{repository}/releases/download/{tag}/{asset}");
+        debug!("trying prebuilt asset {url}");
         if download_prebuilt_asset(&url, destination) {
             verify_optional_prebuilt_checksum(&url, destination)?;
             bar.inc(1);

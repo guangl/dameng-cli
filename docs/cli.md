@@ -56,6 +56,7 @@ description: dm 命令、环境变量、JSON 输出和常见工作流参考。
 | `DM_INSTALL_VERSION` | 未提供位置参数时，远程安装脚本选择的版本标签。 |
 | `DM_INSTALL_REPO` | 远程安装脚本使用的 `owner/repository`；面向镜像或私有分发。 |
 | `DM_UPDATE_REPOSITORY` | 自更新使用的 `owner/repository`；面向测试或自建分发。 |
+| `DM_LOG` | 日志过滤级别（默认 `info`，也可用 `off`、`error`、`warn`、`debug`、`trace`）；日志写入 stderr，stdout 保持机器可读。 |
 
 插件进程使用的 `DM_PLUGIN_*` 和 hook 使用的 `DM_HOOK_PHASE` 由宿主设置，详见[运行时协议](plugin-development/runtime-contract.html)和[项目结构与清单](plugin-development/manifest.html)。为兼容基于已发布 `dm-plugin-sdk` 0.2.0 构建的旧插件，宿主执行插件时还会注入与 `DM_PLUGIN_HOME` 同值的 `DM_HOME`。
 
@@ -63,4 +64,4 @@ description: dm 命令、环境变量、JSON 输出和常见工作流参考。
 
 `list`、`info`、`outdated`、`doctor` 和 `self-update` 支持 `--json`。JSON 适合自动化消费，但字段会随同一主版本新增；调用方应忽略未知字段。
 
-内置命令成功返回 `0`，错误返回非零并将诊断写入 stderr。插件退出码由宿主保留；Unix 信号终止按 `128 + signal` 返回。
+内置命令成功返回 `0`，错误返回非零并将诊断写入 stderr。失败输出包含 `错误`、`详情` 和 `提示` 三行：`错误` 为一行摘要，`详情` 保留完整错误链，`提示` 给出可操作的下一步。宿主同时通过 `DM_LOG` 控制的日志后端记录同一错误，便于排查。插件退出码由宿主保留；Unix 信号终止按 `128 + signal` 返回。
