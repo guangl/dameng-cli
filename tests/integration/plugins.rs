@@ -1006,6 +1006,41 @@ esac
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn clone_failure_reports_the_git_error() {
+    use std::os::unix::fs::PermissionsExt;
+    let temp = TempDir::new().unwrap();
+    let home = temp.path().join("home");
+    let tools = temp.path().join("tools");
+    fs::create_dir(&tools).unwrap();
+
+    let git = tools.join("git");
+    fs::write(
+        &git,
+        "#!/bin/sh\ncase \" $* \" in\n  *\" clone \"*) echo 'fatal: repository not found' >&2; exit 128;;\nesac\nexit 1\n",
+    )
+    .unwrap();
+    fs::set_permissions(&git, fs::Permissions::from_mode(0o755)).unwrap();
+    let path = std::env::join_paths(
+        std::iter::once(tools).chain(std::env::split_paths(&std::env::var_os("PATH").unwrap())),
+    )
+    .unwrap();
+
+    let output = dm(&home)
+        .env("PATH", &path)
+        .args(["install", "https://example.invalid/probe.git"])
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Git could not fetch the plugin"),
+        "{stderr}"
+    );
+    assert!(stderr.contains("repository not found"), "{stderr}");
+}
+
 #[test]
 fn install_reports_malformed_store_query_error() {
     let temp = TempDir::new().unwrap();
@@ -1455,5 +1490,187 @@ esac
         "stdout: {}\nstderr: {}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
+    );
+}
+#[test]
+fn empty_state_messages_cover_update_outdated_and_verify() {
+    let temp = TempDir::new().unwrap();
+    let home = temp.path().join("home");
+
+    let update = ok(dm(&home).args(["update", "--all"]).output().unwrap());
+    assert!(update.contains("No plugins installed"), "{update}");
+    let outdated = ok(dm(&home).args(["outdated"]).output().unwrap());
+    assert!(outdated.contains("No plugins installed"), "{outdated}");
+    let verify = ok(dm(&home).args(["verify"]).output().unwrap());
+    assert!(verify.contains("No plugins installed"), "{verify}");
+}
+
+#[test]
+fn verify_without_name_checks_every_installed_plugin() {
+    let temp = TempDir::new().unwrap();
+    let source = fixture(temp.path());
+    let home = temp.path().join("home");
+    let store = PluginStore::new(&home);
+    store.install(source.to_str().unwrap()).unwrap();
+
+    let output = ok(dm(&home).args(["verify"]).output().unwrap());
+    assert!(output.contains("Verified probe"), "{output}");
+}
+
+#[test]
+fn corrupt_store_fails_list_and_update_all_with_an_actionable_error() {
+    let temp = TempDir::new().unwrap();
+    let home = temp.path().join("home");
+    fs::create_dir_all(&home).unwrap();
+    fs::write(home.join("store.sqlite3"), b"definitely not a database").unwrap();
+
+    let list = dm(&home).args(["list"]).output().unwrap();
+    assert!(!list.status.success());
+    let stderr = String::from_utf8_lossy(&list.stderr);
+    assert!(stderr.contains("file is not a database"), "{stderr}");
+
+    let update = dm(&home).args(["update", "--all"]).output().unwrap();
+    assert!(!update.status.success());
+    let stderr = String::from_utf8_lossy(&update.stderr);
+    assert!(stderr.contains("Some updates failed"), "{stderr}");
+}
+
+#[test]
+fn doctor_restores_interrupted_transaction_over_existing_directory() {
+    let temp = TempDir::new().unwrap();
+    let source = fixture(temp.path());
+    let home = temp.path().join("home");
+    let store = PluginStore::new(&home);
+    store.install(source.to_str().unwrap()).unwrap();
+
+    // A stale transaction holds the good copy while a different version is already
+    // published at the destination path, so repair has to replace it.
+    let previous = home.join("plugins/.install-stale/previous");
+    fs::create_dir_all(previous.parent().unwrap()).unwrap();
+    fs::rename(home.join("plugins/probe"), &previous).unwrap();
+    fs::create_dir_all(home.join("plugins/probe")).unwrap();
+    fs::write(
+        home.join("plugins/probe/dm-plugin.toml"),
+        manifest("probe").replace("test", "stale"),
+    )
+    .unwrap();
+
+    let report = store.doctor(true).unwrap();
+    assert!(
+        report
+            .repairs
+            .iter()
+            .any(|repair| repair.contains("restored interrupted transaction for probe")),
+        "{report:?}"
+    );
+    store.verify(Some("probe")).unwrap();
+    assert!(!home.join("plugins/.install-stale").exists());
+}
+
+#[test]
+fn doctor_refuses_to_replace_a_non_directory_plugin_path() {
+    let temp = TempDir::new().unwrap();
+    let source = fixture(temp.path());
+    let home = temp.path().join("home");
+    let store = PluginStore::new(&home);
+    store.install(source.to_str().unwrap()).unwrap();
+
+    let previous = home.join("plugins/.install-stale/previous");
+    fs::create_dir_all(previous.parent().unwrap()).unwrap();
+    fs::rename(home.join("plugins/probe"), &previous).unwrap();
+    fs::write(home.join("plugins/probe"), "not a directory").unwrap();
+
+    let error = store.doctor(true).unwrap_err();
+    assert!(
+        format!("{error:#}").contains("Refusing to replace non-directory"),
+        "{error:#}"
+    );
+}
+#[test]
+fn configured_plugin_environment_is_inherited_by_plugins() {
+    let temp = TempDir::new().unwrap();
+    let source = fixture(temp.path());
+    let home = temp.path().join("home");
+    ok(dm(&home).arg("install").arg(&source).output().unwrap());
+
+    // The manifest does not declare DM_TEST_SECRET, so the host filters it out.
+    let filtered = ok(dm(&home)
+        .env("DM_TEST_SECRET", "must-not-leak")
+        .arg("probe")
+        .output()
+        .unwrap());
+    assert!(filtered.contains("secret=filtered"), "{filtered}");
+
+    // config.toml can grant it globally instead of per manifest.
+    fs::write(
+        home.join("config.toml"),
+        "[plugin]\nenvironment = [\"DM_TEST_SECRET\"]\n",
+    )
+    .unwrap();
+    let inherited = ok(dm(&home)
+        .env("DM_TEST_SECRET", "granted-by-config")
+        .arg("probe")
+        .output()
+        .unwrap());
+    assert!(
+        inherited.contains("secret=granted-by-config"),
+        "{inherited}"
+    );
+
+    // DM_PLUGIN_ENVIRONMENT replaces the file list instead of extending it.
+    let replaced = ok(dm(&home)
+        .env("DM_TEST_SECRET", "must-not-leak")
+        .env("DM_PLUGIN_ENVIRONMENT", "DM_OTHER_VALUE")
+        .arg("probe")
+        .output()
+        .unwrap());
+    assert!(replaced.contains("secret=filtered"), "{replaced}");
+
+    // Invalid names fail loudly instead of silently inheriting nothing.
+    let output = dm(&home)
+        .env("DM_PLUGIN_ENVIRONMENT", "NOT-A-NAME")
+        .arg("probe")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("DM_PLUGIN_ENVIRONMENT"), "{stderr}");
+}
+#[test]
+fn info_points_at_the_plugin_owned_configuration() {
+    let temp = TempDir::new().unwrap();
+    let source = fixture(temp.path());
+    let home = temp.path().join("home");
+    let store = PluginStore::new(&home);
+    store.install(source.to_str().unwrap()).unwrap();
+
+    let info = ok(dm(&home).args(["info", "probe"]).output().unwrap());
+    assert!(info.contains("Config dir:"), "{info}");
+    assert!(info.contains("Data dir:"), "{info}");
+    assert!(info.contains("Cache dir:"), "{info}");
+    assert!(info.contains("(absent)"), "{info}");
+
+    // The plugin owns this file; the host only reports where it belongs.
+    fs::create_dir_all(home.join("config/probe")).unwrap();
+    fs::write(home.join("config/probe/config.toml"), "greeting = \"hi\"\n").unwrap();
+    let info = ok(dm(&home).args(["info", "probe"]).output().unwrap());
+    assert!(info.contains("(present)"), "{info}");
+
+    let json = ok(dm(&home)
+        .args(["info", "--json", "probe"])
+        .output()
+        .unwrap());
+    let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+    assert_eq!(parsed["paths"]["config_file_present"], true);
+    // Compare paths component-wise: Windows reports backslash separators.
+    let config = Path::new(parsed["paths"]["config"].as_str().unwrap());
+    assert!(
+        config.ends_with(Path::new("config").join("probe")),
+        "{config:?}"
+    );
+    let config_file = Path::new(parsed["paths"]["config_file"].as_str().unwrap());
+    assert!(
+        config_file.ends_with(Path::new("config").join("probe").join("config.toml")),
+        "{config_file:?}"
     );
 }

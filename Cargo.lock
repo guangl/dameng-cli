@@ -369,7 +369,9 @@ dependencies = [
  "rand",
  "rpassword",
  "rusqlite",
+ "serde",
  "tempfile",
+ "toml",
 ]
 
 [[package]]

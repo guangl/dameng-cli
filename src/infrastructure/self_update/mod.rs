@@ -7,6 +7,16 @@ use std::{env, fs, path::PathBuf, process::Command};
 
 const DEFAULT_REPOSITORY: &str = "guangl/dameng-cli";
 
+/// Release targets the host publishes. Used to reject `--target` and
+/// `update_target` typos before any download starts.
+pub const SUPPORTED_TARGETS: &[&str] = &[
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-unknown-linux-musl",
+    "aarch64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+];
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct SelfUpdateResult {
     pub current_version: String,
@@ -19,21 +29,48 @@ struct Release {
     tag_name: String,
 }
 
-pub fn self_update(requested: Option<&str>, check_only: bool) -> Result<SelfUpdateResult> {
-    self_update_with_options(requested, check_only, false, None)
+/// Options for [`self_update_with_options`].
+///
+/// `repository` carries the value resolved from the configuration file, so the
+/// library never has to guess which source the caller already consulted.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct SelfUpdateOptions<'a> {
+    /// Install this exact version instead of the latest release.
+    pub version: Option<&'a str>,
+    /// Report the available version without installing anything.
+    pub check_only: bool,
+    /// Reinstall or downgrade even when the requested version is not newer.
+    pub force: bool,
+    /// Override the release target triple for this run.
+    pub target: Option<&'a str>,
+    /// GitHub `owner/repository`; falls back to `DM_UPDATE_REPOSITORY`, then the default.
+    pub repository: Option<&'a str>,
 }
 
-pub fn self_update_with_options(
-    requested: Option<&str>,
-    check_only: bool,
-    force: bool,
-    target_override: Option<&str>,
-) -> Result<SelfUpdateResult> {
+pub fn self_update(requested: Option<&str>, check_only: bool) -> Result<SelfUpdateResult> {
+    self_update_with_options(SelfUpdateOptions {
+        version: requested,
+        check_only,
+        ..SelfUpdateOptions::default()
+    })
+}
+
+pub fn self_update_with_options(options: SelfUpdateOptions<'_>) -> Result<SelfUpdateResult> {
+    let SelfUpdateOptions {
+        version: requested,
+        check_only,
+        force,
+        target: target_override,
+        repository,
+    } = options;
     info!(
         "self-update requested={:?} check_only={check_only} force={force} target={:?}",
         requested, target_override
     );
-    let repository = env::var("DM_UPDATE_REPOSITORY").unwrap_or_else(|_| DEFAULT_REPOSITORY.into());
+    let repository = repository
+        .map(str::to_owned)
+        .or_else(|| env::var("DM_UPDATE_REPOSITORY").ok())
+        .unwrap_or_else(|| DEFAULT_REPOSITORY.into());
     validate_repository(&repository)?;
     let temp = tempfile::tempdir()?;
     let tag = if let Some(version) = requested {
@@ -64,15 +101,9 @@ pub fn self_update_with_options(
         .map(str::to_owned)
         .unwrap_or_else(|| env!("DM_HOST_TARGET").to_owned());
     ensure!(
-        matches!(
-            target.as_str(),
-            "x86_64-unknown-linux-gnu"
-                | "aarch64-unknown-linux-gnu"
-                | "x86_64-unknown-linux-musl"
-                | "aarch64-apple-darwin"
-                | "x86_64-pc-windows-msvc"
-        ),
-        "Self-update is not published for target {target}"
+        SUPPORTED_TARGETS.contains(&target.as_str()),
+        "Self-update is not published for target {target}; supported targets are {}",
+        SUPPORTED_TARGETS.join(", ")
     );
     let suffix = if cfg!(windows) { ".zip" } else { ".tar.gz" };
     let archive_name = format!("dm-{tag}-{target}{suffix}");
@@ -117,7 +148,7 @@ pub fn validate_repository(repository: &str) -> Result<()> {
                 .bytes()
                 .all(|byte| byte.is_ascii_alphanumeric()
                     || matches!(byte, b'/' | b'-' | b'_' | b'.')),
-        "DM_UPDATE_REPOSITORY must be in owner/repository form"
+        "Self-update repository '{repository}' must be in owner/repository form"
     );
     Ok(())
 }

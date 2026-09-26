@@ -1,0 +1,41 @@
+# dm 宿主配置文件示例（config.toml）
+#
+# 用法：把本文件复制到宿主数据目录并改名为 config.toml。
+#   Linux / macOS: cp examples/config.toml "${DM_PLUGIN_HOME:-$HOME/.config/dm}/config.toml"
+#   Windows:       copy examples\config.toml %LOCALAPPDATA%\dm\config.toml
+#
+# 说明：
+#   - 该文件是可选的；不存在时宿主使用同样的默认值，一切行为与未启用配置文件时一致。
+#   - 设置按用途分成四张表：log、update、output、plugin，本文档列出全部支持的键。
+#   - 取值优先级：命令行参数 > 环境变量 > 本文件 > 内置默认值。
+#   - 未知表、未知键、空值、类型错误或非法 TOML 都会让命令直接失败并打印该文件路径。
+#   - 文件位于数据目录内，因此不能在这里修改数据目录本身；请用 DM_PLUGIN_HOME 改变它。
+
+# 诊断日志：始终写入 stderr，stdout 只保留命令结果与 JSON。
+[log]
+# 过滤级别，等价于环境变量 DM_LOG，默认 "info"。
+# 取值：off / error / warn / info / debug / trace，或过滤表达式，例如 "dm=debug"。
+level = "info"
+
+# dm self-update 的发布来源。
+[update]
+# GitHub 仓库，等价于环境变量 DM_UPDATE_REPOSITORY，默认 "guangl/dameng-cli"。
+# 必须是 owner/repository 形式；面向测试或自建分发时改成自己的仓库。
+repository = "guangl/dameng-cli"
+# 取消注释可固定取用的 Release 产物目标（等价于 DM_UPDATE_TARGET），默认跟随本机平台。
+# target = "aarch64-apple-darwin"
+# 可选值：x86_64-unknown-linux-gnu、aarch64-unknown-linux-gnu、x86_64-unknown-linux-musl、
+#         aarch64-apple-darwin、x86_64-pc-windows-msvc。
+
+# 输出与进度。
+[output]
+# 取消注释可彻底关闭进度条（等价于 DM_PROGRESS），适合 CI、日志采集或输出重定向。
+# 默认 true；无论怎么设置，进度条都只在 stderr 是终端时才会被绘制出来。
+# progress = false
+
+# 插件进程与 hook 的运行环境。
+[plugin]
+# 取消注释可让所有插件额外继承这些环境变量（等价于 DM_PLUGIN_ENVIRONMENT，逗号分隔）。
+# 宿主默认清理环境，只保留基础变量和插件清单里 environment 声明的变量；
+# 宿主自身设置的 DM_PLUGIN_* 与 DM_HOME 仍然优先。
+# environment = ["DM_DATABASE_URL"]

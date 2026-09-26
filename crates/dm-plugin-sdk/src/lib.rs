@@ -3,6 +3,10 @@ use std::{env, error::Error, ffi::OsString, path::PathBuf};
 
 pub const API_VERSION: u32 = 1;
 pub const CAPABILITY_CONFIG_DIRS: &str = "config-dirs-v1";
+
+/// Conventional name of a plugin's own configuration file inside its config directory.
+pub const CONFIG_FILE: &str = "config.toml";
+
 pub type PluginResult = Result<i32, Box<dyn Error + Send + Sync>>;
 
 /// Inputs supplied by the host. Standard I/O and the working directory are inherited.
@@ -18,6 +22,16 @@ pub struct Context {
 }
 
 impl Context {
+    /// Path of this plugin's own configuration file.
+    ///
+    /// The host creates the directory and passes it as `DM_PLUGIN_CONFIG_DIR`;
+    /// the file inside it belongs to the plugin, which owns its schema. The host
+    /// never reads or rewrites it, so plugins stay configurable without adding
+    /// keys to the host configuration file.
+    pub fn config_file(&self) -> PathBuf {
+        self.config_dir.join(CONFIG_FILE)
+    }
+
     pub fn from_env() -> Result<Self, Box<dyn Error + Send + Sync>> {
         let version =
             env::var("DM_PLUGIN_API_VERSION").map_err(|_| "Run this plugin through dm <plugin>")?;

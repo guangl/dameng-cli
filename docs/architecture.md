@@ -25,6 +25,7 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
 | `src/main.rs` / `src/cli/` | 程序入口与命令解析、内置命令、外部子命令路由、错误展示 |
 | `src/plugin/` | 严格清单解析、名称限制、API 版本和固定入口命名 |
 | `src/infrastructure/store/` | SQLite 元数据、来源与 revision、编译安装、原子更新、校验修复、卸载、进程调用 |
+| `src/infrastructure/config.rs` | `<DM_PLUGIN_HOME>/config.toml` 的 `[log]`/`[update]`/`[output]`/`[plugin]` 四张表的解析与校验、默认值与「环境变量优先」的取值规则 |
 | `src/infrastructure/self_update/` | 宿主 Release 查询、下载、SHA-256 校验、解包和原子自替换 |
 | `crates/dm-plugin-sdk` | `Plugin` / `Context` / `PluginResult` 和协议版本 |
 | `examples/hello` | 唯一演示插件，验证 SDK 使用方法 |
@@ -41,6 +42,7 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
 
 ```text
 DM_PLUGIN_HOME/
+├── config.toml                # 可选宿主配置：日志、自更新目标与仓库、进度条、插件环境
 ├── store.sqlite3              # 插件元数据
 ├── store.sqlite3-wal          # SQLite 运行时文件，存在时不要单独移动
 ├── store.sqlite3-shm          # SQLite 运行时文件，存在时不要单独移动
@@ -48,7 +50,7 @@ DM_PLUGIN_HOME/
     └── hello/
         ├── dm-plugin.toml
         └── dm-hello[.exe]
-├── config/hello/              # 插件持久配置
+├── config/hello/              # 插件持久配置（约定 config.toml，由插件自己解析）
 ├── data/hello/                # 插件持久数据
 └── cache/hello/               # 可再生成缓存
 ```
@@ -56,7 +58,7 @@ DM_PLUGIN_HOME/
 ## 运行边界
 
 SDK 使用 Rust trait 统一开发接口；跨进程只约定参数、环境变量、标准输入输出和退出码，不共享 Rust 内存布局。安装 API 和运行 SDK API 都检查兼容性。
-宿主不连接数据库，不引入数据库 SDK，不维护全局连接或业务命令。
+宿主不连接数据库，不引入数据库 SDK，不维护全局连接或业务命令。宿主配置只描述宿主自身行为；插件设置放在各插件的 `config/<name>/` 目录中，由插件解析，宿主不读写。
 独立进程提供故障隔离，但不是权限沙箱。Cargo 构建脚本和插件拥有当前用户权限。宿主会清理运行时环境，仅继承安全基础变量和清单白名单；清单权限字段用于审查与展示，不构成强制沙箱。SDK 依赖声明、Git revision 和本地 SHA-256 也不等于发布者身份认证。
 插件需要的数据库客户端动态库由插件作者声明和管理；宿主不会自动打包动态库。
 

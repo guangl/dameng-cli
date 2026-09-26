@@ -1,11 +1,21 @@
 mod cli;
 
-use dameng_cli::cleanup_self_update_backup;
+use dameng_cli::{Config, DEFAULT_LOG_FILTER, cleanup_self_update_backup};
 
 fn main() {
-    init_logging();
+    // The configuration file also selects the log filter, so it is loaded before
+    // the logging backend starts.
+    let config = match Config::from_env() {
+        Ok(config) => config,
+        Err(error) => {
+            init_logging(DEFAULT_LOG_FILTER);
+            cli::report(&error);
+            std::process::exit(1);
+        }
+    };
+    init_logging(&config.log_filter());
     let _ = cleanup_self_update_backup();
-    let code = match cli::run() {
+    let code = match cli::run(&config) {
         Ok(code) => code,
         Err(error) => {
             cli::report(&error);
@@ -17,18 +27,12 @@ fn main() {
 
 /// Configure the logging backend.
 ///
-/// Logs always go to stderr so stdout stays machine-readable. The default
-/// filter is `info`; set `DM_LOG` (or `RUST_LOG`) to change it, for example
-/// `DM_LOG=debug` or `DM_LOG=dm=debug`.
-fn init_logging() {
-    // `DM_LOG` takes precedence, then `RUST_LOG`, then the default `info`.
-    let filter_var = if std::env::var("DM_LOG").is_ok() {
-        "DM_LOG"
-    } else {
-        "RUST_LOG"
-    };
-    let env = env_logger::Env::new().filter_or(filter_var, "info");
-    env_logger::Builder::from_env(env)
+/// Logs always go to stderr so stdout stays machine-readable. The filter comes
+/// from `DM_LOG`, then `RUST_LOG`, then `<DM_PLUGIN_HOME>/config.toml`, and
+/// defaults to `info`.
+fn init_logging(filter: &str) {
+    env_logger::Builder::new()
+        .parse_filters(filter)
         .format_timestamp_secs()
         .format_target(false)
         .target(env_logger::Target::Stderr)

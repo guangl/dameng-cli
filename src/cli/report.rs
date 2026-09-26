@@ -46,6 +46,34 @@ fn hint_for(error: &Error) -> String {
     if text.contains("not writable") || text.contains("cannot open sqlite") {
         return "请检查 `DM_PLUGIN_HOME` 目录是否存在且可写，或设置 `DM_PLUGIN_HOME` 指向可写目录。".into();
     }
+    if text.contains("plugin_environment") || text.contains("plugin.environment") {
+        return "`[plugin] environment` 只能填合法的环境变量名，例如 [\"DM_DATABASE_URL\"]；`DM_PLUGIN_ENVIRONMENT` 用逗号分隔。".into();
+    }
+    if text.contains("dm_progress") {
+        return "`DM_PROGRESS` 只接受 true/false（也支持 1/0、on/off、yes/no）。".into();
+    }
+    if text.contains("not published for target") {
+        return "请让 `--target`、`DM_UPDATE_TARGET` 或 config.toml 中 `[update] target` 的值取上面列出的已发布目标。".into();
+    }
+    if text.contains("unknown field")
+        && [
+            "`log`",
+            "`update_repository`",
+            "`update_target`",
+            "`progress`",
+            "`plugin_environment`",
+        ]
+        .iter()
+        .any(|key| text.contains(key))
+    {
+        return "配置已按用途分表：请改用 `[log] level`、`[update] repository/target`、`[output] progress`、`[plugin] environment`，示例见 examples/config.toml。".into();
+    }
+    if text.contains("config.toml") {
+        return "请检查 `<DM_PLUGIN_HOME>/config.toml` 的表名、键名与 TOML 语法（可对照仓库中的 examples/config.toml），或删除该文件改用默认值。".into();
+    }
+    if text.contains("owner/repository form") {
+        return "请把 `DM_UPDATE_REPOSITORY` 或 `config.toml` 中的 `update_repository` 改成 `owner/repository` 形式。".into();
+    }
     if text.contains("unknown permission") {
         return "`dm-plugin.toml` 中的 permissions 仅支持 filesystem、network、process。".into();
     }
@@ -91,6 +119,45 @@ mod tests {
         assert!(hint_for_message("Source must be a local plugin directory").contains("<source>"));
         assert!(hint_for_message("directory is not writable").contains("DM_PLUGIN_HOME"));
         assert!(hint_for_message("Prebuilt plugin SHA-256 mismatch").contains("重新下载"));
+        assert!(
+            hint_for_message(
+                "Invalid configuration /home/me/.config/dm/config.toml: unknown field"
+            )
+            .contains("config.toml")
+        );
+        // The previous flat layout points at the table that replaced it.
+        assert!(
+            hint_for_message(
+                "Invalid configuration /x/config.toml: unknown field `update_repository`"
+            )
+            .contains("[update]")
+        );
+        assert!(
+            hint_for_message("Self-update repository 'x' must be in owner/repository form")
+                .contains("owner/repository")
+        );
+        assert!(hint_for_message("stale transaction directory: .install-x").contains("dm doctor"));
+        assert!(hint_for_message("unknown permission 'root'").contains("permissions"));
+        assert!(hint_for_message("Unsupported plugin API version 2").contains("API 版本"));
+        assert!(hint_for_message("Invalid manifest /x/dm-plugin.toml").contains("dm-plugin.toml"));
+        assert!(hint_for_message("Self-update release asset is missing").contains("自更新失败"));
+        assert!(hint_for_message("Invalid plugin name").contains("插件名"));
+        assert!(
+            hint_for_message("Invalid DM_PLUGIN_ENVIRONMENT; use a comma-separated list")
+                .contains("[plugin] environment")
+        );
+        assert!(
+            hint_for_message("Configuration key 'plugin.environment' entry 'DB-URL' is invalid")
+                .contains("[plugin] environment")
+        );
+        assert!(
+            hint_for_message("DM_PROGRESS must be true or false, got 'maybe'")
+                .contains("true/false")
+        );
+        assert!(
+            hint_for_message("Self-update is not published for target x; supported targets are y")
+                .contains("--target")
+        );
     }
 
     #[test]

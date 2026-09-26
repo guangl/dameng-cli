@@ -67,7 +67,7 @@ dm-plugin-sdk = { path = "../dameng-cli/crates/dm-plugin-sdk" }
 - `api_version` 必须为 `1`。协议有破坏性变更时提升此版本。
 - `min_host_version` 可选，使用 SemVer；宿主版本不足时拒绝安装。
 - `license` 与 `homepage` 可选，用于来源与许可展示。
-- `environment` 是插件需要继承的环境变量白名单，只接受大写 ASCII 名称。默认不会把数据库密码等用户环境传给插件。
+- `environment` 是插件需要继承的环境变量白名单，只接受大写 ASCII 名称。默认不会把数据库密码等用户环境传给插件；用户可以在宿主的 `config.toml` 中用 `[plugin] environment` 为所有插件全局补充白名单。
 - `permissions` 可声明 `filesystem`、`network`、`process`。它们用于审查和展示；当前原生进程宿主不宣称可跨平台强制执行权限沙箱。
 - `[hooks]` 中的路径必须指向插件根目录内的相对可执行文件。安装前 hook 在源码根目录运行，其余 hook 在已安装或待卸载的插件根目录运行；宿主设置 `DM_HOOK_PHASE`、`DM_PLUGIN_HOME` 和 `DM_PLUGIN_DIR`，以 `DM_PLUGIN_DIR` 作为工作目录，并把 phase 名称作为第一个参数传入。hook 失败会阻止或回滚对应事务。
 - 显式声明依赖键 `dm-plugin-sdk`；显式声明 `[[bin]] name = "dm-<name>"`。
@@ -88,7 +88,7 @@ dm-plugin-sdk = { path = "../dameng-cli/crates/dm-plugin-sdk" }
 | `cache_dir: PathBuf` | `DM_PLUGIN_CACHE_DIR`，该插件的可再生成缓存目录 |
 | `capabilities: Vec<String>` | 宿主提供的协议能力，v0.2 包含 `config-dirs-v1` |
 
-`DM_PLUGIN_API_VERSION=1` 和 `DM_PLUGIN_CAPABILITIES` 由宿主注入，SDK 启动时检查。插件继承用户工作目录及 stdin/stdout/stderr，但进程环境只保留终端/区域等安全基础变量和清单明确允许的变量。SDK 没有数据库配置或日志依赖，插件自行选择库。
+插件由自己的目录配置：`DM_PLUGIN_CONFIG_DIR`（`<DM_PLUGIN_HOME>/config/<name>`）属于插件，约定文件是 `config.toml`，格式由插件决定，宿主不读取也不改写，`Context::config_file()` 给出路径。`DM_PLUGIN_API_VERSION=1` 和 `DM_PLUGIN_CAPABILITIES` 由宿主注入，SDK 启动时检查。插件继承用户工作目录及 stdin/stdout/stderr，但进程环境只保留终端/区域等安全基础变量和清单明确允许的变量。SDK 没有数据库配置或日志依赖，插件自行选择库。
 
 `PluginResult = Result<i32, Box<dyn Error + Send + Sync>>`：`Ok(0)` 成功，非零码原样转发；`Err` 输出到 stderr 并退出 1。Unix 被信号终止时宿主返回 `128 + signal`。没有额外的信号转发器；常规前台终端的进程组信号按系统行为传播。
 

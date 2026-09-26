@@ -7,3 +7,4 @@
 lcov.info
 /plugins/ssh/dm-ssh
 /plugins/ssh/dm-ssh.exe
+*.profraw

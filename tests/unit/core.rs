@@ -1,7 +1,7 @@
 use dameng_cli::self_update::{normalize_tag, validate_repository, verify_checksum};
 use dameng_cli::{
-    Manifest, PluginStore, github_repository, prebuilt_target_label_for, progress_bar_for,
-    release_tag_candidates, versions_differ,
+    CONFIG_FILE, Config, Manifest, PluginStore, github_repository, prebuilt_target_label_for,
+    progress_bar_for, release_tag_candidates, versions_differ,
 };
 use sha2::{Digest, Sha256};
 
@@ -190,4 +190,130 @@ fn load_reports_missing_plugin() {
     let store = PluginStore::new(temp.path());
     let error = store.load("missing").unwrap_err();
     assert!(error.to_string().contains("not installed"), "{error:#}");
+}
+#[test]
+fn config_file_parses_supported_keys() {
+    let config =
+        Config::from_toml("[log]\nlevel = \"debug\"\n\n[update]\nrepository = \"owner/repo\"\n")
+            .unwrap();
+    assert_eq!(config.log.level.as_deref(), Some("debug"));
+    assert_eq!(config.update.repository.as_deref(), Some("owner/repo"));
+
+    // Whitespace is trimmed so stray padding cannot change behavior.
+    let config = Config::from_toml("[log]\nlevel = '  dm=debug  '\n").unwrap();
+    assert_eq!(config.log.level.as_deref(), Some("dm=debug"));
+    assert_eq!(config.update.repository, None);
+}
+
+#[test]
+fn config_file_rejects_unknown_tables_keys_and_empty_values() {
+    // A key outside its table is rejected like any other unknown key.
+    let error = Config::from_toml("loglevel = \"debug\"\n").unwrap_err();
+    assert!(error.to_string().contains("unknown field"), "{error:#}");
+
+    let error = Config::from_toml("[update]\nrepository = \"\"\n").unwrap_err();
+    assert!(error.to_string().contains("must not be empty"), "{error:#}");
+
+    let error = Config::from_toml("[logs]\nlevel = \"debug\"\n").unwrap_err();
+    assert!(error.to_string().contains("unknown field"), "{error:#}");
+
+    let error = Config::from_toml("[log]\nloglevel = \"debug\"\n").unwrap_err();
+    assert!(error.to_string().contains("unknown field"), "{error:#}");
+}
+
+#[test]
+fn config_file_is_optional() {
+    let temp = tempfile::tempdir().unwrap();
+    assert_eq!(Config::path_in(temp.path()), temp.path().join(CONFIG_FILE));
+    assert_eq!(Config::load(temp.path()).unwrap(), Config::default());
+
+    std::fs::write(Config::path_in(temp.path()), "[log]\nlevel = \"info\"\n").unwrap();
+    assert_eq!(
+        Config::load(temp.path()).unwrap().log.level.as_deref(),
+        Some("info")
+    );
+
+    std::fs::write(Config::path_in(temp.path()), "[log]\nlevel = ;\n").unwrap();
+    let error = Config::load(temp.path()).unwrap_err();
+    assert!(format!("{error:#}").contains("config.toml"), "{error:#}");
+}
+#[test]
+fn config_file_parses_the_optional_keys() {
+    let config = Config::from_toml(
+        r#"
+[log]
+level = "info"
+
+[update]
+target = "aarch64-apple-darwin"
+
+[output]
+progress = false
+
+[plugin]
+environment = ["DM_DATABASE_URL", " DM_DATABASE_URL ", "PGPASSWORD"]
+"#,
+    )
+    .unwrap();
+    assert_eq!(
+        config.update.target.as_deref(),
+        Some("aarch64-apple-darwin")
+    );
+    assert_eq!(config.output.progress, Some(false));
+    // Entries are trimmed and de-duplicated while keeping their order.
+    assert_eq!(
+        config.plugin.environment,
+        vec!["DM_DATABASE_URL".to_owned(), "PGPASSWORD".to_owned()]
+    );
+    assert_eq!(
+        Config::from_toml("[output]\nprogress = true\n")
+            .unwrap()
+            .output
+            .progress,
+        Some(true)
+    );
+}
+
+#[test]
+fn config_file_rejects_invalid_switches_and_environment_names() {
+    let error = Config::from_toml("[output]\nprogress = \"yes\"\n").unwrap_err();
+    assert!(error.to_string().contains("invalid type"), "{error:#}");
+
+    let error = Config::from_toml("[plugin]\nenvironment = \"DM_DATABASE_URL\"\n").unwrap_err();
+    assert!(error.to_string().contains("invalid type"), "{error:#}");
+
+    let error = Config::from_toml("[plugin]\nenvironment = [\"\"]\n").unwrap_err();
+    assert!(error.to_string().contains("empty names"), "{error:#}");
+
+    let error = Config::from_toml("[plugin]\nenvironment = [\"DB-URL\"]\n").unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("not a valid environment variable"),
+        "{error:#}"
+    );
+
+    let error = Config::from_toml("[plugin]\nenvironment = [\"1LEADING\"]\n").unwrap_err();
+    assert!(error.to_string().contains("not a valid"), "{error:#}");
+}
+
+#[test]
+fn store_applies_the_configuration_settings() {
+    let temp = tempfile::tempdir().unwrap();
+    let forced = PluginStore::new(temp.path())
+        .with_progress(Some(true))
+        .with_plugin_environment(vec!["DM_TEST_VALUE".to_owned()]);
+    assert!(forced.progress_enabled());
+    assert!(
+        !PluginStore::new(temp.path())
+            .with_progress(Some(false))
+            .progress_enabled()
+    );
+
+    // Without an explicit setting the terminal decides, as before.
+    use std::io::IsTerminal;
+    assert_eq!(
+        PluginStore::new(temp.path()).progress_enabled(),
+        std::io::stderr().is_terminal()
+    );
 }

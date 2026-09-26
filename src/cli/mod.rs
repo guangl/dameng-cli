@@ -5,7 +5,7 @@ pub(crate) use report::report;
 
 use anyhow::{Context, Result};
 use clap::{CommandFactory, Parser, Subcommand};
-use dameng_cli::{PluginStore, self_update_with_options};
+use dameng_cli::{Config, PluginStore, SelfUpdateOptions, self_update_with_options};
 use std::ffi::OsString;
 
 #[derive(Parser)]
@@ -83,9 +83,11 @@ fn print_no_plugins() {
     println!("No plugins installed. Run `dm install <source>` to add one.");
 }
 
-pub fn run() -> Result<i32> {
+pub fn run(config: &Config) -> Result<i32> {
     let cli = Cli::parse();
-    let store = PluginStore::from_env()?;
+    let store = PluginStore::from_env()?
+        .with_progress(config.progress()?)
+        .with_plugin_environment(config.plugin_environment()?);
     match cli.command {
         Command::Install { source, rev } => {
             let manifest = store.install_with_revision(&source, rev.as_deref())?;
@@ -103,8 +105,20 @@ pub fn run() -> Result<i32> {
         }
         Command::Info { name, json } => {
             let plugin = store.info(&name)?;
+            // Plugins configure themselves inside their own directory; expose the
+            // paths so users can find (and edit) the right file.
+            let directories = store.plugin_directories(&plugin.manifest.name);
+            let config_file = Config::path_in(&directories[0]);
             if json {
-                println!("{}", serde_json::to_string_pretty(&plugin)?);
+                let mut value = serde_json::to_value(&plugin)?;
+                value["paths"] = serde_json::json!({
+                    "config": directories[0],
+                    "data": directories[1],
+                    "cache": directories[2],
+                    "config_file": config_file,
+                    "config_file_present": config_file.is_file(),
+                });
+                println!("{}", serde_json::to_string_pretty(&value)?);
             } else {
                 println!("Name: {}", plugin.manifest.name);
                 println!("Version: {}", plugin.manifest.version);
@@ -120,6 +134,18 @@ pub fn run() -> Result<i32> {
                 if !plugin.manifest.environment.is_empty() {
                     println!("Environment: {}", plugin.manifest.environment.join(", "));
                 }
+                println!("Config dir: {}", directories[0].display());
+                println!("Data dir: {}", directories[1].display());
+                println!("Cache dir: {}", directories[2].display());
+                println!(
+                    "Config file: {} ({})",
+                    config_file.display(),
+                    if config_file.is_file() {
+                        "present"
+                    } else {
+                        "absent"
+                    }
+                );
             }
         }
         Command::Update { name, all } => {
@@ -205,8 +231,15 @@ pub fn run() -> Result<i32> {
             target,
             json,
         } => {
-            let result =
-                self_update_with_options(version.as_deref(), check, force, target.as_deref())?;
+            let repository = config.update_repository();
+            let configured_target = config.update_target();
+            let result = self_update_with_options(SelfUpdateOptions {
+                version: version.as_deref(),
+                check_only: check,
+                force,
+                target: target.as_deref().or(configured_target.as_deref()),
+                repository: repository.as_deref(),
+            })?;
             if json {
                 println!("{}", serde_json::to_string_pretty(&result)?);
             } else if result.updated {
