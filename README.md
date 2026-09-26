@@ -31,7 +31,7 @@ curl -fsSL https://raw.githubusercontent.com/guangl/dameng-cli/main/scripts/inst
 ./scripts/install-local.sh
 ```
 
-两个脚本默认安装到 `$HOME/.local/bin/dm`，可通过 `DM_INSTALL_DIR` 修改。远程脚本会下载与 Release 一起发布的 SHA-256 文件并在安装前校验；检测到 `rsign` 或 `minisign` 时还会验证 minisign 签名。Windows 请下载 Release 中的 zip，或执行 `cargo install --path . --locked`。
+两个脚本默认安装到 `$HOME/.local/bin/dm`，可通过 `DM_INSTALL_DIR` 修改。远程脚本会下载与 Release 一起发布的 SHA-256 文件并在安装前校验。Windows 请下载 Release 中的 zip，或执行 `cargo install --path . --locked`。
 
 ### 安装插件
 
@@ -63,7 +63,7 @@ dm uninstall hello
 | `dm doctor [--repair]` | 检查或修复 SQLite、插件目录、残留事务与孤立配置/数据/缓存目录 |
 | `dm uninstall <name>` | 删除插件及其 config/data/cache 隔离目录 |
 | `dm ssh add/list/remove/test/ssh` | 由 `plugins/ssh` 插件提供的 SSH 服务器管理；配置写入插件自身的 `data/ssh/servers.sqlite3`，`add` 在终端下省略任意字段时逐项交互式输入，密码/口令隐藏回显 |
-| `dm self-update [--check] [--version X.Y.Z] [--force] [--target TARGET]` | 校验 GitHub Release SHA-256 与 minisign 签名后原子升级宿主；`--force` 允许重装或降级，`--target` 覆盖产物目标 |
+| `dm self-update [--check] [--version X.Y.Z] [--force] [--target TARGET]` | 校验 GitHub Release SHA-256 后原子升级宿主；`--force` 允许重装或降级，`--target` 覆盖产物目标 |
 | `dm completions <shell>` | 生成 shell completion |
 | `dm --help` / `dm --version` | 宿主帮助和版本 |
 
@@ -89,7 +89,7 @@ dm install https://github.com/YOUR_ORG/dm-backup.git --rev v1.2.0
 
 仓库根目录必须包含插件 crate、`Cargo.lock` 和 `dm-plugin.toml`；示例地址不是已发布的插件。生产环境推荐通过 `--rev` 固定 tag 或完整 commit。
 
-宿主 Release 资产附带 SHA-256 与 minisign 签名。`dm self-update` 内嵌公钥并强制执行签名校验；`scripts/install.sh` 在存在 `rsign` 或 `minisign` 时会校验签名，否则保留 SHA-256 校验并提示跳过签名校验。安装脚本支持 `DM_INSTALL_TARGET` 覆盖产物目标（如 `x86_64-unknown-linux-musl`）。
+宿主 Release 资产附带 SHA-256 校验文件。`dm self-update` 下载并校验 SHA-256 后原子替换宿主；`scripts/install.sh` 同样校验 SHA-256。安装脚本支持 `DM_INSTALL_TARGET` 覆盖产物目标（如 `x86_64-unknown-linux-musl`）。
 
 ## Rust 插件开发
 

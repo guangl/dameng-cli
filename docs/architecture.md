@@ -13,7 +13,7 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
           │             -> Cargo locked release build
           │             -> 临时目录校验 -> 原子重命名 -> 旧版本备份
           ├─ list/info/outdated/verify/doctor -> 本地插件状态与恢复
-          ├─ self-update -> GitHub Release + SHA-256 + minisign -> 原子替换宿主
+          ├─ self-update -> GitHub Release + SHA-256 -> 原子替换宿主
           └─ <plugin> [args] -> Rust 插件独立进程 -> 数据库工具逻辑
                                   └─ dm-plugin-sdk
 ```
@@ -25,10 +25,10 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
 | `src/main.rs` / `src/cli/` | 程序入口与命令解析、内置命令、外部子命令路由、错误展示 |
 | `src/plugin/` | 严格清单解析、名称限制、API 版本和固定入口命名 |
 | `src/infrastructure/store/` | SQLite 元数据、来源与 revision、编译安装、原子更新、校验修复、卸载、进程调用 |
-| `src/infrastructure/self_update/` | 宿主 Release 查询、下载、SHA-256 与 minisign 校验、解包和原子自替换 |
+| `src/infrastructure/self_update/` | 宿主 Release 查询、下载、SHA-256 校验、解包和原子自替换 |
 | `crates/dm-plugin-sdk` | `Plugin` / `Context` / `PluginResult` 和协议版本 |
 | `examples/hello` | 唯一演示插件，验证 SDK 使用方法 |
-| `tests/unit/` | 清单和签名算法的单元测试 |
+| `tests/unit/` | 清单与自更新辅助函数的单元测试 |
 | `tests/integration/` | 真实 Rust crate 安装、生命周期、恢复和自更新回归测试 |
 
 ## 安装事务

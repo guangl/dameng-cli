@@ -46,7 +46,6 @@ dm-plugin-sdk = { version = "0.2.0", path = "crates/dm-plugin-sdk" }
 semver = "1.0.28"
 serde_json = "1.0.151"
 sha2 = "0.10.9"
-minisign = "0.9.1"
 
 # Keep the published crate declaration while ensuring local workspace plugins
 # resolve to the in-tree SDK (which uses DM_PLUGIN_HOME rather than the older

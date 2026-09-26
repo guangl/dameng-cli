@@ -2,17 +2,17 @@
 
 ## Unreleased
 
+- 移除 minisign 签名：`dm self-update` 与 `scripts/install.sh` 仅校验 SHA-256；删除 `signing/` 公钥目录、`MINISIGN_SECRET_KEY` 发布 secret 与 `DM_MINISIGN_PUBLIC_KEY` 覆盖项。注意：更早版本的 `dm` 会强制校验签名，因此无法自更新到本次之后的 Release，需重新执行安装脚本或手动替换一次。
 - `dm list` 改为输出带边框的 UTF-8 表格，展示 Name、Version、Description、Source、Revision 与 Installed At（UTC）；`--json` 输出保持不变，供脚本解析。
 - 新增 `plugins/ssh` 插件，提供 `dm ssh add/list/remove/test/ssh` SSH 服务器管理；配置写入插件自身的 `data/ssh/servers.sqlite3`，密码与私钥 passphrase 使用本机 AES-GCM 密钥加密。安装脚本会一并安装宿主和该插件。
 - `dm ssh add` 支持在终端下省略任意字段时逐项交互式输入（名称、主机、端口、用户名、认证方式及密码/密钥 passphrase），密码与 passphrase 隐藏回显，避免出现在命令行与 shell 历史中；空 passphrase 视为未加密密钥。
 - `dm install` 改为只安装预编译插件，取消源码编译与 `--accept-permissions`；宿主数据目录环境变量从 `DM_HOME` 改为 `DM_PLUGIN_HOME`，安装/克隆输出默认静默并显示进度条。
 - 宿主执行插件时额外注入与 `DM_PLUGIN_HOME` 同值的 `DM_HOME`，兼容基于已发布 `dm-plugin-sdk` 0.2.0 构建的旧插件。
 - 增加不可写 `DM_PLUGIN_HOME` 的可操作错误提示。
-- 全面同步 README、CLI、安全、架构、插件开发、发布、签名和故障排查文档，并新增完整 CLI 参考。
+- 全面同步 README、CLI、安全、架构、插件开发、发布和故障排查文档，并新增完整 CLI 参考。
 - 增加宿主 `dm self-update`，从 GitHub Release 下载目标平台归档、验证 SHA-256 并原子替换当前程序。
-- `dm self-update` 增加 minisign 签名强制校验；Release 流程对归档生成签名。
 - `dm self-update` 增加 `--force`（重装/降级）与 `--target`（覆盖产物目标）。
-- 新增自更新端到端测试：用临时 `dm` 副本 + 假 `curl`/`tar` 验证下载、校验、签名与原子替换。
+- 新增自更新端到端测试：用临时 `dm` 副本 + 假 `curl`/`tar` 验证下载、校验与原子替换。
 - 增加远程 registry 索引支持：`dm registry sync <url>` 与 `dm search --remote <url>`。
 - Release 产物新增 Linux ARM64（aarch64）与 x86_64 musl 静态目标。
 - `dm outdated` 支持检查固定 ref；分支 ref 会跟进，tag/commit 保持固定。
@@ -21,7 +21,6 @@
 - 源码与测试按职责重构：CLI、插件领域和基础设施分别归入 `src/cli/`、`src/plugin/`、`src/infrastructure/`，单元测试与集成测试分别归入 `tests/unit/` 和 `tests/integration/`。
 - `dm new` 增加 `--generate-lockfile`；`dm registry add` 增加 `--verify` 可达性校验。
 - 支持 `DM_REGISTRY_INDEX` 作为 `dm search` 与 `dm registry sync` 的默认远程索引。
-- `dm self-update` 支持 `DM_MINISIGN_PUBLIC_KEY` 覆盖内置公钥，便于测试与自定义签名。
 - 增加插件生命周期 hooks：`pre_install`、`post_install`、`pre_uninstall`、`post_uninstall`。
 - 增加历史版本备份与 `dm rollback`，更新失败或需回退时恢复上一版本。
 - 网络操作（下载、git clone、索引拉取、更新）增加进度输出。

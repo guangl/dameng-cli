@@ -1,6 +1,4 @@
-use dameng_cli::self_update::{
-    normalize_tag, validate_repository, verify_checksum, verify_release_signature,
-};
+use dameng_cli::self_update::{normalize_tag, validate_repository, verify_checksum};
 use dameng_cli::{
     Manifest, PluginStore, github_repository, prebuilt_target_label_for, progress_bar_for,
     release_tag_candidates, versions_differ,
@@ -20,18 +18,6 @@ fn update_checksum_verification_rejects_tampering() {
     let digest = format!("{:x}  archive\n", Sha256::digest(b"archive"));
     assert!(verify_checksum(b"archive", digest.as_bytes()).is_ok());
     assert!(verify_checksum(b"changed", digest.as_bytes()).is_err());
-}
-
-#[test]
-fn release_signature_verification_accepts_rsign_signature() {
-    let signature = br#"untrusted comment: signature from rsign secret key
-RUS7NJlQNVKoGOxn2EoqG2NHCN0enNX/Yd+1dkSpQzdMTrnucI/L8Kvh+jMccSYW7F0w0KekD0tP0Hz8rSVXg/JAW0KT3bUOWgg=
-trusted comment: timestamp:1789964763	file:dm-archive.bin	prehashed
-kc3x7cAU3ju8e0GV5ePI27dCKzf7jWkIii2UAPifVxgyAv07j7qXlG5lSyZ+P/HSJEcNUSXMsVhsmyU/qVBVAg=="#;
-    if let Err(error) = verify_release_signature(b"archive", signature) {
-        panic!("{error:#}");
-    }
-    assert!(verify_release_signature(b"changed", signature).is_err());
 }
 
 fn base_manifest() -> String {

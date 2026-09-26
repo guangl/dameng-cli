@@ -16,7 +16,7 @@ HTTPS 传输、Cargo.lock、固定 Git revision 和安装后 SHA-256 都不证�
 
 插件运行时默认不继承任意用户环境变量，只保留 PATH、区域、终端和临时目录等基础变量。需要数据库 URL 或令牌时，插件必须在清单 `environment` 中显式声明；`permissions` 与 `environment` 仅随清单记录用于审查和展示。用户仍应把原生插件视为拥有当前账户文件和网络权限的程序。
 
-`dm self-update` 只接受项目 GitHub Release 支持的平台归档，在替换当前程序前同时验证 SHA-256 和内置公钥对应的 minisign 签名。安装脚本始终验证 SHA-256；只有系统存在 `rsign` 或 `minisign` 时才验证签名，否则会明确提示跳过。`DM_MINISIGN_PUBLIC_KEY` 和 `DM_UPDATE_REPOSITORY` 是测试/自建分发用途的信任根覆盖项，生产环境不要从不可信来源设置。
+`dm self-update` 只接受项目 GitHub Release 支持的平台归档，在替换当前程序前验证 SHA-256。安装脚本始终验证 SHA-256。`DM_UPDATE_REPOSITORY` 是测试/自建分发用途的覆盖项，生产环境不要从不可信来源设置。
 
 安装来源只提供本地目录或 HTTPS Git URL 的传输与完整性校验，不验证发布者身份，也不是受审核的插件市场。生产安装应固定完整 commit 或已审查 tag。
 

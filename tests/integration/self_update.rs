@@ -16,7 +16,6 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 case "$url" in
-  *.minisig) cp "$FAKE_MINISIG" "$dest";;
   *.sha256) cp "$FAKE_SHA256" "$dest";;
   *latest) printf '{"tag_name":"v9.9.9"}' > "$dest";;
   *) cp "$FAKE_ARCHIVE" "$dest";;
@@ -65,10 +64,9 @@ fn prepend_tools_to_path(tools: &std::path::Path) -> std::ffi::OsString {
 
 #[cfg(unix)]
 #[test]
-fn self_update_replaces_binary_from_signed_release() {
+fn self_update_replaces_binary_from_release() {
     use std::os::unix::fs::PermissionsExt;
 
-    let keypair = minisign::KeyPair::generate_unencrypted_keypair().unwrap();
     for (index, target) in ["aarch64-apple-darwin", "x86_64-pc-windows-msvc"]
         .iter()
         .enumerate()
@@ -85,22 +83,11 @@ fn self_update_replaces_binary_from_signed_release() {
 
         let archive_bytes = b"fake release archive";
         let digest = format!("{:x}  archive\n", Sha256::digest(archive_bytes));
-        let signature = minisign::sign(
-            Some(&keypair.pk),
-            &keypair.sk,
-            std::io::Cursor::new(archive_bytes),
-            None,
-            None,
-        )
-        .unwrap()
-        .to_string();
 
         let archive = temp.path().join("archive.tar.gz");
         fs::write(&archive, archive_bytes).unwrap();
         let checksum = temp.path().join("archive.sha256");
         fs::write(&checksum, digest.as_bytes()).unwrap();
-        let minisig = temp.path().join("archive.minisig");
-        fs::write(&minisig, signature.as_bytes()).unwrap();
 
         let tools = temp.path().join("tools");
         fs::create_dir(&tools).unwrap();
@@ -110,10 +97,8 @@ fn self_update_replaces_binary_from_signed_release() {
         let output = Command::new(&dm_path)
             .env("PATH", prepend_tools_to_path(&tools))
             .env("DM_UPDATE_REPOSITORY", "example.invalid/repo")
-            .env("DM_MINISIGN_PUBLIC_KEY", keypair.pk.to_base64())
             .env("FAKE_ARCHIVE", &archive)
             .env("FAKE_SHA256", &checksum)
-            .env("FAKE_MINISIG", &minisig)
             .env("FAKE_TAG", "v0.1.0")
             .env("FAKE_TARGET", target)
             .args([
