@@ -37,7 +37,7 @@ description: 定位插件清单、构建、安装、运行协议和数据库环�
 | 错误或现象 | 原因 | 处理方式 |
 | --- | --- | --- |
 | `Self-update is not published for target` | 当前或覆盖 target 没有 Release 产物。 | 使用支持的 target，或手工从源码安装。 |
-| `Release SHA-256 mismatch` / `signature verification failed` | 资产损坏、签名不匹配或信任公钥被覆盖。 | 立即停止更新；检查 Release 来源及 `DM_UPDATE_REPOSITORY`、`DM_MINISIGN_PUBLIC_KEY`，不要绕过校验。 |
+| `Release SHA-256 mismatch` | 资产损坏或被篡改。 | 立即停止更新；检查 Release 来源及 `DM_UPDATE_REPOSITORY`，不要绕过校验。 |
 | 自更新缺少工具 | 系统没有 `curl`、Unix `tar` 或 Windows PowerShell。 | 安装对应系统工具，或下载 Release 后按校验说明手工安装。 |
 
 ## 数据库相关问题

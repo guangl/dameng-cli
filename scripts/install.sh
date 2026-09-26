@@ -65,16 +65,6 @@ else
     echo "dm installer: sha256sum or shasum is required" >&2
     exit 1
 fi
-
-public_key="RWS7NJlQNVKoGLzXSP3muZIGev+TRvqCjlwAuP+NH2xqWrQtrSZ1JiYA"
-curl -fsSL "${base_url}/${archive}.minisig" -o "${work_dir}/${archive}.minisig"
-if command -v rsign >/dev/null 2>&1; then
-    rsign verify "${work_dir}/${archive}" -P "$public_key" -x "${work_dir}/${archive}.minisig" -q
-elif command -v minisign >/dev/null 2>&1; then
-    minisign -V -P "$public_key" -m "${work_dir}/${archive}" -x "${work_dir}/${archive}.minisig" -q
-else
-    echo "dm installer: warning: rsign/minisign not found; skipping release signature verification" >&2
-fi
 tar -xzf "${work_dir}/${archive}" -C "$work_dir"
 mkdir -p "$install_dir"
 install -m 755 "${work_dir}/dm-${version}-${target}/dm" "${install_dir}/dm"

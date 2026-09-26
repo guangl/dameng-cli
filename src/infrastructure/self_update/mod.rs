@@ -1,12 +1,10 @@
 use anyhow::{Context, Result, ensure};
-use minisign::{PublicKey, SignatureBox};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{env, fs, path::PathBuf, process::Command};
 
 const DEFAULT_REPOSITORY: &str = "guangl/dameng-cli";
-const MINISIGN_PUBLIC_KEY: &str = "RWS7NJlQNVKoGLzXSP3muZIGev+TRvqCjlwAuP+NH2xqWrQtrSZ1JiYA";
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct SelfUpdateResult {
@@ -72,12 +70,9 @@ pub fn self_update_with_options(
     let base = format!("https://github.com/{repository}/releases/download/{tag}");
     let archive = temp.path().join(&archive_name);
     let checksum = temp.path().join(format!("{archive_name}.sha256"));
-    let signature = temp.path().join(format!("{archive_name}.minisig"));
     download(&format!("{base}/{archive_name}"), &archive)?;
     download(&format!("{base}/{archive_name}.sha256"), &checksum)?;
-    download(&format!("{base}/{archive_name}.minisig"), &signature)?;
     verify_checksum(&fs::read(&archive)?, &fs::read(&checksum)?)?;
-    verify_release_signature(&fs::read(&archive)?, &fs::read(&signature)?)?;
     let replacement = extract_binary(&archive, temp.path(), &tag, &target)?;
     replace_current_executable(&replacement)?;
     Ok(SelfUpdateResult {
@@ -152,26 +147,6 @@ pub fn verify_checksum(archive: &[u8], checksum: &[u8]) -> Result<()> {
         "Release SHA-256 mismatch"
     );
     Ok(())
-}
-
-pub fn verify_release_signature(archive: &[u8], signature: &[u8]) -> Result<()> {
-    let public_key = if let Ok(override_key) = env::var("DM_MINISIGN_PUBLIC_KEY") {
-        PublicKey::from_base64(&override_key).context("Invalid DM_MINISIGN_PUBLIC_KEY")?
-    } else {
-        PublicKey::from_base64(MINISIGN_PUBLIC_KEY)
-            .context("Invalid embedded minisign public key")?
-    };
-    let signature = SignatureBox::from_string(std::str::from_utf8(signature)?)
-        .context("Invalid minisign signature")?;
-    minisign::verify(
-        &public_key,
-        &signature,
-        std::io::Cursor::new(archive),
-        true,
-        false,
-        false,
-    )
-    .context("Release signature verification failed")
 }
 
 fn replace_current_executable(replacement: &std::path::Path) -> Result<()> {
