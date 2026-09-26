@@ -232,82 +232,119 @@ pub fn remove_server(context: &PluginContext, name: &str) -> Result<()> {
 const AUTH_REQUIRED: &str =
     "SSH password or key path is required; pass --password or --key, or run from a terminal";
 
-/// Read one line from stdin, trimming surrounding whitespace. Prompts are
-/// written to stdout so they appear before input is read on an interactive
-/// terminal.
-fn prompt_line(prompt: &str) -> Result<String> {
-    use std::io::Write;
-    print!("{prompt}");
-    std::io::stdout().flush().context("Flush prompt")?;
-    let mut input = String::new();
-    std::io::stdin()
-        .read_line(&mut input)
-        .context("Read input")?;
-    Ok(input.trim().to_owned())
+/// Source of interactive answers.
+///
+/// Production prompts the controlling terminal; tests script the answers so the
+/// interactive branches stay covered without a real TTY.
+pub trait Prompter {
+    /// Read one visible line, trimming surrounding whitespace.
+    fn line(&self, prompt: &str) -> Result<String>;
+    /// Read one hidden line, used for passwords and key passphrases.
+    fn secret(&self, prompt: &str) -> Result<String>;
 }
 
-/// Resolve a required plain-text field, prompting interactively when it was not
-/// supplied and stdin is attached to a terminal.
+/// Ask the user on the controlling terminal: the prompt is written to stdout so
+/// it appears before the answer is read from stdin.
+pub struct TerminalPrompter;
+
+impl Prompter for TerminalPrompter {
+    fn line(&self, prompt: &str) -> Result<String> {
+        use std::io::Write;
+        print!("{prompt}");
+        std::io::stdout().flush().context("Flush prompt")?;
+        let mut input = String::new();
+        std::io::stdin()
+            .read_line(&mut input)
+            .context("Read input")?;
+        Ok(input.trim().to_owned())
+    }
+
+    fn secret(&self, prompt: &str) -> Result<String> {
+        rpassword::prompt_password(prompt).context("Read hidden input")
+    }
+}
+
+/// Use the terminal prompter only when stdin is attached to a terminal.
+fn terminal_prompter() -> Option<&'static dyn Prompter> {
+    static TERMINAL: TerminalPrompter = TerminalPrompter;
+    std::io::stdin().is_terminal().then_some(&TERMINAL)
+}
+
+/// Resolve a required plain-text field, prompting when it was omitted and a
+/// prompter is available (`None` means stdin is not a terminal).
 pub fn resolve_required(
     value: Option<String>,
     prompt: &str,
     missing: &str,
-    interactive: bool,
+    prompter: Option<&dyn Prompter>,
 ) -> Result<String> {
-    match value {
-        Some(value) => Ok(value),
-        None if interactive => prompt_line(prompt),
-        None => anyhow::bail!("{missing}"),
+    match (value, prompter) {
+        (Some(value), _) => Ok(value),
+        (None, Some(prompter)) => prompter.line(prompt),
+        (None, None) => anyhow::bail!("{missing}"),
     }
 }
 
 /// Resolve the SSH port, defaulting to 22 when omitted.
-pub fn resolve_port(port: Option<u16>, interactive: bool) -> Result<u16> {
+pub fn resolve_port(port: Option<u16>, prompter: Option<&dyn Prompter>) -> Result<u16> {
     match port {
         Some(port) => Ok(port),
-        None if interactive => {
-            let value = prompt_line("Port [22]: ")?;
-            if value.is_empty() {
-                Ok(22)
-            } else {
-                value
-                    .parse::<u16>()
-                    .with_context(|| format!("SSH port must be a number, got '{value}'"))
+        None => match prompter {
+            Some(prompter) => {
+                let value = prompter.line("Port [22]: ")?;
+                if value.is_empty() {
+                    Ok(22)
+                } else {
+                    value
+                        .parse::<u16>()
+                        .with_context(|| format!("SSH port must be a number, got '{value}'"))
+                }
             }
-        }
-        None => Ok(22),
+            None => Ok(22),
+        },
     }
 }
 
 /// Resolve the password for `add`, prompting on the terminal when one was not
 /// supplied and the process is attached to a terminal.
-pub fn resolve_password(password: Option<String>, interactive: bool) -> Result<String> {
+pub fn resolve_password(
+    password: Option<String>,
+    prompter: Option<&dyn Prompter>,
+) -> Result<String> {
     match password {
         Some(password) => {
             ensure!(!password.is_empty(), "SSH password must not be empty");
             Ok(password)
         }
-        None if interactive => {
-            let password = rpassword::prompt_password("Password: ").context("Read SSH password")?;
-            ensure!(!password.is_empty(), "SSH password must not be empty");
-            Ok(password)
-        }
-        None => anyhow::bail!(AUTH_REQUIRED),
+        None => match prompter {
+            Some(prompter) => {
+                let password = prompter.secret("Password: ").context("Read SSH password")?;
+                ensure!(!password.is_empty(), "SSH password must not be empty");
+                Ok(password)
+            }
+            None => anyhow::bail!(AUTH_REQUIRED),
+        },
     }
 }
 
 /// Resolve the optional key passphrase for `add`. An empty passphrase means the
 /// key is not protected by one. Prompting only happens on a terminal.
-pub fn resolve_passphrase(passphrase: Option<String>, interactive: bool) -> Result<Option<String>> {
+pub fn resolve_passphrase(
+    passphrase: Option<String>,
+    prompter: Option<&dyn Prompter>,
+) -> Result<Option<String>> {
     match passphrase {
         Some(passphrase) if passphrase.is_empty() => Ok(None),
         Some(passphrase) => Ok(Some(passphrase)),
-        None if interactive => {
-            let passphrase = rpassword::prompt_password("Passphrase (leave empty for none): ")
-                .context("Read SSH key passphrase")?;
-            Ok((!passphrase.is_empty()).then_some(passphrase))
-        }
-        None => Ok(None),
+        None => match prompter {
+            Some(prompter) => {
+                let passphrase = prompter
+                    .secret("Passphrase (leave empty for none): ")
+                    .context("Read SSH key passphrase")?;
+                Ok((!passphrase.is_empty()).then_some(passphrase))
+            }
+            None => Ok(None),
+        },
     }
 }
 
@@ -319,14 +356,14 @@ pub fn resolve_auth(
     password: Option<String>,
     key: Option<PathBuf>,
     passphrase: Option<String>,
-    interactive: bool,
+    prompter: Option<&dyn Prompter>,
 ) -> Result<(String, Option<String>, Option<String>)> {
     if let Some(key_path) = key {
         ensure!(
             !key_path.as_os_str().is_empty(),
             "SSH key path must not be empty"
         );
-        let passphrase = resolve_passphrase(passphrase, interactive)?;
+        let passphrase = resolve_passphrase(passphrase, prompter)?;
         return Ok((
             "key".to_owned(),
             Some(key_path.display().to_string()),
@@ -336,20 +373,21 @@ pub fn resolve_auth(
         ));
     }
     if let Some(password) = password {
-        let password = resolve_password(Some(password), interactive)?;
+        let password = resolve_password(Some(password), prompter)?;
         return Ok((
             "password".to_owned(),
             None,
             Some(encrypt(context, password.as_bytes())?),
         ));
     }
-    if !interactive {
-        anyhow::bail!(AUTH_REQUIRED);
-    }
-    let method = prompt_line("Authentication method [password/key] (password): ")?;
+    let prompter = match prompter {
+        Some(prompter) => prompter,
+        None => anyhow::bail!(AUTH_REQUIRED),
+    };
+    let method = prompter.line("Authentication method [password/key] (password): ")?;
     match method.as_str() {
         "password" | "" => {
-            let password = resolve_password(None, true)?;
+            let password = resolve_password(None, Some(prompter))?;
             Ok((
                 "password".to_owned(),
                 None,
@@ -357,9 +395,9 @@ pub fn resolve_auth(
             ))
         }
         "key" => {
-            let key_path = prompt_line("Key path: ")?;
+            let key_path = prompter.line("Key path: ")?;
             ensure!(!key_path.is_empty(), "SSH key path must not be empty");
-            let passphrase = resolve_passphrase(None, true)?;
+            let passphrase = resolve_passphrase(None, Some(prompter))?;
             Ok((
                 "key".to_owned(),
                 Some(key_path),
@@ -388,22 +426,17 @@ pub fn run_cli(context: &PluginContext) -> Result<i32> {
             key,
             passphrase,
         } => {
-            let interactive = std::io::stdin().is_terminal();
-            let name =
-                resolve_required(name, "Name: ", "SSH server name is required", interactive)?;
+            let prompter = terminal_prompter();
+            let name = resolve_required(name, "Name: ", "SSH server name is required", prompter)?;
             validate_name(&name)?;
-            let host = resolve_required(host, "Host: ", "SSH host is required", interactive)?;
+            let host = resolve_required(host, "Host: ", "SSH host is required", prompter)?;
             ensure!(!host.is_empty(), "SSH host must not be empty");
-            let port = resolve_port(port, interactive)?;
-            let username = resolve_required(
-                username,
-                "Username: ",
-                "SSH username is required",
-                interactive,
-            )?;
+            let port = resolve_port(port, prompter)?;
+            let username =
+                resolve_required(username, "Username: ", "SSH username is required", prompter)?;
             ensure!(!username.is_empty(), "SSH username must not be empty");
             let (auth_type, key_path, secret) =
-                resolve_auth(context, password, key, passphrase, interactive)?;
+                resolve_auth(context, password, key, passphrase, prompter)?;
             upsert_server(
                 context,
                 &Server {
@@ -469,7 +502,8 @@ pub fn run_cli(context: &PluginContext) -> Result<i32> {
 }
 
 /// Return a short, actionable hint for an SSH plugin error.
-fn ssh_hint(error: &Error) -> String {
+#[doc(hidden)]
+pub fn ssh_hint(error: &Error) -> String {
     let text = error
         .chain()
         .map(|cause| cause.to_string())

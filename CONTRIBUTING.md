@@ -20,6 +20,15 @@ cargo doc --workspace --no-deps --locked
 git diff --check
 ```
 
+覆盖率不低于 95%（按行统计），CI 会用同一条命令把关，本地需要 `cargo install cargo-llvm-cov` 和 `rustup component add llvm-tools-preview`：
+
+```sh
+cargo llvm-cov --workspace --locked --fail-under-lines 95
+cargo llvm-cov --workspace --locked --html   # 需要逐行定位未覆盖代码时
+```
+
+新增行为必须带测试；只被 `#[cfg]` 或故障注入才能触发的分支不计入要求，但要在 PR 说明中说明原因。
+
 测试使用临时 `DM_PLUGIN_HOME` 和真实 Rust 测试插件，不需要达梦实例。集成测试离线构建无第三方依赖的测试插件；先完成一次宿主依赖下载。
 
 提交前更新 README、CLI/协议/架构文档、示例和 CHANGELOG 中所有受影响部分。协议变更必须明确兼容性，影响安装、hook、参数透传、升级/回滚或失败恢复时补充对应测试。保持 Cargo.lock 受版本控制。
