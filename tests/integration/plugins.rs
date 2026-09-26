@@ -1662,12 +1662,15 @@ fn info_points_at_the_plugin_owned_configuration() {
         .unwrap());
     let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
     assert_eq!(parsed["paths"]["config_file_present"], true);
-    let config = parsed["paths"]["config"].as_str().unwrap();
-    assert!(config.ends_with("config/probe"), "{config}");
+    // Compare paths component-wise: Windows reports backslash separators.
+    let config = Path::new(parsed["paths"]["config"].as_str().unwrap());
     assert!(
-        parsed["paths"]["config_file"]
-            .as_str()
-            .unwrap()
-            .ends_with("config/probe/config.toml")
+        config.ends_with(Path::new("config").join("probe")),
+        "{config:?}"
+    );
+    let config_file = Path::new(parsed["paths"]["config_file"].as_str().unwrap());
+    assert!(
+        config_file.ends_with(Path::new("config").join("probe").join("config.toml")),
+        "{config_file:?}"
     );
 }
