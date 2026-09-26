@@ -52,14 +52,20 @@ description: dm 命令、环境变量、JSON 输出和常见工作流参考。
 
 ```toml
 # <DM_PLUGIN_HOME>/config.toml
-log = "info"                            # 等价于 DM_LOG
-update_repository = "guangl/dameng-cli"  # 等价于 DM_UPDATE_REPOSITORY
+log = "info"                              # 等价于 DM_LOG
+update_repository = "guangl/dameng-cli"   # 等价于 DM_UPDATE_REPOSITORY
+update_target = "aarch64-apple-darwin"    # 等价于 DM_UPDATE_TARGET（默认跟随本机平台）
+progress = false                          # 等价于 DM_PROGRESS（默认 true，仅终端下绘制）
+plugin_environment = ["DM_DATABASE_URL"]  # 额外继承给插件的环境变量名
 ```
 
 | 键 | 类型 | 等价环境变量 | 说明 |
 | --- | --- | --- | --- |
 | `log` | string | `DM_LOG` | 日志过滤表达式，例如 `info`、`debug`、`dm=debug`；写入 stderr。 |
 | `update_repository` | string | `DM_UPDATE_REPOSITORY` | `dm self-update` 使用的 `owner/repository`。 |
+| `update_target` | string | `DM_UPDATE_TARGET` | 自更新取用 Release 产物的 target triple，默认跟随本机平台；取值见 `dm self-update`。 |
+| `progress` | boolean | `DM_PROGRESS` | 默认 `true`。设为 `false` 彻底关闭进度条（CI、重定向日志时使用）；任何取值下，进度条都只在 stderr 是终端时绘制。 |
+| `plugin_environment` | string 数组 | `DM_PLUGIN_ENVIRONMENT` | 除插件清单的 `environment` 之外，额外允许继承给插件进程与 hook 的环境变量名。宿主设置的 `DM_PLUGIN_*` 与 `DM_HOME` 优先。 |
 
 优先级为 命令行参数 > 环境变量 > 配置文件 > 内置默认值，因此临时覆盖不必修改文件。配置文件位于数据目录内，不能通过它迁移数据目录本身；需要更换目录请设置 `DM_PLUGIN_HOME`。插件自身的配置仍由插件管理（见 `config/<name>` 与 `data/<name>`）。
 
@@ -73,6 +79,9 @@ update_repository = "guangl/dameng-cli"  # 等价于 DM_UPDATE_REPOSITORY
 | `DM_INSTALL_VERSION` | 未提供位置参数时，远程安装脚本选择的版本标签。 |
 | `DM_INSTALL_REPO` | 远程安装脚本使用的 `owner/repository`；面向镜像或私有分发。 |
 | `DM_UPDATE_REPOSITORY` | 自更新使用的 `owner/repository`；面向测试或自建分发。 |
+| `DM_UPDATE_TARGET` | 自更新取用 Release 产物的 target triple；覆盖本机默认平台。 |
+| `DM_PROGRESS` | `true`/`false` 开关进度条，默认 `true`；仅在 stderr 是终端时绘制。 |
+| `DM_PLUGIN_ENVIRONMENT` | 逗号分隔的额外环境变量名，会**替换**配置文件中的 `plugin_environment` 列表。 |
 | `DM_LOG` | 日志过滤级别（默认 `info`，也可用 `off`、`error`、`warn`、`debug`、`trace`）；日志写入 stderr，stdout 保持机器可读。 |
 
 上表中的 `DM_LOG` 与 `DM_UPDATE_REPOSITORY` 也可以写进配置文件，见上一节。插件进程使用的 `DM_PLUGIN_*` 和 hook 使用的 `DM_HOOK_PHASE` 由宿主设置，详见[运行时协议](plugin-development/runtime-contract.html)和[项目结构与清单](plugin-development/manifest.html)。为兼容基于已发布 `dm-plugin-sdk` 0.2.0 构建的旧插件，宿主执行插件时还会注入与 `DM_PLUGIN_HOME` 同值的 `DM_HOME`。

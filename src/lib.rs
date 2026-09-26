@@ -14,6 +14,6 @@ pub use infrastructure::store::{
 };
 pub use plugin::manifest::{API_VERSION, MANIFEST_FILE, Manifest, SUPPORTED_API_VERSIONS};
 pub use self_update::{
-    SelfUpdateOptions, SelfUpdateResult, cleanup_self_update_backup, self_update,
-    self_update_with_options,
+    SUPPORTED_TARGETS, SelfUpdateOptions, SelfUpdateResult, cleanup_self_update_backup,
+    self_update, self_update_with_options,
 };

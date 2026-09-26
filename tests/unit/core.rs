@@ -229,3 +229,73 @@ fn config_file_is_optional() {
     let error = Config::load(temp.path()).unwrap_err();
     assert!(format!("{error:#}").contains("config.toml"), "{error:#}");
 }
+#[test]
+fn config_file_parses_the_optional_keys() {
+    let config = Config::from_toml(
+        r#"
+log = "info"
+update_target = "aarch64-apple-darwin"
+progress = false
+plugin_environment = ["DM_DATABASE_URL", " DM_DATABASE_URL ", "PGPASSWORD"]
+"#,
+    )
+    .unwrap();
+    assert_eq!(
+        config.update_target.as_deref(),
+        Some("aarch64-apple-darwin")
+    );
+    assert_eq!(config.progress, Some(false));
+    // Entries are trimmed and de-duplicated while keeping their order.
+    assert_eq!(
+        config.plugin_environment,
+        vec!["DM_DATABASE_URL".to_owned(), "PGPASSWORD".to_owned()]
+    );
+    assert_eq!(
+        Config::from_toml("progress = true\n").unwrap().progress,
+        Some(true)
+    );
+}
+
+#[test]
+fn config_file_rejects_invalid_switches_and_environment_names() {
+    let error = Config::from_toml("progress = \"yes\"\n").unwrap_err();
+    assert!(error.to_string().contains("invalid type"), "{error:#}");
+
+    let error = Config::from_toml("plugin_environment = \"DM_DATABASE_URL\"\n").unwrap_err();
+    assert!(error.to_string().contains("invalid type"), "{error:#}");
+
+    let error = Config::from_toml("plugin_environment = [\"\"]\n").unwrap_err();
+    assert!(error.to_string().contains("empty names"), "{error:#}");
+
+    let error = Config::from_toml("plugin_environment = [\"DB-URL\"]\n").unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("not a valid environment variable"),
+        "{error:#}"
+    );
+
+    let error = Config::from_toml("plugin_environment = [\"1LEADING\"]\n").unwrap_err();
+    assert!(error.to_string().contains("not a valid"), "{error:#}");
+}
+
+#[test]
+fn store_applies_the_configuration_settings() {
+    let temp = tempfile::tempdir().unwrap();
+    let forced = PluginStore::new(temp.path())
+        .with_progress(Some(true))
+        .with_plugin_environment(vec!["DM_TEST_VALUE".to_owned()]);
+    assert!(forced.progress_enabled());
+    assert!(
+        !PluginStore::new(temp.path())
+            .with_progress(Some(false))
+            .progress_enabled()
+    );
+
+    // Without an explicit setting the terminal decides, as before.
+    use std::io::IsTerminal;
+    assert_eq!(
+        PluginStore::new(temp.path()).progress_enabled(),
+        std::io::stderr().is_terminal()
+    );
+}

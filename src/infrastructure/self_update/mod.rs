@@ -7,6 +7,16 @@ use std::{env, fs, path::PathBuf, process::Command};
 
 const DEFAULT_REPOSITORY: &str = "guangl/dameng-cli";
 
+/// Release targets the host publishes. Used to reject `--target` and
+/// `update_target` typos before any download starts.
+pub const SUPPORTED_TARGETS: &[&str] = &[
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-unknown-linux-musl",
+    "aarch64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+];
+
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct SelfUpdateResult {
     pub current_version: String,
@@ -91,15 +101,9 @@ pub fn self_update_with_options(options: SelfUpdateOptions<'_>) -> Result<SelfUp
         .map(str::to_owned)
         .unwrap_or_else(|| env!("DM_HOST_TARGET").to_owned());
     ensure!(
-        matches!(
-            target.as_str(),
-            "x86_64-unknown-linux-gnu"
-                | "aarch64-unknown-linux-gnu"
-                | "x86_64-unknown-linux-musl"
-                | "aarch64-apple-darwin"
-                | "x86_64-pc-windows-msvc"
-        ),
-        "Self-update is not published for target {target}"
+        SUPPORTED_TARGETS.contains(&target.as_str()),
+        "Self-update is not published for target {target}; supported targets are {}",
+        SUPPORTED_TARGETS.join(", ")
     );
     let suffix = if cfg!(windows) { ".zip" } else { ".tar.gz" };
     let archive_name = format!("dm-{tag}-{target}{suffix}");

@@ -30,7 +30,7 @@ dm backup --database demo --label "nightly copy"
 | `DM_PLUGIN_CACHE_DIR` | 当前插件的可再生成缓存目录。 |
 | `DM_PLUGIN_CAPABILITIES` | 逗号分隔的协议能力；v0.2 提供 `config-dirs-v1`。 |
 
-当前工作目录会从调用 `dm` 的进程继承。宿主先清理进程环境，只保留 PATH、区域、终端和临时目录等基础变量，再加入清单 `environment` 明确允许的变量。协议变量由宿主覆盖同名用户变量，插件不应自行伪造它们来绕过宿主运行。
+当前工作目录会从调用 `dm` 的进程继承。宿主先清理进程环境，只保留 PATH、区域、终端和临时目录等基础变量，再加入清单 `environment` 明确允许的变量，以及用户在 `config.toml` 的 `plugin_environment`（或 `DM_PLUGIN_ENVIRONMENT`）中全局声明的变量。协议变量由宿主覆盖同名用户变量，插件不应自行伪造它们来绕过宿主运行。
 
 生命周期 hook 使用不同的执行契约：工作目录固定为对应插件根目录，phase 名称既写入 `DM_HOOK_PHASE`，也作为第一个参数传入。完整时机与失败语义见[项目结构与清单](manifest.html)。
 

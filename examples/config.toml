@@ -7,7 +7,8 @@
 # 说明：
 #   - 该文件是可选的；不存在时宿主使用同样的默认值，一切行为与未启用配置文件时一致。
 #   - 取值优先级：命令行参数 > 环境变量 > 本文件 > 内置默认值。
-#   - 只识别下面两个键；出现未知键、空值或非法 TOML 时，命令会直接失败并打印该文件路径。
+#   - 支持的键：log、update_repository、update_target、progress、plugin_environment，
+#     其余键会被拒绝；出现未知键、空值、类型错误或非法 TOML 时，命令直接失败并打印该文件路径。
 #   - 文件位于数据目录内，因此不能在这里修改数据目录本身；请用 DM_PLUGIN_HOME 改变它。
 
 # 日志过滤级别，等价于环境变量 DM_LOG，默认 "info"。
@@ -18,3 +19,21 @@ log = "info"
 # dm self-update 使用的 GitHub 仓库，等价于环境变量 DM_UPDATE_REPOSITORY，
 # 默认 "guangl/dameng-cli"。必须是 owner/repository 形式；面向测试或自建分发时改成自己的仓库。
 update_repository = "guangl/dameng-cli"
+
+# 下面三项按需启用。
+
+# dm self-update 取用 Release 产物时使用的 target triple，等价于环境变量 DM_UPDATE_TARGET。
+# 默认跟随当前宿主平台；交叉环境或自建分发可以固定下来。
+# 可取值：x86_64-unknown-linux-gnu、aarch64-unknown-linux-gnu、x86_64-unknown-linux-musl、
+#         aarch64-apple-darwin、x86_64-pc-windows-msvc。
+# update_target = "aarch64-apple-darwin"
+
+# 进度条开关，等价于环境变量 DM_PROGRESS，默认 true。
+# 设为 false 可在 CI、日志采集或把输出重定向到文件时彻底关闭进度条。
+# 无论怎么设置，进度条都只在 stderr 是终端时才会被绘制出来（true 只是显式恢复默认）。
+# progress = false
+
+# 额外继承给插件进程与 hook 的环境变量名，等价于环境变量 DM_PLUGIN_ENVIRONMENT（逗号分隔）。
+# 宿主默认清理环境，只保留基础变量和插件清单里 environment 声明的变量；这里可以全局补充，
+# 例如让所有插件都能读到同一个 DM_DATABASE_URL。宿主自身设置的 DM_PLUGIN_* / DM_HOME 优先。
+# plugin_environment = ["DM_DATABASE_URL"]

@@ -77,11 +77,39 @@ pub(crate) fn home_from_env() -> Result<PathBuf> {
 /// An explicit store path makes embedding and tests independent of user state.
 pub struct PluginStore {
     home: PathBuf,
+    /// Progress-bar override from the configuration file; `None` follows stderr.
+    progress: Option<bool>,
+    /// Extra environment variable names inherited by plugins and hooks.
+    plugin_environment: Vec<String>,
 }
 
 impl PluginStore {
     pub fn new(home: impl Into<PathBuf>) -> Self {
-        Self { home: home.into() }
+        Self {
+            home: home.into(),
+            progress: None,
+            plugin_environment: Vec::new(),
+        }
+    }
+
+    /// Apply the `progress` configuration key; `None` keeps following stderr.
+    pub fn with_progress(mut self, progress: Option<bool>) -> Self {
+        self.progress = progress;
+        self
+    }
+
+    /// Apply the `plugin_environment` configuration key.
+    pub fn with_plugin_environment(mut self, plugin_environment: Vec<String>) -> Self {
+        self.plugin_environment = plugin_environment;
+        self
+    }
+
+    /// Whether progress bars should be drawn for this run.
+    #[doc(hidden)]
+    pub fn progress_enabled(&self) -> bool {
+        use std::io::IsTerminal;
+        self.progress
+            .unwrap_or_else(|| std::io::stderr().is_terminal())
     }
 
     pub fn from_env() -> Result<Self> {
@@ -186,7 +214,8 @@ impl PluginStore {
             source.starts_with("https://") && source.len() > 8,
             "Source must be a local plugin directory or HTTPS Git repository URL"
         );
-        let (checkout, destination, resolved_revision) = checkout_git(source, revision)?;
+        let (checkout, destination, resolved_revision) =
+            checkout_git(source, revision, self.progress_enabled())?;
         let result = self.install_directory(
             &destination,
             Some(source.to_owned()),
@@ -264,6 +293,7 @@ impl PluginStore {
                 &manifest,
                 source_ref.as_deref(),
                 &prebuilt,
+                self.progress_enabled(),
             )
             .context("Source builds are disabled; install a prebuilt plugin release")?;
         }
@@ -444,7 +474,7 @@ impl PluginStore {
             "Plugin source is not updateable"
         );
         let (checkout, destination, resolved_revision) =
-            checkout_git(source, info.source_ref.as_deref())?;
+            checkout_git(source, info.source_ref.as_deref(), self.progress_enabled())?;
         let manifest = Manifest::read(&destination)?;
         ensure!(
             manifest.name == name,
@@ -509,7 +539,8 @@ impl PluginStore {
         let available = if Path::new(source).is_dir() {
             Manifest::read(Path::new(source))?.version
         } else {
-            let (_checkout, root, _revision) = checkout_git(source, info.source_ref.as_deref())?;
+            let (_checkout, root, _revision) =
+                checkout_git(source, info.source_ref.as_deref(), self.progress_enabled())?;
             Manifest::read(&root)?.version
         };
         let update_available = versions_differ(&installed, &available);
@@ -788,7 +819,7 @@ impl PluginStore {
         info!("running {phase} hook '{hook}' for plugin {}", manifest.name);
         let mut command = Command::new(&executable);
         command.env_clear();
-        inherit_safe_environment(&mut command, manifest);
+        inherit_safe_environment(&mut command, manifest, &self.plugin_environment);
         command
             .arg(phase)
             .current_dir(&root)
@@ -814,7 +845,7 @@ impl PluginStore {
         let home = fs::canonicalize(&self.home)?;
         let mut command = Command::new(manifest.entrypoint(&root)?);
         command.env_clear();
-        inherit_safe_environment(&mut command, &manifest);
+        inherit_safe_environment(&mut command, &manifest, &self.plugin_environment);
         let status = command
             .args(args)
             .env("DM_PLUGIN_API_VERSION", API_VERSION.to_string())
@@ -857,14 +888,10 @@ pub fn progress_bar_for(len: u64, terminal: bool) -> ProgressBar {
     }
 }
 
-fn progress_bar(len: u64) -> ProgressBar {
-    use std::io::IsTerminal;
-    progress_bar_for(len, std::io::stderr().is_terminal())
-}
-
 fn checkout_git(
     source: &str,
     revision: Option<&str>,
+    progress: bool,
 ) -> Result<(tempfile::TempDir, PathBuf, String)> {
     ensure!(
         source.starts_with("https://") && source.len() > 8,
@@ -880,7 +907,7 @@ fn checkout_git(
     }
     let checkout = tempfile::tempdir()?;
     let destination = checkout.path().join("source");
-    let bar = progress_bar(2);
+    let bar = progress_bar_for(2, progress);
     bar.set_message("Cloning plugin repository");
     info!("cloning {source}");
     let mut clone = Command::new("git");
@@ -1032,6 +1059,7 @@ fn try_download_prebuilt(
     manifest: &Manifest,
     revision: Option<&str>,
     destination: &Path,
+    progress: bool,
 ) -> Result<()> {
     let source = source.context("Plugin source is not a GitHub repository")?;
     let (owner, repository) =
@@ -1044,7 +1072,7 @@ fn try_download_prebuilt(
         target,
         std::env::consts::EXE_SUFFIX
     );
-    let bar = progress_bar(1);
+    let bar = progress_bar_for(1, progress);
     bar.set_message("Downloading prebuilt plugin");
     for tag in release_tag_candidates(manifest, revision) {
         let url =
@@ -1089,7 +1117,7 @@ pub fn versions_differ(installed: &str, available: &str) -> bool {
     }
 }
 
-fn inherit_safe_environment(command: &mut Command, manifest: &Manifest) {
+fn inherit_safe_environment(command: &mut Command, manifest: &Manifest, extra: &[String]) {
     const SAFE: &[&str] = &[
         "COLORTERM",
         "COMSPEC",
@@ -1112,6 +1140,7 @@ fn inherit_safe_environment(command: &mut Command, manifest: &Manifest) {
         if SAFE.contains(&text.as_ref())
             || text.starts_with("LC_")
             || manifest.environment.iter().any(|allowed| allowed == &text)
+            || extra.iter().any(|allowed| allowed == &text)
         {
             command.env(name, value);
         }

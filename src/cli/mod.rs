@@ -85,7 +85,9 @@ fn print_no_plugins() {
 
 pub fn run(config: &Config) -> Result<i32> {
     let cli = Cli::parse();
-    let store = PluginStore::from_env()?;
+    let store = PluginStore::from_env()?
+        .with_progress(config.progress()?)
+        .with_plugin_environment(config.plugin_environment()?);
     match cli.command {
         Command::Install { source, rev } => {
             let manifest = store.install_with_revision(&source, rev.as_deref())?;
@@ -206,11 +208,12 @@ pub fn run(config: &Config) -> Result<i32> {
             json,
         } => {
             let repository = config.update_repository();
+            let configured_target = config.update_target();
             let result = self_update_with_options(SelfUpdateOptions {
                 version: version.as_deref(),
                 check_only: check,
                 force,
-                target: target.as_deref(),
+                target: target.as_deref().or(configured_target.as_deref()),
                 repository: repository.as_deref(),
             })?;
             if json {

@@ -1586,3 +1586,53 @@ fn doctor_refuses_to_replace_a_non_directory_plugin_path() {
         "{error:#}"
     );
 }
+#[test]
+fn configured_plugin_environment_is_inherited_by_plugins() {
+    let temp = TempDir::new().unwrap();
+    let source = fixture(temp.path());
+    let home = temp.path().join("home");
+    ok(dm(&home).arg("install").arg(&source).output().unwrap());
+
+    // The manifest does not declare DM_TEST_SECRET, so the host filters it out.
+    let filtered = ok(dm(&home)
+        .env("DM_TEST_SECRET", "must-not-leak")
+        .arg("probe")
+        .output()
+        .unwrap());
+    assert!(filtered.contains("secret=filtered"), "{filtered}");
+
+    // config.toml can grant it globally instead of per manifest.
+    fs::write(
+        home.join("config.toml"),
+        "plugin_environment = [\"DM_TEST_SECRET\"]\n",
+    )
+    .unwrap();
+    let inherited = ok(dm(&home)
+        .env("DM_TEST_SECRET", "granted-by-config")
+        .arg("probe")
+        .output()
+        .unwrap());
+    assert!(
+        inherited.contains("secret=granted-by-config"),
+        "{inherited}"
+    );
+
+    // DM_PLUGIN_ENVIRONMENT replaces the file list instead of extending it.
+    let replaced = ok(dm(&home)
+        .env("DM_TEST_SECRET", "must-not-leak")
+        .env("DM_PLUGIN_ENVIRONMENT", "DM_OTHER_VALUE")
+        .arg("probe")
+        .output()
+        .unwrap());
+    assert!(replaced.contains("secret=filtered"), "{replaced}");
+
+    // Invalid names fail loudly instead of silently inheriting nothing.
+    let output = dm(&home)
+        .env("DM_PLUGIN_ENVIRONMENT", "NOT-A-NAME")
+        .arg("probe")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("DM_PLUGIN_ENVIRONMENT"), "{stderr}");
+}

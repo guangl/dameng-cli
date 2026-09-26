@@ -32,6 +32,15 @@ pub struct Config {
     /// GitHub `owner/repository` used by `dm self-update`, same as `DM_UPDATE_REPOSITORY`.
     #[serde(default)]
     pub update_repository: Option<String>,
+    /// Release target triple used by `dm self-update`, same as `DM_UPDATE_TARGET`.
+    #[serde(default)]
+    pub update_target: Option<String>,
+    /// Force progress bars on (`true`) or off (`false`) instead of following stderr.
+    #[serde(default)]
+    pub progress: Option<bool>,
+    /// Extra environment variables inherited by plugin processes and hooks.
+    #[serde(default)]
+    pub plugin_environment: Vec<String>,
 }
 
 impl Config {
@@ -46,6 +55,7 @@ impl Config {
         for (name, value) in [
             ("log", &mut config.log),
             ("update_repository", &mut config.update_repository),
+            ("update_target", &mut config.update_target),
         ] {
             if let Some(raw) = value.take() {
                 let trimmed = raw.trim().to_owned();
@@ -56,6 +66,7 @@ impl Config {
                 *value = Some(trimmed);
             }
         }
+        config.plugin_environment = valid_environment_names(&config.plugin_environment)?;
         Ok(config)
     }
 
@@ -92,10 +103,75 @@ impl Config {
     ///
     /// `None` means "not configured", which lets the caller apply its own default.
     pub fn update_repository(&self) -> Option<String> {
-        env::var("DM_UPDATE_REPOSITORY")
-            .ok()
-            .map(|value| value.trim().to_owned())
-            .filter(|value| !value.is_empty())
+        configured_value(env::var("DM_UPDATE_REPOSITORY").ok())
             .or_else(|| self.update_repository.clone())
     }
+
+    /// Effective self-update target triple: `DM_UPDATE_TARGET`, then the file.
+    pub fn update_target(&self) -> Option<String> {
+        configured_value(env::var("DM_UPDATE_TARGET").ok()).or_else(|| self.update_target.clone())
+    }
+
+    /// Effective progress-bar preference: `DM_PROGRESS`, then the file.
+    ///
+    /// `None` means "follow the terminal", which is the built-in default.
+    pub fn progress(&self) -> Result<Option<bool>> {
+        match configured_value(env::var("DM_PROGRESS").ok()) {
+            Some(value) => Ok(Some(parse_switch("DM_PROGRESS", &value)?)),
+            None => Ok(self.progress),
+        }
+    }
+
+    /// Effective extra plugin environment: `DM_PLUGIN_ENVIRONMENT`, then the file.
+    ///
+    /// The environment variable replaces the file list instead of extending it,
+    /// which matches how every other key resolves.
+    pub fn plugin_environment(&self) -> Result<Vec<String>> {
+        match configured_value(env::var("DM_PLUGIN_ENVIRONMENT").ok()) {
+            Some(value) => {
+                let names: Vec<String> = value.split(',').map(str::to_owned).collect();
+                valid_environment_names(&names)
+                    .context("Invalid DM_PLUGIN_ENVIRONMENT; use a comma-separated list of names")
+            }
+            None => Ok(self.plugin_environment.clone()),
+        }
+    }
+}
+
+/// Treat an unset or blank environment variable as "not configured".
+fn configured_value(value: Option<String>) -> Option<String> {
+    value
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+}
+
+/// Parse a boolean switch from an environment variable.
+fn parse_switch(name: &str, value: &str) -> Result<bool> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "1" | "true" | "yes" | "on" => Ok(true),
+        "0" | "false" | "no" | "off" => Ok(false),
+        other => anyhow::bail!("{name} must be true or false, got '{other}'"),
+    }
+}
+
+/// Validate environment variable names and drop duplicates while keeping order.
+fn valid_environment_names(names: &[String]) -> Result<Vec<String>> {
+    let mut valid: Vec<String> = Vec::new();
+    for name in names {
+        let name = name.trim();
+        ensure!(
+            !name.is_empty(),
+            "Configuration key 'plugin_environment' must not contain empty names"
+        );
+        ensure!(
+            name.bytes().enumerate().all(|(index, byte)| byte == b'_'
+                || byte.is_ascii_alphabetic()
+                || (index > 0 && byte.is_ascii_digit())),
+            "Configuration key 'plugin_environment' entry '{name}' is not a valid environment variable name"
+        );
+        if !valid.iter().any(|existing| existing == name) {
+            valid.push(name.to_owned());
+        }
+    }
+    Ok(valid)
 }
