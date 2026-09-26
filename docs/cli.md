@@ -46,6 +46,23 @@ description: dm 命令、环境变量、JSON 输出和常见工作流参考。
 
 支持的产物目标为 `x86_64-unknown-linux-gnu`、`aarch64-unknown-linux-gnu`、`x86_64-unknown-linux-musl`、`aarch64-apple-darwin` 和 `x86_64-pc-windows-msvc`。Unix 需要 `curl` 与 `tar`，Windows 解压使用 PowerShell。
 
+## 配置文件
+
+宿主读取 `<DM_PLUGIN_HOME>/config.toml`（默认 `~/.config/dm/config.toml`，Windows 为 `%LOCALAPPDATA%\dm\config.toml`）。可直接复制仓库中的示例：[examples/config.toml](https://github.com/guangl/dameng-cli/blob/main/examples/config.toml)。文件不存在时全部使用默认值；文件存在但不是合法 TOML、含未知键或存在空值时，命令直接失败，并在 `提示` 中给出该文件路径。
+
+```toml
+# <DM_PLUGIN_HOME>/config.toml
+log = "info"                            # 等价于 DM_LOG
+update_repository = "guangl/dameng-cli"  # 等价于 DM_UPDATE_REPOSITORY
+```
+
+| 键 | 类型 | 等价环境变量 | 说明 |
+| --- | --- | --- | --- |
+| `log` | string | `DM_LOG` | 日志过滤表达式，例如 `info`、`debug`、`dm=debug`；写入 stderr。 |
+| `update_repository` | string | `DM_UPDATE_REPOSITORY` | `dm self-update` 使用的 `owner/repository`。 |
+
+优先级为 命令行参数 > 环境变量 > 配置文件 > 内置默认值，因此临时覆盖不必修改文件。配置文件位于数据目录内，不能通过它迁移数据目录本身；需要更换目录请设置 `DM_PLUGIN_HOME`。插件自身的配置仍由插件管理（见 `config/<name>` 与 `data/<name>`）。
+
 ## 环境变量与数据目录
 
 | 变量 | 作用 |
@@ -58,7 +75,7 @@ description: dm 命令、环境变量、JSON 输出和常见工作流参考。
 | `DM_UPDATE_REPOSITORY` | 自更新使用的 `owner/repository`；面向测试或自建分发。 |
 | `DM_LOG` | 日志过滤级别（默认 `info`，也可用 `off`、`error`、`warn`、`debug`、`trace`）；日志写入 stderr，stdout 保持机器可读。 |
 
-插件进程使用的 `DM_PLUGIN_*` 和 hook 使用的 `DM_HOOK_PHASE` 由宿主设置，详见[运行时协议](plugin-development/runtime-contract.html)和[项目结构与清单](plugin-development/manifest.html)。为兼容基于已发布 `dm-plugin-sdk` 0.2.0 构建的旧插件，宿主执行插件时还会注入与 `DM_PLUGIN_HOME` 同值的 `DM_HOME`。
+上表中的 `DM_LOG` 与 `DM_UPDATE_REPOSITORY` 也可以写进配置文件，见上一节。插件进程使用的 `DM_PLUGIN_*` 和 hook 使用的 `DM_HOOK_PHASE` 由宿主设置，详见[运行时协议](plugin-development/runtime-contract.html)和[项目结构与清单](plugin-development/manifest.html)。为兼容基于已发布 `dm-plugin-sdk` 0.2.0 构建的旧插件，宿主执行插件时还会注入与 `DM_PLUGIN_HOME` 同值的 `DM_HOME`。
 
 ## JSON 与退出状态
 

@@ -1,7 +1,7 @@
 use dameng_cli::self_update::{normalize_tag, validate_repository, verify_checksum};
 use dameng_cli::{
-    Manifest, PluginStore, github_repository, prebuilt_target_label_for, progress_bar_for,
-    release_tag_candidates, versions_differ,
+    CONFIG_FILE, Config, Manifest, PluginStore, github_repository, prebuilt_target_label_for,
+    progress_bar_for, release_tag_candidates, versions_differ,
 };
 use sha2::{Digest, Sha256};
 
@@ -190,4 +190,42 @@ fn load_reports_missing_plugin() {
     let store = PluginStore::new(temp.path());
     let error = store.load("missing").unwrap_err();
     assert!(error.to_string().contains("not installed"), "{error:#}");
+}
+#[test]
+fn config_file_parses_supported_keys() {
+    let config =
+        Config::from_toml("log = \"debug\"\nupdate_repository = \"owner/repo\"\n").unwrap();
+    assert_eq!(config.log.as_deref(), Some("debug"));
+    assert_eq!(config.update_repository.as_deref(), Some("owner/repo"));
+
+    // Whitespace is trimmed so stray padding cannot change behavior.
+    let config = Config::from_toml("log = '  dm=debug  '\n").unwrap();
+    assert_eq!(config.log.as_deref(), Some("dm=debug"));
+    assert_eq!(config.update_repository, None);
+}
+
+#[test]
+fn config_file_rejects_unknown_keys_and_empty_values() {
+    let error = Config::from_toml("loglevel = \"debug\"\n").unwrap_err();
+    assert!(error.to_string().contains("unknown field"), "{error:#}");
+
+    let error = Config::from_toml("update_repository = \"\"\n").unwrap_err();
+    assert!(error.to_string().contains("must not be empty"), "{error:#}");
+}
+
+#[test]
+fn config_file_is_optional() {
+    let temp = tempfile::tempdir().unwrap();
+    assert_eq!(Config::path_in(temp.path()), temp.path().join(CONFIG_FILE));
+    assert_eq!(Config::load(temp.path()).unwrap(), Config::default());
+
+    std::fs::write(Config::path_in(temp.path()), "log = \"info\"\n").unwrap();
+    assert_eq!(
+        Config::load(temp.path()).unwrap().log.as_deref(),
+        Some("info")
+    );
+
+    std::fs::write(Config::path_in(temp.path()), "log = ;\n").unwrap();
+    let error = Config::load(temp.path()).unwrap_err();
+    assert!(format!("{error:#}").contains("config.toml"), "{error:#}");
 }

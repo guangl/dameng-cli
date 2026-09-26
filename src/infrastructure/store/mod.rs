@@ -45,6 +45,35 @@ enum InstallMode {
     Update,
 }
 
+/// Resolve the host data directory from the environment.
+///
+/// `DM_PLUGIN_HOME` wins; otherwise the platform default is used and relative
+/// paths are resolved against the current working directory.
+pub(crate) fn home_from_env() -> Result<PathBuf> {
+    let home = if let Some(home) = env::var_os("DM_PLUGIN_HOME") {
+        ensure!(!home.is_empty(), "DM_PLUGIN_HOME must not be empty");
+        PathBuf::from(home)
+    } else {
+        #[cfg(windows)]
+        {
+            PathBuf::from(
+                env::var_os("LOCALAPPDATA").context("Set DM_PLUGIN_HOME or LOCALAPPDATA")?,
+            )
+            .join("dm")
+        }
+        #[cfg(not(windows))]
+        {
+            PathBuf::from(env::var_os("HOME").context("Set DM_PLUGIN_HOME or HOME")?)
+                .join(".config/dm")
+        }
+    };
+    Ok(if home.is_absolute() {
+        home
+    } else {
+        env::current_dir()?.join(home)
+    })
+}
+
 /// An explicit store path makes embedding and tests independent of user state.
 pub struct PluginStore {
     home: PathBuf,
@@ -56,28 +85,7 @@ impl PluginStore {
     }
 
     pub fn from_env() -> Result<Self> {
-        let home = if let Some(home) = env::var_os("DM_PLUGIN_HOME") {
-            ensure!(!home.is_empty(), "DM_PLUGIN_HOME must not be empty");
-            PathBuf::from(home)
-        } else {
-            #[cfg(windows)]
-            {
-                PathBuf::from(
-                    env::var_os("LOCALAPPDATA").context("Set DM_PLUGIN_HOME or LOCALAPPDATA")?,
-                )
-                .join("dm")
-            }
-            #[cfg(not(windows))]
-            {
-                PathBuf::from(env::var_os("HOME").context("Set DM_PLUGIN_HOME or HOME")?)
-                    .join(".config/dm")
-            }
-        };
-        Ok(Self::new(if home.is_absolute() {
-            home
-        } else {
-            env::current_dir()?.join(home)
-        }))
+        Ok(Self::new(home_from_env()?))
     }
 
     fn plugins(&self) -> PathBuf {

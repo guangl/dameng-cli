@@ -81,7 +81,7 @@ dm uninstall hello
 - Windows：`%LOCALAPPDATA%\dm`。
 - Linux / macOS：`$HOME/.config/dm`。
 
-该目录内的 `store.sqlite3` 保存插件清单、来源、Git revision 和 SHA-256。`plugins/` 保存可执行文件；`config/<name>`、`data/<name>`、`cache/<name>` 是每个插件的隔离目录。诊断日志写入 stderr，可用 `DM_LOG` 调整级别（`off`/`error`/`warn`/`info`/`debug`/`trace`，默认 `info`），stdout 始终保留给命令结果和 JSON。使用自己的真实插件仓库地址：
+该目录内的 `store.sqlite3` 保存插件清单、来源、Git revision 和 SHA-256。可选的 `config.toml` 保存宿主设置（`log` 日志级别、`update_repository` 自更新仓库），优先级为 命令行 > 环境变量 > 配置文件 > 默认值；模板见 [examples/config.toml](examples/config.toml)，复制到该目录即可生效。`plugins/` 保存可执行文件；`config/<name>`、`data/<name>`、`cache/<name>` 是每个插件的隔离目录。诊断日志写入 stderr，可用 `DM_LOG` 调整级别（`off`/`error`/`warn`/`info`/`debug`/`trace`，默认 `info`），stdout 始终保留给命令结果和 JSON。使用自己的真实插件仓库地址：
 
 ```sh
 dm install https://github.com/YOUR_ORG/dm-backup.git --rev v1.2.0
@@ -122,7 +122,10 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
 cargo doc --workspace --no-deps --locked
+cargo llvm-cov --workspace --locked --fail-under-lines 95
 ```
+
+行覆盖率要求不低于 95%，CI 与本地使用同一条 `cargo llvm-cov` 命令把关（需要 `cargo install cargo-llvm-cov` 和 `llvm-tools-preview` 组件）。
 
 GitHub CI 覆盖 Linux、macOS、Windows 和最低 Rust 版本。版本标签触发测试与宿主二进制打包，产物同时供安装脚本和 `dm self-update` 使用，详见 [发布说明](docs/releasing.md)。
 

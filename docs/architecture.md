@@ -25,6 +25,7 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
 | `src/main.rs` / `src/cli/` | 程序入口与命令解析、内置命令、外部子命令路由、错误展示 |
 | `src/plugin/` | 严格清单解析、名称限制、API 版本和固定入口命名 |
 | `src/infrastructure/store/` | SQLite 元数据、来源与 revision、编译安装、原子更新、校验修复、卸载、进程调用 |
+| `src/infrastructure/config.rs` | `<DM_PLUGIN_HOME>/config.toml` 解析、默认值与「环境变量优先」的取值规则 |
 | `src/infrastructure/self_update/` | 宿主 Release 查询、下载、SHA-256 校验、解包和原子自替换 |
 | `crates/dm-plugin-sdk` | `Plugin` / `Context` / `PluginResult` 和协议版本 |
 | `examples/hello` | 唯一演示插件，验证 SDK 使用方法 |
@@ -41,6 +42,7 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
 
 ```text
 DM_PLUGIN_HOME/
+├── config.toml                # 可选宿主配置：log、update_repository
 ├── store.sqlite3              # 插件元数据
 ├── store.sqlite3-wal          # SQLite 运行时文件，存在时不要单独移动
 ├── store.sqlite3-shm          # SQLite 运行时文件，存在时不要单独移动

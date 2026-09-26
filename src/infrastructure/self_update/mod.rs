@@ -19,21 +19,48 @@ struct Release {
     tag_name: String,
 }
 
-pub fn self_update(requested: Option<&str>, check_only: bool) -> Result<SelfUpdateResult> {
-    self_update_with_options(requested, check_only, false, None)
+/// Options for [`self_update_with_options`].
+///
+/// `repository` carries the value resolved from the configuration file, so the
+/// library never has to guess which source the caller already consulted.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct SelfUpdateOptions<'a> {
+    /// Install this exact version instead of the latest release.
+    pub version: Option<&'a str>,
+    /// Report the available version without installing anything.
+    pub check_only: bool,
+    /// Reinstall or downgrade even when the requested version is not newer.
+    pub force: bool,
+    /// Override the release target triple for this run.
+    pub target: Option<&'a str>,
+    /// GitHub `owner/repository`; falls back to `DM_UPDATE_REPOSITORY`, then the default.
+    pub repository: Option<&'a str>,
 }
 
-pub fn self_update_with_options(
-    requested: Option<&str>,
-    check_only: bool,
-    force: bool,
-    target_override: Option<&str>,
-) -> Result<SelfUpdateResult> {
+pub fn self_update(requested: Option<&str>, check_only: bool) -> Result<SelfUpdateResult> {
+    self_update_with_options(SelfUpdateOptions {
+        version: requested,
+        check_only,
+        ..SelfUpdateOptions::default()
+    })
+}
+
+pub fn self_update_with_options(options: SelfUpdateOptions<'_>) -> Result<SelfUpdateResult> {
+    let SelfUpdateOptions {
+        version: requested,
+        check_only,
+        force,
+        target: target_override,
+        repository,
+    } = options;
     info!(
         "self-update requested={:?} check_only={check_only} force={force} target={:?}",
         requested, target_override
     );
-    let repository = env::var("DM_UPDATE_REPOSITORY").unwrap_or_else(|_| DEFAULT_REPOSITORY.into());
+    let repository = repository
+        .map(str::to_owned)
+        .or_else(|| env::var("DM_UPDATE_REPOSITORY").ok())
+        .unwrap_or_else(|| DEFAULT_REPOSITORY.into());
     validate_repository(&repository)?;
     let temp = tempfile::tempdir()?;
     let tag = if let Some(version) = requested {
@@ -117,7 +144,7 @@ pub fn validate_repository(repository: &str) -> Result<()> {
                 .bytes()
                 .all(|byte| byte.is_ascii_alphanumeric()
                     || matches!(byte, b'/' | b'-' | b'_' | b'.')),
-        "DM_UPDATE_REPOSITORY must be in owner/repository form"
+        "Self-update repository '{repository}' must be in owner/repository form"
     );
     Ok(())
 }

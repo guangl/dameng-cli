@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 行覆盖率提升到 97%，并在 CI 中以 `cargo llvm-cov --fail-under-lines 95` 强制不低于 95%；补齐 SSH 插件交互输入（提示抽象为可注入的 `Prompter`，测试用脚本化回答驱动）、宿主空状态、损坏 store、doctor 事务恢复和错误提示分支的测试。
+- 新增宿主配置文件 `<DM_PLUGIN_HOME>/config.toml`，可设置 `log`（日志过滤级别）与 `update_repository`（`dm self-update` 仓库）；优先级为 命令行 > 环境变量 > 配置文件 > 默认值。未知键、空值或非法 TOML 会给出指向该文件的 `错误`/`提示`，文件不存在时行为与之前完全一致；仓库提供带注释的示例 `examples/config.toml`，并有回归测试保证示例始终可被宿主解析。
 - 移除 minisign 签名：`dm self-update` 与 `scripts/install.sh` 仅校验 SHA-256；删除 `signing/` 公钥目录、`MINISIGN_SECRET_KEY` 发布 secret 与 `DM_MINISIGN_PUBLIC_KEY` 覆盖项。注意：更早版本的 `dm` 会强制校验签名，因此无法自更新到本次之后的 Release，需重新执行安装脚本或手动替换一次。
 - 增加统一日志后端：诊断日志写入 stderr，默认 `info` 级别，可用 `DM_LOG`（`off`/`error`/`warn`/`info`/`debug`/`trace`）调整；stdout 保持机器可读。
 - 失败输出改为友好三段式：`错误`（一行摘要）、`详情`（完整错误链）与 `提示`（可操作的下一步）；同一错误同时进入日志后端，便于排查。

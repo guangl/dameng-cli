@@ -5,7 +5,7 @@ pub(crate) use report::report;
 
 use anyhow::{Context, Result};
 use clap::{CommandFactory, Parser, Subcommand};
-use dameng_cli::{PluginStore, self_update_with_options};
+use dameng_cli::{Config, PluginStore, SelfUpdateOptions, self_update_with_options};
 use std::ffi::OsString;
 
 #[derive(Parser)]
@@ -83,7 +83,7 @@ fn print_no_plugins() {
     println!("No plugins installed. Run `dm install <source>` to add one.");
 }
 
-pub fn run() -> Result<i32> {
+pub fn run(config: &Config) -> Result<i32> {
     let cli = Cli::parse();
     let store = PluginStore::from_env()?;
     match cli.command {
@@ -205,8 +205,14 @@ pub fn run() -> Result<i32> {
             target,
             json,
         } => {
-            let result =
-                self_update_with_options(version.as_deref(), check, force, target.as_deref())?;
+            let repository = config.update_repository();
+            let result = self_update_with_options(SelfUpdateOptions {
+                version: version.as_deref(),
+                check_only: check,
+                force,
+                target: target.as_deref(),
+                repository: repository.as_deref(),
+            })?;
             if json {
                 println!("{}", serde_json::to_string_pretty(&result)?);
             } else if result.updated {

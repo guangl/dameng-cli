@@ -46,6 +46,12 @@ fn hint_for(error: &Error) -> String {
     if text.contains("not writable") || text.contains("cannot open sqlite") {
         return "请检查 `DM_PLUGIN_HOME` 目录是否存在且可写，或设置 `DM_PLUGIN_HOME` 指向可写目录。".into();
     }
+    if text.contains("config.toml") {
+        return "请检查 `<DM_PLUGIN_HOME>/config.toml`：它只支持 `log` 与 `update_repository` 两个键，且必须是合法 TOML；也可以删除该文件改用默认值。".into();
+    }
+    if text.contains("owner/repository form") {
+        return "请把 `DM_UPDATE_REPOSITORY` 或 `config.toml` 中的 `update_repository` 改成 `owner/repository` 形式。".into();
+    }
     if text.contains("unknown permission") {
         return "`dm-plugin.toml` 中的 permissions 仅支持 filesystem、network、process。".into();
     }
@@ -91,6 +97,22 @@ mod tests {
         assert!(hint_for_message("Source must be a local plugin directory").contains("<source>"));
         assert!(hint_for_message("directory is not writable").contains("DM_PLUGIN_HOME"));
         assert!(hint_for_message("Prebuilt plugin SHA-256 mismatch").contains("重新下载"));
+        assert!(
+            hint_for_message(
+                "Invalid configuration /home/me/.config/dm/config.toml: unknown field"
+            )
+            .contains("config.toml")
+        );
+        assert!(
+            hint_for_message("Self-update repository 'x' must be in owner/repository form")
+                .contains("owner/repository")
+        );
+        assert!(hint_for_message("stale transaction directory: .install-x").contains("dm doctor"));
+        assert!(hint_for_message("unknown permission 'root'").contains("permissions"));
+        assert!(hint_for_message("Unsupported plugin API version 2").contains("API 版本"));
+        assert!(hint_for_message("Invalid manifest /x/dm-plugin.toml").contains("dm-plugin.toml"));
+        assert!(hint_for_message("Self-update release asset is missing").contains("自更新失败"));
+        assert!(hint_for_message("Invalid plugin name").contains("插件名"));
     }
 
     #[test]

@@ -1,0 +1,20 @@
+# dm 宿主配置文件示例（config.toml）
+#
+# 用法：把本文件复制到宿主数据目录并改名为 config.toml。
+#   Linux / macOS: cp examples/config.toml "${DM_PLUGIN_HOME:-$HOME/.config/dm}/config.toml"
+#   Windows:       copy examples\config.toml %LOCALAPPDATA%\dm\config.toml
+#
+# 说明：
+#   - 该文件是可选的；不存在时宿主使用同样的默认值，一切行为与未启用配置文件时一致。
+#   - 取值优先级：命令行参数 > 环境变量 > 本文件 > 内置默认值。
+#   - 只识别下面两个键；出现未知键、空值或非法 TOML 时，命令会直接失败并打印该文件路径。
+#   - 文件位于数据目录内，因此不能在这里修改数据目录本身；请用 DM_PLUGIN_HOME 改变它。
+
+# 日志过滤级别，等价于环境变量 DM_LOG，默认 "info"。
+# 取值：off / error / warn / info / debug / trace，或模块级过滤表达式，例如 "dm=debug"。
+# 日志始终写入 stderr，stdout 只保留命令结果与 JSON。
+log = "info"
+
+# dm self-update 使用的 GitHub 仓库，等价于环境变量 DM_UPDATE_REPOSITORY，
+# 默认 "guangl/dameng-cli"。必须是 owner/repository 形式；面向测试或自建分发时改成自己的仓库。
+update_repository = "guangl/dameng-cli"
