@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, ensure};
+use log::{debug, info};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -28,6 +29,10 @@ pub fn self_update_with_options(
     force: bool,
     target_override: Option<&str>,
 ) -> Result<SelfUpdateResult> {
+    info!(
+        "self-update requested={:?} check_only={check_only} force={force} target={:?}",
+        requested, target_override
+    );
     let repository = env::var("DM_UPDATE_REPOSITORY").unwrap_or_else(|_| DEFAULT_REPOSITORY.into());
     validate_repository(&repository)?;
     let temp = tempfile::tempdir()?;
@@ -47,6 +52,10 @@ pub fn self_update_with_options(
         available_version: available.to_string(),
         updated: false,
     };
+    debug!(
+        "self-update current={} available={}",
+        result.current_version, result.available_version
+    );
     if check_only || (available <= current && !force) {
         return Ok(result);
     }
@@ -74,6 +83,7 @@ pub fn self_update_with_options(
     download(&format!("{base}/{archive_name}.sha256"), &checksum)?;
     verify_checksum(&fs::read(&archive)?, &fs::read(&checksum)?)?;
     let replacement = extract_binary(&archive, temp.path(), &tag, &target)?;
+    info!("installing dm {available}");
     replace_current_executable(&replacement)?;
     Ok(SelfUpdateResult {
         updated: true,
@@ -113,7 +123,7 @@ pub fn validate_repository(repository: &str) -> Result<()> {
 }
 
 fn download(url: &str, destination: &std::path::Path) -> Result<()> {
-    eprintln!("Downloading {url}");
+    info!("downloading {url}");
     let status = Command::new("curl")
         .args([
             "-fsSL",

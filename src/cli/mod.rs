@@ -1,4 +1,7 @@
+mod report;
 mod table;
+
+pub(crate) use report::report;
 
 use anyhow::{Context, Result};
 use clap::{CommandFactory, Parser, Subcommand};
@@ -76,6 +79,10 @@ enum Command {
     Plugin(Vec<OsString>),
 }
 
+fn print_no_plugins() {
+    println!("No plugins installed. Run `dm install <source>` to add one.");
+}
+
 pub fn run() -> Result<i32> {
     let cli = Cli::parse();
     let store = PluginStore::from_env()?;
@@ -88,6 +95,8 @@ pub fn run() -> Result<i32> {
             let plugins = store.list_info()?;
             if json {
                 println!("{}", serde_json::to_string_pretty(&plugins)?);
+            } else if plugins.is_empty() {
+                print_no_plugins();
             } else {
                 print!("{}", table::render(&plugins));
             }
@@ -117,14 +126,21 @@ pub fn run() -> Result<i32> {
             if all {
                 let results = store.update_all();
                 let mut failures = Vec::new();
+                let mut updated = Vec::new();
                 for (name, result) in results {
                     match result {
-                        Ok(manifest) => println!("Updated {name} to {}", manifest.version),
+                        Ok(manifest) => {
+                            println!("Updated {name} to {}", manifest.version);
+                            updated.push(name);
+                        }
                         Err(error) => failures.push(format!("{name}: {error:#}")),
                     }
                 }
                 if !failures.is_empty() {
                     anyhow::bail!("Some updates failed:\n{}", failures.join("\n"));
+                }
+                if updated.is_empty() {
+                    print_no_plugins();
                 }
             } else {
                 let name = name.context("Provide a plugin name or use --all")?;
@@ -136,6 +152,8 @@ pub fn run() -> Result<i32> {
             let statuses = store.outdated()?;
             if json {
                 println!("{}", serde_json::to_string_pretty(&statuses)?);
+            } else if statuses.is_empty() {
+                print_no_plugins();
             } else {
                 for status in statuses {
                     println!(
@@ -153,8 +171,13 @@ pub fn run() -> Result<i32> {
             }
         }
         Command::Verify { name } => {
-            for name in store.verify(name.as_deref())? {
-                println!("Verified {name}");
+            let names = store.verify(name.as_deref())?;
+            if names.is_empty() {
+                print_no_plugins();
+            } else {
+                for name in names {
+                    println!("Verified {name}");
+                }
             }
         }
         Command::Doctor { repair, json } => {

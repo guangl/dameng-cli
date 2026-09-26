@@ -3,7 +3,11 @@
 ## Unreleased
 
 - 移除 minisign 签名：`dm self-update` 与 `scripts/install.sh` 仅校验 SHA-256；删除 `signing/` 公钥目录、`MINISIGN_SECRET_KEY` 发布 secret 与 `DM_MINISIGN_PUBLIC_KEY` 覆盖项。注意：更早版本的 `dm` 会强制校验签名，因此无法自更新到本次之后的 Release，需重新执行安装脚本或手动替换一次。
+- 增加统一日志后端：诊断日志写入 stderr，默认 `info` 级别，可用 `DM_LOG`（`off`/`error`/`warn`/`info`/`debug`/`trace`）调整；stdout 保持机器可读。
+- 失败输出改为友好三段式：`错误`（一行摘要）、`详情`（完整错误链）与 `提示`（可操作的下一步）；同一错误同时进入日志后端，便于排查。
+- `dm ssh` 插件错误同样附带可操作的 `提示`。
 - `dm list` 改为输出带边框的 UTF-8 表格，展示 Name、Version、Description、Source、Revision 与 Installed At（UTC）；`--json` 输出保持不变，供脚本解析。
+- `dm list`、`dm outdated`、`dm verify` 与 `dm update --all` 在没有插件时输出明确提示，不再静默无输出；`--json` 仍输出 `[]`。
 - 新增 `plugins/ssh` 插件，提供 `dm ssh add/list/remove/test/ssh` SSH 服务器管理；配置写入插件自身的 `data/ssh/servers.sqlite3`，密码与私钥 passphrase 使用本机 AES-GCM 密钥加密。安装脚本会一并安装宿主和该插件。
 - `dm ssh add` 支持在终端下省略任意字段时逐项交互式输入（名称、主机、端口、用户名、认证方式及密码/密钥 passphrase），密码与 passphrase 隐藏回显，避免出现在命令行与 shell 历史中；空 passphrase 视为未加密密钥。
 - `dm install` 改为只安装预编译插件，取消源码编译与 `--accept-permissions`；宿主数据目录环境变量从 `DM_HOME` 改为 `DM_PLUGIN_HOME`，安装/克隆输出默认静默并显示进度条。

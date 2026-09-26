@@ -111,7 +111,7 @@ fn rust_plugin_lifecycle_and_process_contract() {
     let temp = TempDir::new().unwrap();
     let home = temp.path().join("dm home");
     let source = fixture(temp.path());
-    assert!(ok(dm(&home).arg("list").output().unwrap()).is_empty());
+    assert!(ok(dm(&home).arg("list").output().unwrap()).contains("No plugins installed"));
     assert!(home.join("store.sqlite3").is_file());
     assert!(
         ok(dm(&home).arg("install").arg(&source).output().unwrap()).contains("Installed probe")
@@ -189,7 +189,7 @@ fn rust_plugin_lifecycle_and_process_contract() {
     // A broken plugin must remain removable.
     fs::write(home.join("plugins/probe/dm-plugin.toml"), "broken").unwrap();
     ok(dm(&home).args(["uninstall", "probe"]).output().unwrap());
-    assert!(ok(dm(&home).arg("list").output().unwrap()).is_empty());
+    assert!(ok(dm(&home).arg("list").output().unwrap()).contains("No plugins installed"));
     for directory in ["config", "data", "cache"] {
         assert!(!home.join(directory).join("probe").exists());
     }
