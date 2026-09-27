@@ -8,6 +8,16 @@
 
 本仓库维护 `dm` 宿主、Rust 插件 SDK、协议与基础示例。数据库连接、SQL 工具、导入导出、巡检等业务功能应建立独立 Rust 插件，不添加到宿主。
 
+代码按职责拆成小文件：**每个 `.rs` 文件不超过 200 行**，由 `sh scripts/check_file_lines.sh` 在 CI 中把关，超过时按模块继续拆分。
+
+**测试一律放在 `tests/` 目录**，实现文件里不再保留 `#[cfg(test)]` 模块：
+
+- `tests/unit/`：库级测试（清单、配置、存储辅助函数、CLI 输出渲染等），由 `tests/unit/main.rs` 汇总多个主题模块；
+- `tests/integration/`：进程级测试（真实安装、生命周期、恢复、自更新），由 `tests/integration/main.rs` 汇总；
+- 每个插件在自己的 `tests/` 下按同样方式组织（例如 `plugins/db/tests/unit/main.rs`）。
+
+共享测试夹具放在同一个 `common` 模块里，用 `use crate::common::*;` 引用，不要复制。
+
 ## 本地验证
 
 需要稳定版 Rust、Cargo 和 Git。

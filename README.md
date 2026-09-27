@@ -117,7 +117,7 @@ fn main() {
 
 ## 开发与仓库维护
 
-源码按职责组织：`src/plugin/` 保存插件清单，`src/infrastructure/` 保存 SQLite 存储和宿主自更新，`src/cli/` 只负责命令解析与调度。测试分别位于 `tests/unit/` 和 `tests/integration/`，避免实现模块与端到端场景混在同一目录。
+源码按职责组织：`src/plugin/` 保存插件清单，`src/infrastructure/` 保存 SQLite 存储和宿主自更新，`src/cli/` 只负责命令解析与调度（属于库，便于测试直接调用）。每个 `.rs` 文件不超过 200 行，测试全部位于 `tests/` 下：`tests/unit/` 放库级用例，`tests/integration/` 放端到端场景，各自按主题拆成多个模块，避免实现模块与端到端场景混在一起。
 
 ```sh
 cargo fmt --all -- --check

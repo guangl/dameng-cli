@@ -1,24 +1,11 @@
-use std::{fs, path::Path, process::Command};
+//! The optional `config.toml` file: parsing, validation and errors.
+
+use crate::common::dm_isolated as dm;
+use crate::common::*;
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 use tempfile::TempDir;
-
-/// Build a `dm` invocation that is isolated from the developer's own host state.
-fn dm(home: &Path) -> Command {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_dm"));
-    command
-        .env("DM_PLUGIN_HOME", home)
-        .env_remove("DM_LOG")
-        .env_remove("RUST_LOG")
-        .env_remove("DM_UPDATE_REPOSITORY");
-    command
-}
-
-fn write_config(home: &Path, text: &str) {
-    fs::write(home.join("config.toml"), text).unwrap();
-}
-
-fn stderr(output: &std::process::Output) -> String {
-    String::from_utf8_lossy(&output.stderr).into_owned()
-}
 
 #[test]
 fn config_file_sets_log_filter() {
@@ -39,32 +26,6 @@ fn config_file_sets_log_filter() {
     assert!(output.status.success(), "{}", stderr(&output));
     assert!(!stderr(&output).contains("opened plugin store"));
 }
-
-#[test]
-fn environment_overrides_repository_from_config_file() {
-    let temp = TempDir::new().unwrap();
-    write_config(temp.path(), "[update]\nrepository = \"config-only\"\n");
-
-    let args = ["self-update", "--check", "--version", "0.0.1", "--json"];
-    let output = dm(temp.path()).args(args).output().unwrap();
-    assert!(!output.status.success());
-    assert!(
-        stderr(&output).contains("config-only"),
-        "stderr: {}",
-        stderr(&output)
-    );
-
-    let output = dm(temp.path())
-        .env("DM_UPDATE_REPOSITORY", "example/override")
-        .args(args)
-        .output()
-        .unwrap();
-    assert!(output.status.success(), "{}", stderr(&output));
-    let parsed: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(parsed["updated"], false);
-    assert_eq!(parsed["available_version"], "0.0.1");
-}
-
 #[test]
 fn invalid_config_file_reports_actionable_error() {
     let temp = TempDir::new().unwrap();
@@ -80,7 +41,6 @@ fn invalid_config_file_reports_actionable_error() {
         "stderr: {stderr}"
     );
 }
-
 #[test]
 fn empty_config_value_is_rejected() {
     let temp = TempDir::new().unwrap();
@@ -92,7 +52,6 @@ fn empty_config_value_is_rejected() {
     assert!(stderr.contains("config.toml"), "stderr: {stderr}");
     assert!(stderr.contains("must not be empty"), "stderr: {stderr}");
 }
-
 #[test]
 fn unreadable_config_path_reports_the_file() {
     let temp = TempDir::new().unwrap();
@@ -106,7 +65,6 @@ fn unreadable_config_path_reports_the_file() {
     assert!(stderr.contains("config.toml"), "stderr: {stderr}");
     assert!(stderr.contains("提示："), "stderr: {stderr}");
 }
-
 #[test]
 fn unresolvable_data_directory_is_reported() {
     let output = Command::new(env!("CARGO_BIN_EXE_dm"))
@@ -125,7 +83,6 @@ fn unresolvable_data_directory_is_reported() {
         "stderr: {stderr}"
     );
 }
-
 #[test]
 fn shipped_example_config_is_accepted_by_the_host() {
     let example = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/config.toml");
@@ -161,7 +118,6 @@ fn invalid_plugin_environment_entry_names_the_key() {
     assert!(stderr.contains("plugin.environment"), "stderr: {stderr}");
     assert!(stderr.contains("提示："), "stderr: {stderr}");
 }
-
 #[test]
 fn invalid_progress_override_in_the_environment_is_rejected() {
     let temp = TempDir::new().unwrap();
@@ -178,7 +134,6 @@ fn invalid_progress_override_in_the_environment_is_rejected() {
         "stderr: {stderr}"
     );
 }
-
 #[test]
 fn progress_switch_is_accepted_from_the_file_and_the_environment() {
     let temp = TempDir::new().unwrap();
@@ -204,42 +159,4 @@ fn progress_switch_is_accepted_from_the_file_and_the_environment() {
             stderr(&output)
         );
     }
-}
-
-#[test]
-fn configured_update_target_is_validated_before_any_download() {
-    let temp = TempDir::new().unwrap();
-    write_config(
-        temp.path(),
-        "[update]\ntarget = \"mips-unknown-linux-gnu\"\n",
-    );
-
-    // `--force` skips the version comparison so the target check runs; it happens
-    // before the first download, so this stays offline.
-    let args = ["self-update", "--version", "0.0.1", "--force"];
-    let output = dm(temp.path()).args(args).output().unwrap();
-    assert!(!output.status.success());
-    let rejected = stderr(&output);
-    assert!(
-        rejected.contains("not published for target mips-unknown-linux-gnu"),
-        "stderr: {rejected}"
-    );
-    assert!(
-        rejected.contains("aarch64-apple-darwin"),
-        "stderr: {rejected}"
-    );
-
-    // DM_UPDATE_TARGET wins over the file value and is validated the same way.
-    write_config(temp.path(), "[update]\ntarget = \"aarch64-apple-darwin\"\n");
-    let output = dm(temp.path())
-        .env("DM_UPDATE_TARGET", "sparc-unknown-linux-gnu")
-        .args(args)
-        .output()
-        .unwrap();
-    assert!(!output.status.success());
-    assert!(
-        stderr(&output).contains("sparc-unknown-linux-gnu"),
-        "{}",
-        stderr(&output)
-    );
 }

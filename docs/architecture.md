@@ -22,15 +22,20 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
 
 | 模块 | 责任 |
 | --- | --- |
-| `src/main.rs` / `src/cli/` | 程序入口与命令解析、内置命令、外部子命令路由、错误展示 |
+| `src/main.rs` | 进程入口：加载配置、初始化日志、转换退出码 |
+| `src/cli/`（属于库） | 命令解析、内置命令、外部子命令路由、错误展示与表格渲染；放在库里，测试可以直接调用 |
 | `src/plugin/` | 严格清单解析、名称限制、API 版本和固定入口命名 |
 | `src/infrastructure/store/` | SQLite 元数据、来源与 revision、编译安装、原子更新、校验修复、卸载、进程调用 |
 | `src/infrastructure/config.rs` | `<DM_PLUGIN_HOME>/config.toml` 的 `[log]`/`[update]`/`[output]`/`[plugin]` 四张表的解析与校验、默认值与「环境变量优先」的取值规则 |
 | `src/infrastructure/self_update/` | 宿主 Release 查询、下载、SHA-256 校验、解包和原子自替换 |
 | `crates/dm-plugin-sdk` | `Plugin` / `Context` / `PluginResult` 和协议版本 |
 | `examples/hello` | 唯一演示插件，验证 SDK 使用方法 |
-| `tests/unit/` | 清单与自更新辅助函数的单元测试 |
+| `tests/unit/` | 清单、配置、存储辅助函数与 CLI 渲染的库级测试 |
 | `tests/integration/` | 真实 Rust crate 安装、生命周期、恢复和自更新回归测试 |
+
+## 文件组织
+
+每个 `.rs` 文件不超过 200 行，`sh scripts/check_file_lines.sh` 在 CI 中校验，超出时继续按职责拆模块。测试只放在 `tests/` 下，实现文件里不保留 `#[cfg(test)]` 模块；每个测试目标由 `main.rs` 汇总同级模块，共享夹具放在该目标的 `common` 模块里。插件遵循同样的规则：`plugins/<name>/src/` 按职责拆模块，测试放在 `plugins/<name>/tests/` 下。
 
 ## 安装事务
 

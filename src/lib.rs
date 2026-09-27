@@ -1,4 +1,6 @@
 //! Process-based plugin host. Database functionality belongs in separate plugins.
+/// Command-line interface, including the renderers used by its tests.
+pub mod cli;
 mod infrastructure;
 mod plugin;
 
