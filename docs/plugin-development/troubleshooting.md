@@ -10,11 +10,11 @@ description: 定位插件清单、构建、安装、运行协议和数据库环�
 
 | 错误或现象 | 原因 | 处理方式 |
 | --- | --- | --- |
-| `Rust plugins must include Cargo.toml` | 仓库根目录不是插件 crate。 | 将 crate 移到根目录，或从正确的本地目录安装。 |
-| `Cargo package version must match` | Cargo 与 `dm-plugin.toml` 的版本不同。 | 将两个版本改为完全一致。 |
-| `Rust plugins must depend on dm-plugin-sdk` | 依赖键缺失或改了名字。 | 在 `[dependencies]` 中显式使用键 `dm-plugin-sdk`。 |
-| `must declare [[bin]]` | binary target 名称不是 `dm-<name>`。 | 补充正确的 `[[bin]]` 配置。 |
-| locked build 失败 | 缺少或过期的 `Cargo.lock`。 | 运行 `cargo generate-lockfile`，本地执行 `cargo build --release --locked` 后提交。 |
+| `Local plugin package has no dm-<name> binary` | 本地包目录里没有编译好的可执行文件，宿主不编译源码。 | 先 `cargo build --release --locked`，把 `target/release/dm-<name>`（Windows 为 `.exe`）放到 `dm-plugin.toml` 同级再安装。 |
+| `No prebuilt plugin 'dm-<name>-<target>' found` | 远程仓库 Release 没有与清单版本、本机 target 匹配的资产。 | 按约定发布 `dm-<name>-<target>` 与同名 `.sha256`；也可改用本地包目录安装。 |
+| `Prebuilt plugin SHA-256 mismatch` | 下载的资产与 `.sha256` 侧车不一致。 | 停止安装，核对 Release 资产与网络链路后重试，不要绕过校验。 |
+| `Manifest must be a regular file` / `Invalid manifest` / `Manifest exceeds 64 KiB` | 清单是符号链接、超过 64 KiB，或含未知字段、非法名称与环境变量名。 | 按[项目结构与清单](manifest.html)修正；宿主拒绝一切未知字段。 |
+| `Unsupported plugin API` / `Plugin requires dm ... or newer` | `api_version` 或 `min_host_version` 与本机宿主不符。 | 升级宿主或改用兼容版本的插件。 |
 | Git 无法获取插件 | URL 不是 HTTPS、需要交互认证或网络不可用。 | 使用可访问的 HTTPS Git URL；私有仓库需由用户提前配置非交互 Git 凭证。 |
 | 插件已安装 | 同名目录已经存在。 | 升级用 `dm update <name>`；要从包目录（例如安装脚本解包出的目录）替换安装，用 `dm install <目录> --replace`，它保留插件的 config/data/cache。 |
 | `Hook ... failed` | hook 不可执行、退出非零或依赖了被清理的环境。 | 检查相对路径、执行权限、`DM_HOOK_PHASE` 和清单环境白名单；失败的安装/卸载会回滚。 |
@@ -30,12 +30,14 @@ description: 定位插件清单、构建、安装、运行协议和数据库环�
 | 插件参数乱码 | 将非 UTF-8 `OsString` 强制转换。 | 保留 `OsString`，仅在必要位置验证 UTF-8。 |
 | `dm list` 或运行时清单错误 | 安装目录、SQLite 或事务目录损坏。 | 先运行 `dm doctor`，确认报告后运行 `dm doctor --repair`。 |
 | `checksum mismatch` | binary 被修改或元数据不一致。 | 不要自动信任或覆盖；审查后从固定 revision 重新安装。 |
+| `Missing executable ...` / `Plugin is not executable` / `Executable must be a regular file, not a symlink` | 已安装目录里的 `dm-<name>` 被删除、去掉可执行位或换成了软链接。 | 安装目录由宿主管理：运行 `dm doctor` 检查，必要时用 `dm install <包目录> --replace` 重新安装。 |
+| `Plugin source is not updateable` | 插件的来源已经不存在（安装脚本使用的临时目录）。 | 重新运行安装脚本，或 `dm install <新的包目录> --replace`，配置与数据会保留。 |
 
 ## 宿主更新
 
 | 错误或现象 | 原因 | 处理方式 |
 | --- | --- | --- |
-| `Self-update is not published for target` | 当前或覆盖 target 没有 Release 产物。 | 使用支持的 target，或手工从源码安装。 |
+| `Self-update is not published for target` | 当前或覆盖 target 没有 Release 产物。 | 使用受支持的 target；需要本机编译宿主时用 `scripts/install-local.sh` 或 `cargo install --path . --locked`。 |
 | `Release SHA-256 mismatch` | 资产损坏或被篡改。 | 立即停止更新；检查 Release 来源及 `DM_UPDATE_REPOSITORY`，不要绕过校验。 |
 | 自更新缺少工具 | 系统没有 `curl`、Unix `tar` 或 Windows PowerShell。 | 安装对应系统工具，或下载 Release 后按校验说明手工安装。 |
 

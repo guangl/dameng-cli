@@ -447,13 +447,13 @@
       <div class="section-heading">
         <span class="eyebrow">Four clear steps</span>
         <h2>从空目录到可调用插件</h2>
-        <p>插件仓库保持独立。宿主安装时会检查清单、依赖和 binary target，然后执行 locked release build。</p>
+        <p>插件仓库保持独立。宿主安装时校验清单，并复制本地包目录里的 <code>dm-&lt;name&gt;</code> 或下载 Release 中的预编译资产，全程不编译源码。</p>
       </div>
       <div class="steps">
         <article class="step"><span class="step-number">01</span><h3>创建 crate</h3><p>新建 binary crate，并添加 dm-plugin-sdk 依赖。</p></article>
         <article class="step"><span class="step-number">02</span><h3>声明清单</h3><p>用 dm-plugin.toml 描述名称、版本和 API。</p></article>
         <article class="step"><span class="step-number">03</span><h3>实现 Plugin</h3><p>读取 Context，在 run 方法中实现业务能力。</p></article>
-        <article class="step"><span class="step-number">04</span><h3>本地验证</h3><p>生成锁文件，通过 dm install 和真实调用验证。</p></article>
+        <article class="step"><span class="step-number">04</span><h3>本地验证</h3><p>locked 构建出 dm-&lt;name&gt; 放进包目录，再通过 dm install 和真实调用验证。</p></article>
       </div>
     </section>
 
@@ -533,11 +533,11 @@ environment = [<span class="token-string">"DM_DATABASE_URL"</span>]</code></pre>
           <div class="section-heading">
             <span class="eyebrow">Before publishing</span>
             <h2>交付前检查</h2>
-            <p>安装过程会运行 Cargo 构建脚本，因此用户只应安装可信源码。插件仓库需要能够独立解析所有依赖。</p>
+            <p>宿主安装的是预编译二进制，不会执行 Cargo 构建；但插件与 hook 以当前用户权限运行，用户仍只应安装可信来源。插件仓库需要能够独立解析所有依赖，并按约定命名产物。</p>
           </div>
           <div class="check-list">
-            <div class="check-item"><span class="check-mark">✓</span><div><strong>清单与 crate 版本一致</strong><span>避免安装时因版本不匹配被拒绝。</span></div></div>
-            <div class="check-item"><span class="check-mark">✓</span><div><strong>提交 Cargo.lock</strong><span>远程安装始终使用 --locked 构建。</span></div></div>
+            <div class="check-item"><span class="check-mark">✓</span><div><strong>清单与 crate 版本一致</strong><span>Release 资产按清单版本命名，保持一致才不会找错产物。</span></div></div>
+            <div class="check-item"><span class="check-mark">✓</span><div><strong>提交 Cargo.lock</strong><span>发布前用 --locked 构建出要发布的产物。</span></div></div>
             <div class="check-item"><span class="check-mark">✓</span><div><strong>入口名称符合约定</strong><span>backup 对应 dm-backup，不接受脚本入口。</span></div></div>
             <div class="check-item"><span class="check-mark">✓</span><div><strong>hook 可审查</strong><span>脚本可重复执行，失败时安全退出。</span></div></div>
             <div class="check-item"><span class="check-mark">✓</span><div><strong>错误返回非零退出码</strong><span>标准输出、错误输出和退出码是公共接口。</span></div></div>
@@ -546,6 +546,8 @@ environment = [<span class="token-string">"DM_DATABASE_URL"</span>]</code></pre>
         <aside class="command-card" aria-label="验证命令">
           <p>在 dameng-cli 仓库根目录执行：</p>
           <code>cargo generate-lockfile</code>
+          <code>cargo build --release --locked</code>
+          <code>cp target/release/dm-backup ./my-plugin</code>
           <code>dm install ./my-plugin</code>
           <code>dm list</code>
           <code>dm verify</code>

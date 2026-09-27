@@ -26,7 +26,7 @@ description: 独立插件仓库、本地安装、Git 安装和版本策略。
 dm install ./dm-plugin-backup
 ```
 
-本地安装要求目录内已包含 `dm-<name>` 二进制和 `dm-plugin.toml`；宿主只复制这两个文件，不执行编译。
+本地安装要求目录内已包含 `dm-<name>` 二进制和 `dm-plugin.toml`；宿主只复制这两者（以及清单声明的 hook），不执行编译。
 
 ## HTTPS Git 安装
 

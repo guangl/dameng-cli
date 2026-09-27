@@ -8,10 +8,10 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
 
 ```text
 用户 -> dm (CLI)
-          ├─ install/update -> 本地路径 / HTTPS Git revision
-          │             -> 清单与 API 校验 -> 生命周期 hook
-          │             -> Cargo locked release build
-          │             -> 临时目录校验 -> 原子重命名 -> 旧版本备份
+          ├─ install/update -> 本地包目录 / HTTPS Git revision
+          │             -> 清单校验 + 预编译 dm-<name>（本地复制或 Release 资产）
+          │             -> 生命周期 hook
+          │             -> 暂存目录校验 -> 原子重命名 -> 旧版本备份
           ├─ list/info/outdated/verify/doctor -> 本地插件状态与恢复
           ├─ self-update -> GitHub Release + SHA-256 -> 原子替换宿主
           └─ <plugin> [args] -> Rust 插件独立进程 -> 数据库工具逻辑
@@ -25,7 +25,7 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
 | `src/main.rs` | 进程入口：加载配置、初始化日志、转换退出码 |
 | `src/cli/`（属于库） | 命令解析、内置命令、外部子命令路由、错误展示与表格渲染；放在库里，测试可以直接调用 |
 | `src/plugin/` | 严格清单解析、名称限制、API 版本和固定入口命名 |
-| `src/infrastructure/store/` | SQLite 元数据、来源与 revision、编译安装、原子更新、校验修复、卸载、进程调用 |
+| `src/infrastructure/store/` | SQLite 元数据、来源与 revision、预编译安装、原子更新、校验修复、卸载、进程调用 |
 | `src/infrastructure/config.rs` | `<DM_PLUGIN_HOME>/config.toml` 的 `[log]`/`[update]`/`[output]`/`[plugin]` 四张表的解析与校验、默认值与「环境变量优先」的取值规则 |
 | `src/infrastructure/self_update/` | 宿主 Release 查询、下载、SHA-256 校验、解包和原子自替换 |
 | `crates/dm-plugin-sdk` | `Plugin` / `Context` / `PluginResult` 和协议版本 |
@@ -39,10 +39,9 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
 
 ## 安装事务
 
-插件只能从 Rust 源码安装，必须显式依赖 `dm-plugin-sdk` 并声明 `dm-<name>` binary target。
-本地源码不复制，远程源码浅克隆到临时目录；宿主通过 Cargo 编译到插件存储内的独立临时目录，显式指定宿主 target，避免用户默认交叉编译目标导致安装错误产物。
-只将清单与编译后的可执行文件装入最终目录；源文件、Git 元数据和构建缓存不会进入安装结果。资源应通过 Rust 的 `include_str!` / `include_bytes!` 嵌入。
-安装/升级会把清单里的 `environment` 白名单一并记录，不再要求用户交互确认；清单声明的 hook 会在对应阶段以当前用户权限运行。编译失败时清理临时目录；成功后使用同文件系统目录重命名发布，再将经过校验的清单、来源、revision 和 SHA-256 写入 SQLite。数据库写入失败时恢复旧插件。拒绝同名直接覆盖，并发安装只有一个成功；进程被强制杀死时可能留下隐藏事务目录，`dm doctor --repair` 会识别安装和卸载事务，并根据 SQLite 中已提交的清单协调活动目录。
+宿主只安装预编译插件，从不编译 Rust 源码：本地来源必须是同时包含 `dm-plugin.toml` 和 `dm-<name>` 可执行文件的包目录，直接复制该二进制；HTTPS Git 来源会浅克隆仓库（固定 `--rev` 时完整克隆后检出）读取清单，再从该仓库 GitHub Release 下载与本机 target 匹配的 `dm-<name>` 资产与可选的 `.sha256` 侧车。包目录里没有二进制、或 Release 没有对应产物时，安装直接失败。
+只将规范化清单、`dm-<name>` 二进制和清单声明的 hook 装入最终目录；源文件、构建目录和 Git 元数据不会进入安装结果。资源应通过 Rust 的 `include_str!` / `include_bytes!` 嵌入。
+安装/升级会把清单里的 `environment` 白名单一并记录，不再要求用户交互确认；清单声明的 hook 会在对应阶段以当前用户权限运行。复制或下载失败时清理暂存目录；成功后使用同文件系统目录重命名发布，再将经过校验的清单、来源、revision 和 SHA-256 写入 SQLite。数据库写入失败时恢复旧插件。拒绝同名直接覆盖，并发安装只有一个成功；进程被强制杀死时可能留下隐藏事务目录，`dm doctor --repair` 会识别安装和卸载事务，并根据 SQLite 中已提交的清单协调活动目录。
 不支持安装过程中修改源码或同时卸载正在运行的插件。
 
 ```text
@@ -64,7 +63,7 @@ DM_PLUGIN_HOME/
 
 SDK 使用 Rust trait 统一开发接口；跨进程只约定参数、环境变量、标准输入输出和退出码，不共享 Rust 内存布局。安装 API 和运行 SDK API 都检查兼容性。
 宿主不连接数据库，不引入数据库 SDK，不维护全局连接或业务命令。宿主配置只描述宿主自身行为；插件设置放在各插件的 `config/<name>/` 目录中，由插件解析，宿主不读写。
-独立进程提供故障隔离，但不是权限沙箱。Cargo 构建脚本和插件拥有当前用户权限。宿主会清理运行时环境，仅继承安全基础变量和清单白名单。SDK 依赖声明、Git revision 和本地 SHA-256 也不等于发布者身份认证。
+独立进程提供故障隔离，但不是权限沙箱。插件 binary 与生命周期 hook 都拥有当前用户权限。宿主会清理运行时环境，仅继承安全基础变量和清单白名单。SDK 依赖声明、Git revision 和本地 SHA-256 也不等于发布者身份认证。
 插件需要的数据库客户端动态库由插件作者声明和管理；宿主不会自动打包动态库。
 
 ## 后续扩展位置

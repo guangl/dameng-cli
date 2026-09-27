@@ -21,6 +21,33 @@ description: dm 命令、环境变量、JSON 输出和常见工作流参考。
 
 `environment` 会随清单记录，用于审查和展示，不再要求交互确认。
 
+## 默认插件
+
+宿主二进制本身**不带任何插件**：用 `cargo install --path .`、Windows Release zip 或自行编译得到的 `dm` 没有任何内置能力，`dm list` 会直接提示尚无插件。
+
+两个官方安装脚本会一并安装内置插件：
+
+| 脚本 | 安装哪些插件 | 记录的来源 |
+| --- | --- | --- |
+| `scripts/install.sh`（远程） | 按 Release 资产 `dm-plugins-<tag>-<target>.txt` 逐行安装本次发布的插件；该资产缺失时回退到脚本内置名单 `ssh db` | Release 解包出的临时目录 |
+| `scripts/install-local.sh`（本地检出） | 固定构建并安装 `ssh` 与 `db` | 检出中的 `plugins/ssh`、`plugins/db` |
+
+当前内置插件是两个：
+
+| 插件 | 提供的命令 | 职责 |
+| --- | --- | --- |
+| `ssh` | `dm ssh add/list/remove/test/ssh` | SSH 服务器连接管理，数据保存在插件自己的 `data/ssh/`。 |
+| `db` | `dm db add/list/remove/test/exec`、`dm db export/import` | 达梦数据库连接管理，连接保存在 `data/db/`；`test`/`exec` 的驱动仍是占位实现。 |
+
+内置插件与自己安装的插件完全等价：`dm list`、`dm info <name>`、`dm verify`、`dm uninstall <name>` 一视同仁，不需要时用 `dm uninstall <name>` 删除（会一并删除它的 config/data/cache）。远程安装脚本只对明确未发布的资产（HTTP 404）提示并跳过，其余网络、HTTP 或校验错误会让整次安装失败，不会静默少装插件。
+
+升级方式取决于安装来源：
+
+- `scripts/install.sh` 从临时目录安装，安装结束后该目录已被删除，记录的来源不可用：`dm update <name>` 会报 `Plugin source is not updateable`；`dm outdated` 会把它们报告成 `unknown`（来源已不存在，无从比较版本，命令本身仍成功）；`dm update --all` 对它们只会报同一条错误。升级内置插件请重新运行安装脚本，或执行 `dm install <新的包目录> --replace`，两者都保留插件的 config/data/cache。
+- `scripts/install-local.sh` 从检出目录安装，只要检出仍在原位置，`dm update ssh`、`dm update db` 就能按来源直接升级。
+
+`dm self-update` 只替换宿主程序本身，不安装也不更新任何插件。
+
 ## 查询、执行与修复
 
 | 命令 | 说明 |
@@ -28,7 +55,7 @@ description: dm 命令、环境变量、JSON 输出和常见工作流参考。
 | `dm list [--json]` | 以带边框表格列出 Name、Version、Description、Source、Revision 与 Installed At（UTC）；`--json` 输出机器可读 JSON。 |
 | `dm info <name> [--json]` | 显示来源、revision、SHA-256、环境变量，以及该插件的 config/data/cache 目录与配置文件是否存在（`--json` 中为 `paths`）。 |
 | `dm <name> [args...]` | 执行启用的插件并原样转发参数。 |
-| `dm outdated [--json]` | 并行读取各来源的清单版本；固定 ref 仍按原 ref 检查。 |
+| `dm outdated [--json]` | 并行读取各来源的清单版本；固定 ref 仍按原 ref 检查。来源是已被删除的本地目录（例如安装脚本的临时目录）时该项报告 `unknown`、`update_available` 为 `false`，不会让整条命令失败。 |
 | `dm verify [name]` | 校验磁盘清单与记录的 binary SHA-256。 |
 | `dm doctor [--repair] [--json]` | 检查 SQLite、插件目录、残留事务及孤立目录；`--repair` 只处理可恢复问题。 |
 | `dm completions <shell>` | 向 stdout 输出 Bash、Elvish、Fish、PowerShell 或 Zsh completion。 |
