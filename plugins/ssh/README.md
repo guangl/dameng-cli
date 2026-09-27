@@ -21,7 +21,7 @@
 
 - `dm ssh test` 和 `dm ssh ssh` 调用系统的 `ssh`，需要本机可以执行 `ssh`。
 - 密码认证额外需要系统提供 `sshpass`（Debian/Ubuntu 为 `apt install sshpass`，RHEL 系为 `yum install sshpass`；macOS 通常需要另行安装）；没有安装时命令会明确报错并提示改用密钥认证。
-- 密钥认证不会复制私钥：`--key` 只记录路径，目标机器上必须存在该私钥文件。
+- 密钥认证不会复制私钥：`--key` 只记录路径，**运行 `dm ssh` 的本机**上必须存在该私钥文件；远端服务器只需要对应的公钥（通常放在 `~/.ssh/authorized_keys`）。
 
 ## 配置
 

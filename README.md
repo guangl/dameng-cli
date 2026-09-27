@@ -67,7 +67,7 @@ dm uninstall hello
 | `dm verify [name]` | 校验已安装清单与二进制 SHA-256 |
 | `dm doctor [--repair]` | 检查或修复 SQLite、插件目录、残留事务与孤立配置/数据/缓存目录 |
 | `dm uninstall <name>` | 删除插件及其 config/data/cache 隔离目录 |
-| `dm ssh add/list/remove/test/ssh` | 由 `plugins/ssh` 插件提供的 SSH 服务器管理；配置写入插件自身的 `data/ssh/servers.sqlite3`，`add` 在终端下省略任意字段时逐项交互式输入，密码/口令隐藏回显；`list [--json]` 输出带边框表格或 JSON，从不回显秘密；插件自己的默认值写在 `config/ssh/config.toml`（`[defaults]`、`[test]`）。密码认证的 `test`/`ssh` 需要系统安装 `sshpass`，密钥认证只需本机 `ssh` 和目标机器上的私钥 |
+| `dm ssh add/list/remove/test/ssh` | 由 `plugins/ssh` 插件提供的 SSH 服务器管理；配置写入插件自身的 `data/ssh/servers.sqlite3`，`add` 在终端下省略任意字段时逐项交互式输入，密码/口令隐藏回显；`list [--json]` 输出带边框表格或 JSON，从不回显秘密；插件自己的默认值写在 `config/ssh/config.toml`（`[defaults]`、`[test]`）。密码认证的 `test`/`ssh` 需要系统安装 `sshpass`，密钥认证只需本机 `ssh` 与本机上的私钥（远端只需对应公钥） |
 | `dm ssh export/import` | 导出或迁移 SSH 服务器配置；普通导出不带密码与私钥口令，需要携带时使用口令加密导出 |
 | `dm db add/list/remove/test/exec` | 由 `plugins/db` 插件提供的达梦数据库连接管理；连接写入插件自身的 `data/db/connections.sqlite3`，密码用本机 AES-GCM 密钥加密，`add` 在终端下省略任意字段时逐项交互式输入，`list [--json]` 输出带边框表格或 JSON；插件自己的默认值写在 `config/db/config.toml`（`[defaults]` 的 port/username/driver/schema 与 `[connect]` 的 timeout/probe）。`test`（探测语句）与 `exec`（输出制表符分隔的结果集）的命令与接口已就位，但驱动仍是占位实现，当前会明确报错 |
 | `dm db export/import` | 导出或迁移连接配置；普通导出不带密码，需要携带密码时使用口令加密导出 |

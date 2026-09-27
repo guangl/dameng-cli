@@ -60,8 +60,10 @@ pub fn init(filter: &str, home: &Path) {
             .init(),
         Err(error) => {
             init_stderr(filter);
-            log::warn!(
-                "cannot write the log file {}: {error}; logging to stderr instead",
+            // This notice is about logging itself, so it must not be dropped by
+            // the very filter that is in effect.
+            eprintln!(
+                "dm: cannot write the log file {}: {error}; logging to stderr instead",
                 log_file_path(home).display()
             );
         }

@@ -1,5 +1,6 @@
 use dameng_cli::{
-    Config, DEFAULT_LOG_FILTER, cleanup_self_update_backup, cli, home_from_env, logging,
+    Config, DEFAULT_LOG_FILTER, cleanup_self_update_backup, cli, home_from_env,
+    log_filter_from_env, logging,
 };
 use std::path::Path;
 
@@ -12,7 +13,10 @@ fn main() {
     let config = match Config::from_env() {
         Ok(config) => config,
         Err(error) => {
-            init_logging(DEFAULT_LOG_FILTER, home.as_deref());
+            // Only the environment can decide now that the file is unusable;
+            // honouring it keeps `DM_LOG=off` from creating a log file.
+            let filter = log_filter_from_env().unwrap_or_else(|| DEFAULT_LOG_FILTER.to_owned());
+            init_logging(&filter, home.as_deref());
             cli::report(&error);
             std::process::exit(1);
         }

@@ -21,6 +21,17 @@ pub const CONFIG_FILE: &str = "config.toml";
 /// Log filter used when neither the environment nor the file sets one.
 pub const DEFAULT_LOG_FILTER: &str = "info";
 
+/// Log filter from the environment only: `DM_LOG`, then `RUST_LOG`.
+///
+/// The entry point uses this when `<DM_PLUGIN_HOME>/config.toml` could not be
+/// read: `[log] level` is unavailable then, but `DM_LOG=off` still has to keep
+/// the host from creating a log file for that failure.
+pub fn log_filter_from_env() -> Option<String> {
+    env::var("DM_LOG")
+        .ok()
+        .or_else(|| env::var("RUST_LOG").ok())
+}
+
 /// Settings read from `<DM_PLUGIN_HOME>/config.toml`.
 ///
 /// Unknown tables and keys are rejected so typos fail loudly instead of being
@@ -130,9 +141,7 @@ impl Config {
 
     /// Effective log filter: `DM_LOG`, then `RUST_LOG`, then `[log] level`, then `info`.
     pub fn log_filter(&self) -> String {
-        env::var("DM_LOG")
-            .ok()
-            .or_else(|| env::var("RUST_LOG").ok())
+        log_filter_from_env()
             .or_else(|| self.log.level.clone())
             .unwrap_or_else(|| DEFAULT_LOG_FILTER.to_owned())
     }
