@@ -13,10 +13,11 @@ fn source_without_prebuilt_binary_is_rejected() {
     let home = temp.path().join("home");
     let output = dm(&home).arg("install").arg(&source).output().unwrap();
     assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("has no dm-probe binary"), "{stderr}");
     assert!(
-        String::from_utf8_lossy(&output.stderr).contains("prebuilt"),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
+        stderr.contains("cargo build --release --locked"),
+        "{stderr}"
     );
     assert_eq!(fs::read_dir(home.join("plugins")).unwrap().count(), 0);
 }

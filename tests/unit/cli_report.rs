@@ -13,6 +13,10 @@ fn known_failures_get_specific_hints() {
         hint_for_message("Plugin 'x' is already installed; run dm update").contains("--replace")
     );
     assert!(hint_for_message("Plugin source is not updateable").contains("--replace"));
+    assert!(
+        hint_for_message("Local plugin package has no dm-probe binary; build the plugin")
+            .contains("cargo build --release --locked")
+    );
     assert!(hint_for_message("Source must be a local plugin directory").contains("<source>"));
     assert!(hint_for_message("directory is not writable").contains("DM_PLUGIN_HOME"));
     assert!(hint_for_message("Prebuilt plugin SHA-256 mismatch").contains("重新下载"));

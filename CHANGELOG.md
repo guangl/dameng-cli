@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- 全量对齐「宿主只安装预编译插件」的文档：README、架构、发布、清单、快速开始、测试、故障排查、协议规范与文档站点不再声称宿主编译插件源码或解析 `Cargo.toml`；本地安装流程统一为「`cargo build --release --locked` → 把 `dm-<name>` 放到 `dm-plugin.toml` 同级 → `dm install`」，`examples/hello` 的验证命令也改为构建后从包目录安装，且清单文档说明宿主只校验清单本身、Cargo 相关约束转写为发布者约定。
+- `dm install` 在本地包目录缺少 `dm-<name>` 时给出可操作错误 `Local plugin package has no dm-<name> binary; build the plugin and copy it next to dm-plugin.toml`，并提示先 `cargo build --release --locked` 再复制产物；此前这种目录会被当成远程来源，误报 `Prebuilt plugins require a GitHub HTTPS source`。
+- `dm outdated` 不再因某个插件的来源目录已被删除（安装脚本解包用的临时目录）而整条命令失败：这类插件报告 `unknown`，`--json` 中 `available_version` 为 `null`、`update_available` 为 `false`，其余插件照常比较版本。
+- 文档补充内置插件（默认安装的插件）说明：README 与 CLI 参考写明宿主二进制本身不带插件，`scripts/install.sh` 会按 `dm-plugins-<tag>-<target>.txt` 一并安装 `ssh` 与 `db`、`scripts/install-local.sh` 固定安装这两个插件、内置插件与手动安装完全等价，以及远程脚本的临时目录来源使 `dm update`/`dm outdated` 不可用、升级需重新运行安装脚本或 `dm install <包目录> --replace`（本地脚本安装的插件仍可直接 `dm update`）；同时写明 `dm self-update` 只替换宿主、不安装也不更新插件。
 - 移除插件清单的 `permissions` 字段：`dm-plugin.toml` 不再接受权限声明，`dm info` 不再打印 `Permissions:`，`dm info --json` 与 `dm list --json` 的清单中也不再有该键；宿主执行的插件本来就是当前用户权限的原生进程，从未提供权限沙箱。这是破坏性清单变更：清单继续拒绝未知字段，仍写着 `permissions` 的插件仓库会被判为非法清单，SQLite 中记录的旧清单也不再解析，需用 `dm install <包目录> --replace` 重装插件刷新元数据。同时删除已无调用方的 `Manifest::requests_consent_from`。
 - 重构文件组织：测试全部移入 `tests/`，实现文件里不再保留 `#[cfg(test)]` 模块；`tests/unit/main.rs` 与 `tests/integration/main.rs` 各自汇总一个测试二进制，按主题拆成多个模块，共享夹具集中在该目标的 `common` 模块。`src/` 与两个插件按职责拆分为更小的模块，宿主 `src/cli/` 移入库 `dameng_cli::cli`，其错误提示与表格渲染可直接被测试调用；新增 `scripts/check_file_lines.sh` 在 CI 中强制每个 `.rs` 文件不超过 200 行。
 - `dm install` 新增 `--replace`：用一个包目录替换同名已安装插件，保留其 config/data/cache，并在任一步失败时回滚到旧版本（与 `dm update` 相同的原子切换），重复安装不再只能走 `dm update`；重复安装的报错也会提示这两种方式。`scripts/install.sh` 改用 `dm install <包目录> --replace`，因此再次运行安装脚本可以原地升级内置插件（此前会因临时来源目录已被清理而报 `Plugin source is not updateable`），并为这类不可更新来源补了可操作 `提示`。

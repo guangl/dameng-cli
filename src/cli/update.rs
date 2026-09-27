@@ -42,16 +42,19 @@ pub(super) fn outdated(store: &PluginStore, json: bool) -> Result<()> {
         print_no_plugins();
     } else {
         for status in statuses {
+            let state = match status.available_version.as_deref() {
+                Some(_) if status.update_available => "update available",
+                Some(_) => "current",
+                // No comparable source, for example an installer package that
+                // was unpacked from a temporary directory.
+                None => "unknown",
+            };
             println!(
                 "{}\t{}\t{}\t{}",
                 status.name,
                 status.installed_version,
                 status.available_version.as_deref().unwrap_or("unknown"),
-                if status.update_available {
-                    "update available"
-                } else {
-                    "current"
-                }
+                state
             );
         }
     }

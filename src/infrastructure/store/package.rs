@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use log::info;
 use rusqlite::params;
 use std::{fs, path::Path};
@@ -92,7 +92,10 @@ impl PluginStore {
         let local_binary = source.join(manifest.executable_name());
         if local_binary.is_file() {
             fs::copy(&local_binary, &prebuilt).context("Copy local prebuilt plugin")?;
-        } else {
+        } else if recorded_source
+            .as_deref()
+            .is_none_or(|source| source.starts_with("https://"))
+        {
             try_download_prebuilt(
                 recorded_source.as_deref(),
                 &manifest,
@@ -101,6 +104,14 @@ impl PluginStore {
                 self.progress_enabled(),
             )
             .context("Source builds are disabled; install a prebuilt plugin release")?;
+        } else {
+            // A local package that has no built binary: the host never compiles
+            // sources, so name the exact file the user has to build and copy.
+            bail!(
+                "Local plugin package has no {} binary; build the plugin and copy it next to {}",
+                manifest.executable_name(),
+                crate::MANIFEST_FILE
+            );
         }
         if let Some(hook) = manifest.hooks.pre_install.as_deref() {
             self.run_hook(&source, hook, "pre-install", &manifest)?;

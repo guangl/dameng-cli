@@ -90,18 +90,25 @@ impl PluginStore {
                 update_available: false,
             });
         };
-        let available = if Path::new(source).is_dir() {
-            Manifest::read(Path::new(source))?.version
-        } else {
+        let available = if source.starts_with("https://") {
             let (_checkout, root, _revision) =
                 checkout_git(source, info.source_ref.as_deref(), self.progress_enabled())?;
-            Manifest::read(&root)?.version
+            Some(Manifest::read(&root)?.version)
+        } else if Path::new(source).is_dir() {
+            Some(Manifest::read(Path::new(source))?.version)
+        } else {
+            // The recorded local source is gone: installers unpack plugins into
+            // a temporary directory, so a missing directory only means this
+            // plugin cannot be compared, not that the whole check failed.
+            None
         };
-        let update_available = versions_differ(&installed, &available);
+        let update_available = available
+            .as_deref()
+            .is_some_and(|available| versions_differ(&installed, available));
         Ok(UpdateStatus {
             name: info.manifest.name,
             installed_version: installed,
-            available_version: Some(available),
+            available_version: available,
             update_available,
         })
     }

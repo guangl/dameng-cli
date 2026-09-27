@@ -114,6 +114,24 @@ fn outdated_without_source_reports_no_available_version() {
     assert_eq!(statuses[0].available_version, None);
     assert!(!statuses[0].update_available);
 }
+#[test]
+fn outdated_with_removed_local_source_is_unknown() {
+    let temp = TempDir::new().unwrap();
+    let source = fixture(temp.path());
+    let home = temp.path().join("home");
+    let store = PluginStore::new(&home);
+    store.install(source.to_str().unwrap()).unwrap();
+    // Installers unpack plugins into a temporary directory that is gone later.
+    fs::remove_dir_all(&source).unwrap();
+
+    let statuses = store.outdated().unwrap();
+    assert_eq!(statuses.len(), 1);
+    assert_eq!(statuses[0].available_version, None);
+    assert!(!statuses[0].update_available);
+
+    let output = ok(dm(&home).args(["outdated"]).output().unwrap());
+    assert!(output.contains("unknown"), "{output}");
+}
 #[cfg(unix)]
 #[test]
 fn outdated_https_source_uses_fake_git() {
