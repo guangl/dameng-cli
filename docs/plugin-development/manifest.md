@@ -28,7 +28,6 @@ min_host_version = "0.2.0"
 license = "MIT"
 homepage = "https://example.com/dm-backup"
 environment = ["DM_DATABASE_URL"]
-permissions = ["filesystem", "network"]
 
 [hooks]
 pre_install = "hooks/pre-install.sh"
@@ -46,10 +45,9 @@ post_uninstall = "hooks/post-uninstall.sh"
 | `min_host_version` | 可选 SemVer；宿主低于此版本时拒绝安装。 |
 | `license` / `homepage` | 可选的许可证标识和项目主页。 |
 | `environment` | 允许运行时继承的环境变量白名单，名称必须为大写 ASCII。 |
-| `permissions` | 可选的 `filesystem`、`network`、`process` 声明，用于审查和展示。 |
 | `[hooks]` | 可选生命周期命令；键为 `pre_install`、`post_install`、`pre_uninstall`、`post_uninstall`。 |
 
-清单拒绝未知字段。所有宿主命令（包括 `doctor`、`self-update`）都是保留名；Windows 设备名也会被拒绝。权限声明目前只用于审查和展示，不构成强制沙箱，也不会触发宿主的额外确认；插件仍是当前用户权限的原生进程。
+清单拒绝未知字段。所有宿主命令（包括 `doctor`、`self-update`）都是保留名；Windows 设备名也会被拒绝。插件始终是当前用户权限的原生进程，宿主不提供权限沙箱，也不会因清单变更为此要求额外确认。
 
 ## 生命周期 hook
 

@@ -3,5 +3,4 @@ version = "0.1.0"
 description = "Manage saved Dameng database connections"
 api_version = 1
 min_host_version = "0.2.0"
-permissions = ["filesystem", "network"]
 environment = []

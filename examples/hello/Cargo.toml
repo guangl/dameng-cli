@@ -9,4 +9,4 @@ name = "dm-hello"
 path = "src/main.rs"
 
 [dependencies]
-dm-plugin-sdk = "0.2.0"
+dm-plugin-sdk = "0.3.0"

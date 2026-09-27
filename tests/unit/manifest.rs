@@ -1,4 +1,4 @@
-//! `Manifest` parsing, consent and release tag selection.
+//! `Manifest` parsing and release tag selection.
 
 use dameng_cli::{Manifest, release_tag_candidates};
 
@@ -31,60 +31,6 @@ min_host_version = "999.0.0"
         base_manifest()
     );
     assert!(Manifest::from_toml(&text).is_err());
-}
-#[test]
-fn requests_consent_from_none_requires_declared_requests() {
-    let empty = Manifest::from_toml(&base_manifest()).unwrap();
-    assert!(!empty.requests_consent_from(None));
-
-    let requesting = Manifest::from_toml(&format!(
-        r#"{}
-permissions = ["network"]
-environment = ["DM_TOKEN"]
-"#,
-        base_manifest()
-    ))
-    .unwrap();
-    assert!(requesting.requests_consent_from(None));
-}
-#[test]
-fn requests_consent_compares_previous_declarations() {
-    let previous = Manifest::from_toml(&format!(
-        r#"{}
-permissions = ["filesystem"]
-environment = ["DM_HOME"]
-"#,
-        base_manifest()
-    ))
-    .unwrap();
-
-    let same = Manifest::from_toml(&format!(
-        r#"{}
-permissions = ["filesystem"]
-environment = ["DM_HOME"]
-"#,
-        base_manifest()
-    ))
-    .unwrap();
-    assert!(!same.requests_consent_from(Some(&previous)));
-
-    let new_permission = Manifest::from_toml(&format!(
-        r#"{}
-permissions = ["network"]
-"#,
-        base_manifest()
-    ))
-    .unwrap();
-    assert!(new_permission.requests_consent_from(Some(&previous)));
-
-    let new_environment = Manifest::from_toml(&format!(
-        r#"{}
-environment = ["DM_SECRET"]
-"#,
-        base_manifest()
-    ))
-    .unwrap();
-    assert!(new_environment.requests_consent_from(Some(&previous)));
 }
 #[test]
 fn release_tag_candidates_prefers_revision() {

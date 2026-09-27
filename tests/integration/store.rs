@@ -95,14 +95,13 @@ fn plugin_metadata_verification_and_atomic_update() {
     store.verify(Some("probe")).unwrap();
 }
 #[test]
-fn permissions_are_recorded_without_consent_gate() {
+fn environment_is_recorded_in_plugin_metadata() {
     let temp = TempDir::new().unwrap();
     let source = fixture(temp.path());
     fs::write(
         source.join("dm-plugin.toml"),
         format!(
-            r#"{}permissions = ["network"]
-environment = ["DM_DATABASE_URL"]
+            r#"{}environment = ["DM_DATABASE_URL"]
 "#,
             manifest("probe")
         ),
@@ -113,15 +112,14 @@ environment = ["DM_DATABASE_URL"]
 
     store.install(source.to_str().unwrap()).unwrap();
     assert_eq!(
-        store.info("probe").unwrap().manifest.permissions,
-        vec!["network"]
+        store.info("probe").unwrap().manifest.environment,
+        vec!["DM_DATABASE_URL"]
     );
 
     fs::write(
         source.join("dm-plugin.toml"),
         format!(
-            r#"{}permissions = ["network", "filesystem"]
-environment = ["DM_DATABASE_URL"]
+            r#"{}environment = ["DM_DATABASE_URL", "DM_TOKEN"]
 "#,
             manifest("probe")
         ),
@@ -129,15 +127,7 @@ environment = ["DM_DATABASE_URL"]
     .unwrap();
     store.update("probe").unwrap();
     let info = store.info("probe").unwrap();
-    assert!(
-        info.manifest
-            .permissions
-            .contains(&"filesystem".to_string())
-    );
-    assert_eq!(
-        info.manifest.environment,
-        vec!["DM_DATABASE_URL".to_string()]
-    );
+    assert!(info.manifest.environment.contains(&"DM_TOKEN".to_string()));
 }
 #[cfg(unix)]
 #[test]

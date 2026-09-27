@@ -81,9 +81,6 @@ pub fn hint_for(error: &Error) -> String {
     if text.contains("owner/repository form") {
         return "请把 `DM_UPDATE_REPOSITORY` 或 `config.toml` 中的 `update_repository` 改成 `owner/repository` 形式。".into();
     }
-    if text.contains("unknown permission") {
-        return "`dm-plugin.toml` 中的 permissions 仅支持 filesystem、network、process。".into();
-    }
     if text.contains("sha-256") || text.contains("checksum") {
         return "校验失败通常表示文件损坏或被篡改；请重新下载，或联系插件/宿主发布者。".into();
     }

@@ -503,8 +503,7 @@ version = <span class="token-string">"0.1.0"</span>
 description = <span class="token-string">"Backup a Dameng database"</span>
 api_version = <span class="token-key">1</span>
 min_host_version = <span class="token-string">"0.2.0"</span>
-environment = [<span class="token-string">"DM_DATABASE_URL"</span>]
-permissions = [<span class="token-string">"filesystem"</span>, <span class="token-string">"network"</span>]</code></pre>
+environment = [<span class="token-string">"DM_DATABASE_URL"</span>]</code></pre>
           </div>
           <div class="code-panel" id="rust" role="tabpanel">
             <button class="copy" type="button">复制</button>
@@ -540,7 +539,7 @@ permissions = [<span class="token-string">"filesystem"</span>, <span class="toke
             <div class="check-item"><span class="check-mark">✓</span><div><strong>清单与 crate 版本一致</strong><span>避免安装时因版本不匹配被拒绝。</span></div></div>
             <div class="check-item"><span class="check-mark">✓</span><div><strong>提交 Cargo.lock</strong><span>远程安装始终使用 --locked 构建。</span></div></div>
             <div class="check-item"><span class="check-mark">✓</span><div><strong>入口名称符合约定</strong><span>backup 对应 dm-backup，不接受脚本入口。</span></div></div>
-            <div class="check-item"><span class="check-mark">✓</span><div><strong>权限与 hook 可审查</strong><span>声明最小权限，脚本可重复执行且失败时安全退出。</span></div></div>
+            <div class="check-item"><span class="check-mark">✓</span><div><strong>hook 可审查</strong><span>脚本可重复执行，失败时安全退出。</span></div></div>
             <div class="check-item"><span class="check-mark">✓</span><div><strong>错误返回非零退出码</strong><span>标准输出、错误输出和退出码是公共接口。</span></div></div>
           </div>
         </div>

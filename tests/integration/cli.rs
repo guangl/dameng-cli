@@ -28,8 +28,7 @@ fn cli_reporting_branches_cover_info_verify_update_doctor() {
     fs::write(
         source.join("dm-plugin.toml"),
         format!(
-            r#"{}permissions = ["network"]
-environment = ["DM_DATABASE_URL"]
+            r#"{}environment = ["DM_DATABASE_URL"]
 "#,
             manifest("probe")
         ),
@@ -44,7 +43,6 @@ environment = ["DM_DATABASE_URL"]
     let info = ok(dm(&home).args(["info", "probe"]).output().unwrap());
     assert!(info.contains("Name: probe"), "{info}");
     assert!(info.contains("Version: 0.1.0"), "{info}");
-    assert!(info.contains("Permissions: network"), "{info}");
     assert!(info.contains("Environment: DM_DATABASE_URL"), "{info}");
     let info_json = ok(dm(&home)
         .args(["info", "--json", "probe"])
@@ -61,8 +59,7 @@ environment = ["DM_DATABASE_URL"]
     fs::write(
         source.join("dm-plugin.toml"),
         format!(
-            r#"{}permissions = ["network"]
-environment = ["DM_DATABASE_URL"]
+            r#"{}environment = ["DM_DATABASE_URL"]
 "#,
             manifest("probe").replace("0.1.0", "0.2.0")
         ),
