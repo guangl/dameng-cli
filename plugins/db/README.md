@@ -14,6 +14,8 @@
 | `dm db add <name> --host H [--port 5236] [--username SYSDBA] [--password P] [--schema S] [--driver NAME]` | 新增或覆盖连接；终端下省略的参数会逐项提示，密码隐藏回显 |
 | `dm db list` | 列出已保存的连接（名称、用户@主机:端口、模式、驱动名） |
 | `dm db remove <name>` | 删除连接 |
+| `dm db export [--file PATH] [--include-passwords]` | 导出连接配置；默认不包含密码，省略 `--file` 时输出到 stdout；`--include-passwords` 会要求输入导出加密口令 |
+| `dm db import <file> [--replace]` | 从 JSON 文件导入；默认遇到同名连接报错，`--replace` 覆盖；未包含密码的导入会保留同名连接原有密码 |
 | `dm db test <name>` | 通过驱动连接并执行探测语句（默认 `SELECT 1`）；驱动接入后可用 |
 | `dm db exec <name> [SQL]` / `dm db exec <name> --file script.sql` | 执行 SQL 并输出制表符分隔的结果集（省略 SQL 与 `--file` 时从 stdin 读取）；驱动接入后可用 |
 
@@ -30,6 +32,8 @@
 
 - 连接保存在 `<data dir>/connections.sqlite3`（`dm info db` 给出路径）。
 - 密码用本机随机密钥 `.db-key`（权限 `0600`）做 AES-GCM 加密后存储，`dm db list` 不会回显密码。
+- 普通导出不包含密码；包含密码的导出以口令派生密钥加密，导入时再用目标机器的本地密钥加密保存。请妥善保管加密导出文件和口令。
+- 指定 `--file` 的导出文件默认拒绝覆盖，并在 Unix 上以 `0600` 权限创建。
 - 组装连接串时会拒绝主机、用户名与模式中的 `;`、`{`、`}`，密码按连接串语法加引号，避免注入。
 - `dm uninstall db` 会连同这些目录一起删除。
 

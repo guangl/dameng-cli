@@ -17,6 +17,8 @@ description: dm 命令、环境变量、JSON 输出和常见工作流参考。
 | `dm update --all` | 逐个升级全部插件，最后汇总失败项。 |
 | `dm uninstall <name>` | 运行卸载 hook 后删除插件、备份及其 config/data/cache 目录。 |
 
+数据库插件支持连接配置迁移：`dm db export [--file PATH] [--include-passwords]` 默认省略密码，未指定文件时输出 JSON 到 stdout；加 `--include-passwords` 后会在终端提示输入加密口令。`dm db import <file> [--replace]` 默认拒绝覆盖同名连接；使用 `--replace` 覆盖配置时，若导入文件没有密码则保留本机原密码。密码导入后由本机密钥重新加密。文件导出不会覆盖已有文件，Unix 文件权限为 `0600`。
+
 `permissions` 与 `environment` 会随清单记录，用于审查和展示，不再要求交互确认。
 
 ## 查询、执行与修复
