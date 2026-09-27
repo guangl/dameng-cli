@@ -26,6 +26,7 @@ jobs:
         run: |
           version=$(python3 -c "import tomllib; print(tomllib.load(open('Cargo.toml', 'rb'))['package']['version'])")
           RELEASE_TAG="v$version" python3 scripts/release.py verify
+          python3 scripts/test_release.py
   test:
     name: Test (${{ matrix.os }})
     strategy:

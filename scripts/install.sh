@@ -45,11 +45,12 @@ case "$version" in
 esac
 
 archive="dm-${version}-${target}.tar.gz"
+plugin_list="dm-plugins-${version}-${target}.txt"
 base_url="https://github.com/${repository}/releases/download/${version}"
 work_dir=$(mktemp -d "${TMPDIR:-/tmp}/dm-install.XXXXXXXX")
 trap 'rm -rf "$work_dir"' EXIT HUP INT TERM
 
-# Verify one downloaded archive against the SHA-256 sidecar published with it.
+# Verify one downloaded file against the SHA-256 sidecar published with it.
 verify_sha256() {
     checked=$1
     if command -v sha256sum >/dev/null 2>&1; then
@@ -67,23 +68,62 @@ verify_sha256() {
     fi
 }
 
-curl -fsSL "${base_url}/${archive}" -o "$work_dir/${archive}"
-curl -fsSL "${base_url}/${archive}.sha256" -o "$work_dir/${archive}.sha256"
-verify_sha256 "$archive"
+# Download one release asset into the work directory and verify its checksum.
+# Returns 1 when the release does not publish the asset at all, and stops the
+# installation for every other transport, HTTP or checksum error.
+download_asset() {
+    asset=$1
+    status=$(curl -sSL -o "$work_dir/${asset}" -w '%{http_code}' "${base_url}/${asset}") || {
+        echo "dm installer: cannot download ${asset}" >&2
+        exit 1
+    }
+    case "$status" in
+        200) ;;
+        404)
+            rm -f "$work_dir/${asset}"
+            return 1
+            ;;
+        *)
+            echo "dm installer: unexpected HTTP ${status} for ${asset}" >&2
+            exit 1
+            ;;
+    esac
+    status=$(curl -sSL -o "$work_dir/${asset}.sha256" -w '%{http_code}' "${base_url}/${asset}.sha256") || {
+        echo "dm installer: cannot download ${asset}.sha256" >&2
+        exit 1
+    }
+    [ "$status" = 200 ] || {
+        echo "dm installer: ${asset}.sha256 is missing (HTTP ${status})" >&2
+        exit 1
+    }
+    verify_sha256 "$asset"
+    return 0
+}
+
+if ! download_asset "$archive"; then
+    echo "dm installer: ${archive} is not published for ${version}" >&2
+    exit 1
+fi
 tar -xzf "$work_dir/${archive}" -C "$work_dir"
 mkdir -p "$install_dir"
 install -m 755 "$work_dir/dm-${version}-${target}/dm" "$install_dir/dm"
 
-# Bundled plugins. A release that does not publish one yet is skipped with a
-# notice, so tags cut before that plugin existed stay installable.
-for plugin in ssh db; do
+# Bundled plugins. The release publishes ${plugin_list}, so packaged and
+# installed plugins cannot drift apart; tags cut before that list exist fall back
+# to the names below, and a plugin a tag does not publish is skipped with a
+# notice instead of failing the whole installation.
+plugins="ssh db"
+if download_asset "$plugin_list"; then
+    plugins=$(sed -e 's/[[:space:]]*$//' -e '/^$/d' "$work_dir/${plugin_list}")
+fi
+
+# Word splitting is intended: the list holds one plugin name per line.
+for plugin in $plugins; do
     plugin_archive="dm-${plugin}-${version}-${target}.tar.gz"
-    if ! curl -fsSL "${base_url}/${plugin_archive}" -o "$work_dir/${plugin_archive}"; then
+    if ! download_asset "$plugin_archive"; then
         echo "dm installer: dm-${plugin} is not published for ${version}; skipping" >&2
         continue
     fi
-    curl -fsSL "${base_url}/${plugin_archive}.sha256" -o "$work_dir/${plugin_archive}.sha256"
-    verify_sha256 "$plugin_archive"
     tar -xzf "$work_dir/${plugin_archive}" -C "$work_dir"
     plugin_dir="$work_dir/dm-${plugin}-${version}-${target}"
     if "$install_dir/dm" info "$plugin" >/dev/null 2>&1; then
