@@ -14,7 +14,8 @@ fn source_without_prebuilt_binary_is_rejected() {
     let output = dm(&home).arg("install").arg(&source).output().unwrap();
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("has no dm-probe binary"), "{stderr}");
+    let missing = format!("has no dm-probe{} binary", std::env::consts::EXE_SUFFIX);
+    assert!(stderr.contains(&missing), "{stderr}");
     assert!(
         stderr.contains("cargo build --release --locked"),
         "{stderr}"
