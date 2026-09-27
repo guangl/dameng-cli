@@ -26,7 +26,7 @@ description: 独立插件仓库、本地安装、Git 安装和版本策略。
 dm install ./dm-plugin-backup
 ```
 
-本地安装要求目录内已包含 `dm-<name>` 二进制和 `dm-plugin.toml`；宿主只复制这两个文件，不执行编译。
+本地安装要求目录内已包含 `dm-<name>` 二进制和 `dm-plugin.toml`；宿主只复制这两者（以及清单声明的 hook），不执行编译。
 
 ## HTTPS Git 安装
 
@@ -36,7 +36,7 @@ dm install ./dm-plugin-backup
 dm install https://github.com/your-org/dm-plugin-backup.git
 ```
 
-宿主浅克隆远程默认分支以读取清单，然后下载该仓库 GitHub Release 中与本机 target 匹配的 `dm-<name>` 预编译二进制；没有可用产物时直接报错。生产安装应固定 tag 或完整 commit：
+宿主浅克隆远程默认分支以读取清单，然后下载该仓库 GitHub Release 中与本机 target 匹配的 `dm-<name>` 预编译二进制；没有可用产物时直接报错。注意检出目录根下如果已经存在 `dm-<name>`（例如仓库里提交了二进制），宿主会直接使用它而不下载 Release 资产，也不校验 `.sha256` 侧车，因此仓库不要提交该文件。生产安装应固定 tag 或完整 commit：
 
 ```sh
 dm install https://github.com/your-org/dm-plugin-backup.git --rev v1.2.0

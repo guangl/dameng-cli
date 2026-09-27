@@ -47,6 +47,9 @@ pub fn hint_for(error: &Error) -> String {
         return "该插件的来源不是可更新的仓库（例如安装脚本使用的临时目录）：请重新运行安装脚本，或运行 `dm install <新的包目录> --replace` 覆盖安装并保留配置与数据。"
             .into();
     }
+    if text.contains("has no dm-") {
+        return "本地包目录必须同时包含 `dm-plugin.toml` 和构建好的 `dm-<name>`：先 `cargo build --release --locked`，再把 `target/release/dm-<name>` 复制到清单同级后重试。".into();
+    }
     if text.contains("already exists on disk") || text.contains("stale transaction") {
         return "磁盘上存在残留或未完成的事务；运行 `dm doctor --repair` 可自动修复。".into();
     }

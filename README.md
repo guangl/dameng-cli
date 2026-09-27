@@ -33,12 +33,17 @@ curl -fsSL https://raw.githubusercontent.com/guangl/dameng-cli/main/scripts/inst
 
 两个脚本默认安装到 `$HOME/.local/bin/dm`，可通过 `DM_INSTALL_DIR` 修改。远程脚本会下载与 Release 一起发布的 SHA-256 文件并在安装前校验。Windows 请下载 Release 中的 zip，或执行 `cargo install --path . --locked`。
 
+官方安装脚本还会一并安装**内置插件**（默认插件）：远程脚本按 Release 资产 `dm-plugins-<tag>-<target>.txt` 安装本次发布的插件，该资产缺失时回退到脚本内置名单 `ssh db`；`install-local.sh` 固定构建并安装 `ssh` 与 `db`。它们与自己 `dm install` 的插件完全等价，`dm list` 可见、`dm uninstall <name>` 可删除。远程脚本的安装来源是解包用的临时目录，因此 `dm update` 无法升级它们（报 `Plugin source is not updateable`，`dm outdated` 会把它们报告成 `unknown`），升级请重新运行安装脚本；本地脚本从检出目录安装，可直接 `dm update ssh`、`dm update db`。`dm self-update` 只替换宿主程序，不安装也不更新插件；用 `cargo install --path .` 或 Windows zip 安装的宿主不带任何插件。详见 [CLI 参考](docs/cli.md)的「默认插件」。
+
 ### 安装插件
 
-远程安装插件需要 Git 和 curl；本地安装使用预编译插件目录，不需要 Rust/Cargo。
+远程安装插件需要 Git 和 curl；本地安装使用预编译插件目录，不需要 Rust/Cargo。用仓库自带的 hello 示例走一遍完整流程（示例 crate 要先构建，包目录里必须有编译好的 `dm-hello`）：
 
 ```sh
-dm install ./examples/hello
+cargo build --release --locked -p dm-plugin-hello
+package=$(mktemp -d)
+cp examples/hello/dm-plugin.toml target/release/dm-hello "$package/"
+dm install "$package"
 dm list
 dm hello --help
 dm hello "hello dameng"
@@ -73,7 +78,7 @@ dm uninstall hello
 
 同名插件默认拒绝直接覆盖：`dm update <name>` 按已记录来源原子升级，`dm install <source> --replace` 用当前包替换同名插件，两者都保留插件的 config/data/cache。`dm uninstall` 会一并删除 `config/<name>`、`data/<name>`、`cache/<name>`，`dm doctor --repair` 也会清理这些目录中的孤立残留。
 
-插件可以在 `dm-plugin.toml` 的 `[hooks]` 中声明 `pre_install`、`post_install`、`pre_uninstall` 和 `post_uninstall`。hook 必须是插件根目录内的相对可执行文件，并以对应的源码或安装目录作为工作目录运行；它们与 Cargo 构建脚本一样拥有当前用户权限，只应安装可信插件。异常中断留下的安装或卸载事务可由 `dm doctor --repair` 协调恢复。
+插件可以在 `dm-plugin.toml` 的 `[hooks]` 中声明 `pre_install`、`post_install`、`pre_uninstall` 和 `post_uninstall`。hook 必须是插件根目录内的相对可执行文件，并以对应的包目录或安装目录作为工作目录运行；它们与插件进程一样拥有当前用户权限，只应安装可信来源的插件。异常中断留下的安装或卸载事务可由 `dm doctor --repair` 协调恢复。
 
 ## 数据目录
 

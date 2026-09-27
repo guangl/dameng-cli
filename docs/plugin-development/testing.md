@@ -32,6 +32,8 @@ CI 应在插件支持的每个操作系统上运行测试，并使用提交的 `
 使用隔离的数据目录，避免覆盖日常安装：
 
 ```sh
+cargo build --release --locked
+cp target/release/dm-backup .          # 宿主只安装预编译产物，包目录里必须有它
 plugin_test_home=$(mktemp -d)
 DM_PLUGIN_HOME="$plugin_test_home" dm install .
 DM_PLUGIN_HOME="$plugin_test_home" dm list
@@ -44,14 +46,14 @@ DM_PLUGIN_HOME="$plugin_test_home" dm uninstall backup
 
 检查以下行为：
 
-- 构建失败后没有可见的半安装插件。
+- 目录里缺少 `dm-<name>`、hook 失败或复制出错后，没有可见的半安装插件。
 - 同名重复安装被拒绝。
 - 删除源码目录后插件仍能运行。
 - 参数中的空格、`--` 和 `--help` 保持原样。
 - stdin、stdout、stderr 和非零退出码符合文档。
 - 未在清单白名单中的环境变量不会传入插件。
 - 配置、数据和缓存分别写入三个 Context 目录。
-- 更新构建失败时，已安装版本仍能运行且通过 `dm verify`。
+- 更新失败时（缺少可执行文件、hook 失败或元数据写入出错），已安装版本仍能运行且通过 `dm verify`。
 - `environment` 声明只影响环境变量继承与审查；宿主不会因新增声明要求确认，也不提供权限沙箱。
 - 每个生命周期 hook 的工作目录、`DM_HOOK_PHASE` 和失败回滚符合约定。
 - `dm outdated --json`、`dm list --json` 等机器输出能被测试代码解析；`dm list` 的表格输出仅供人读，不保证列宽或边框稳定。

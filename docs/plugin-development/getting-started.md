@@ -99,17 +99,21 @@ fn main() {
 }
 ```
 
-## 5. 生成锁文件并安装
+## 5. 构建并安装
+
+宿主只安装预编译插件，不执行任何 Cargo 构建，所以安装前要把构建产物放进包目录，与 `dm-plugin.toml` 同级：
 
 ```sh
 cargo generate-lockfile
 cargo test --locked
+cargo build --release --locked
+cp target/release/dm-backup .          # Windows: copy target\release\dm-backup.exe .
 cd ..
 dm install ./dm-plugin-backup
 dm list
 dm backup --help
 ```
 
-安装成功后，插件运行不再依赖原源码目录和 Cargo 构建目录。修改源码并提升版本后运行 `dm update backup`，宿主会先完成构建和校验，再原子切换到新版本。
+目录里没有 `dm-<name>` 时 `dm install` 会直接报错，提示缺少预编译产物。安装成功后，插件运行不再依赖包目录和 Cargo 构建目录；修改源码并提升版本后，重新构建、覆盖包目录里的二进制，再运行 `dm update backup`，宿主会从该目录重新安装并原子切换到新版本。要分发给别人，则需按[发布与分发](publishing.html)把 `dm-<name>-<target>` 发布到 GitHub Release。
 
 下一步阅读[项目结构与清单](manifest.html)。
