@@ -386,10 +386,13 @@ dependencies = [
  "anyhow",
  "clap",
  "dm-plugin-sdk",
+ "pbkdf2",
  "rand",
  "rpassword",
  "rusqlite",
  "serde",
+ "serde_json",
+ "sha2",
  "tempfile",
  "toml",
 ]

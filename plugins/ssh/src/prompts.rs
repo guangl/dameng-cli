@@ -98,6 +98,21 @@ pub fn resolve_password(
     }
 }
 
+/// Read one hidden answer for the encrypted export and import passphrases.
+pub(crate) fn prompt_secret(prompter: Option<&dyn Prompter>, prompt: &str) -> Result<String> {
+    prompter
+        .context("A terminal is required for encrypted import/export passphrases")?
+        .secret(prompt)
+}
+
+/// Read the export passphrase twice so a typo cannot make the file unreadable.
+pub(crate) fn prompt_export_passphrase(prompter: Option<&dyn Prompter>) -> Result<String> {
+    let first = prompt_secret(prompter, "Export passphrase: ")?;
+    let confirmation = prompt_secret(prompter, "Confirm export passphrase: ")?;
+    ensure!(first == confirmation, "Export passphrases do not match");
+    Ok(first)
+}
+
 /// Resolve the optional key passphrase for `add`. An empty passphrase means the
 /// key is not protected by one. Prompting only happens on a terminal.
 pub fn resolve_passphrase(

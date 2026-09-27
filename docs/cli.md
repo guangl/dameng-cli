@@ -17,7 +17,11 @@ description: dm 命令、环境变量、JSON 输出和常见工作流参考。
 | `dm update --all` | 逐个升级全部插件，最后汇总失败项。 |
 | `dm uninstall <name>` | 运行卸载 hook 后删除插件、备份及其 config/data/cache 目录。 |
 
-数据库插件支持连接配置迁移：`dm db export [--file PATH] [--include-passwords]` 默认省略密码，未指定文件时输出 JSON 到 stdout；加 `--include-passwords` 后会在终端输入并确认加密口令。`dm db import <file> [--replace]` 默认拒绝覆盖同名连接；使用 `--replace` 覆盖配置时，若导入文件没有密码则保留本机原密码。密码导入后由本机密钥重新加密。文件导出不会覆盖已有文件，Unix 文件权限为 `0600`。
+两个内置插件都支持配置迁移。数据库插件：`dm db export [--file PATH] [--include-passwords]` 默认省略密码，未指定文件时输出 JSON 到 stdout；加 `--include-passwords` 后会在终端输入并确认加密口令。`dm db import <file> [--replace]` 默认拒绝覆盖同名连接；使用 `--replace` 覆盖配置时，若导入文件没有密码则保留本机原密码。密码导入后由本机密钥重新加密。
+
+SSH 插件用同样的两种形式迁移：`dm ssh export [--file PATH] [--include-secrets]` 默认省略密码与私钥口令，`--include-secrets` 同样要求终端输入并确认加密口令；`dm ssh import <file> [--replace]` 默认拒绝覆盖同名服务器，`--replace` 覆盖时若导入文件没有密码/口令，则只在认证方式一致（密钥认证还要求密钥路径一致）时保留本机原有秘密，避免把密码当成口令复用。导入的密码与口令由本机密钥重新加密，密钥路径按原样导入，需目标机器上存在对应私钥。
+
+两者的导出文件都不会覆盖已有文件，Unix 文件权限为 `0600`；加密导入导出需要终端，非交互环境会直接报错而不是留下空文件。
 
 `environment` 会随清单记录，用于审查和展示，不再要求交互确认。
 
@@ -36,7 +40,7 @@ description: dm 命令、环境变量、JSON 输出和常见工作流参考。
 
 | 插件 | 提供的命令 | 职责 |
 | --- | --- | --- |
-| `ssh` | `dm ssh add/list/remove/test/ssh` | SSH 服务器连接管理，数据保存在插件自己的 `data/ssh/`。 |
+| `ssh` | `dm ssh add/list/remove/test/ssh`、`dm ssh export/import` | SSH 服务器连接管理，数据保存在插件自己的 `data/ssh/`。 |
 | `db` | `dm db add/list/remove/test/exec`、`dm db export/import` | 达梦数据库连接管理，连接保存在 `data/db/`；`test`/`exec` 的驱动仍是占位实现。 |
 
 内置插件与自己安装的插件完全等价：`dm list`、`dm info <name>`、`dm verify`、`dm uninstall <name>` 一视同仁，不需要时用 `dm uninstall <name>` 删除（会一并删除它的 config/data/cache）。远程安装脚本只对明确未发布的资产（HTTP 404）提示并跳过，其余网络、HTTP 或校验错误会让整次安装失败，不会静默少装插件。

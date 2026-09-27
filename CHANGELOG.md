@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `dm ssh` 增加服务器配置导入导出，与 `dm db` 的迁移命令保持同一套行为：`dm ssh export [--file PATH] [--include-secrets]` 默认省略密码与私钥口令（省略 `--file` 时输出 JSON 到 stdout），`--include-secrets` 会在终端输入并确认导出加密口令，再用口令派生密钥加密；`dm ssh import <file> [--replace]` 默认拒绝覆盖同名服务器，`--replace` 时若文件不含密码/口令，只在认证方式一致（密钥认证还要求密钥路径一致）时保留本机原有秘密，避免把密码当成口令复用。导入会校验导出版本、条目数量、名称、端口、主机、用户名与认证方式（密钥认证必须带密钥路径，密码认证不得带密钥路径），携带的密码与口令在目标机器用本机密钥重新加密，密钥路径按原样导入；导出文件不覆盖已有文件、Unix 权限为 `0600`，加密导入导出需要终端，非交互环境直接报错。为此 `dm ssh` 命令层拆分为 `commands/{mod,cli,add}.rs` 并新增可注入提示源的 `run_with_prompter`，README 与 CLI 参考同步补充两者的用法。
 - 全量对齐「宿主只安装预编译插件」的文档：README、架构、发布、清单、快速开始、测试、故障排查、协议规范与文档站点不再声称宿主编译插件源码或解析 `Cargo.toml`；本地安装流程统一为「`cargo build --release --locked` → 把 `dm-<name>` 放到 `dm-plugin.toml` 同级 → `dm install`」，`examples/hello` 的验证命令也改为构建后从包目录安装，且清单文档说明宿主只校验清单本身、Cargo 相关约束转写为发布者约定。
 - `dm install` 在本地包目录缺少 `dm-<name>` 时给出可操作错误 `Local plugin package has no dm-<name> binary; build the plugin and copy it next to dm-plugin.toml`，并提示先 `cargo build --release --locked` 再复制产物；此前这种目录会被当成远程来源，误报 `Prebuilt plugins require a GitHub HTTPS source`。
 - `dm outdated` 不再因某个插件的来源目录已被删除（安装脚本解包用的临时目录）而整条命令失败：这类插件报告 `unknown`，`--json` 中 `available_version` 为 `null`、`update_available` 为 `false`，其余插件照常比较版本。
