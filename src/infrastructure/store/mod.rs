@@ -836,7 +836,7 @@ impl PluginStore {
         .into_iter()
         .flatten()
         {
-            let from = source.join(hook);
+            let from = resolve_hook_path(source, hook)?;
             let to = package.join(hook);
             if let Some(parent) = to.parent() {
                 fs::create_dir_all(parent)?;
@@ -854,7 +854,7 @@ impl PluginStore {
 
     fn run_hook(&self, root: &Path, hook: &str, phase: &str, manifest: &Manifest) -> Result<()> {
         let root = fs::canonicalize(root).context("Resolve plugin hook directory")?;
-        let executable = root.join(hook);
+        let executable = resolve_hook_path(&root, hook)?;
         let metadata =
             fs::symlink_metadata(&executable).with_context(|| format!("Missing hook '{hook}'"))?;
         ensure!(metadata.is_file(), "Hook '{hook}' must be a regular file");
@@ -1079,9 +1079,37 @@ fn download_prebuilt_asset(url: &str, destination: &Path) -> bool {
         .is_ok_and(|output| output.status.success())
 }
 
+fn download_optional_prebuilt_checksum(url: &str, destination: &Path) -> Result<bool> {
+    let output = Command::new("curl")
+        .args([
+            "-sSL",
+            "--retry",
+            "3",
+            "--connect-timeout",
+            "15",
+            "--output",
+        ])
+        .arg(destination)
+        .args(["-w", "%{http_code}"])
+        .arg(url)
+        .output()
+        .context("Download prebuilt plugin SHA-256 sidecar")?;
+    ensure!(
+        output.status.success(),
+        "Could not download prebuilt plugin SHA-256 sidecar"
+    );
+    let status = String::from_utf8_lossy(&output.stdout);
+    match status.trim() {
+        "200" => Ok(true),
+        "404" => Ok(false),
+        other => bail!("Unexpected HTTP {other} downloading prebuilt plugin SHA-256 sidecar"),
+    }
+}
+
 fn verify_optional_prebuilt_checksum(binary_url: &str, binary: &Path) -> Result<()> {
     let checksum_path = binary.with_extension("sha256");
-    let downloaded = download_prebuilt_asset(&format!("{binary_url}.sha256"), &checksum_path);
+    let downloaded =
+        download_optional_prebuilt_checksum(&format!("{binary_url}.sha256"), &checksum_path)?;
     if !downloaded {
         warn!("prebuilt plugin has no SHA-256 sidecar; trusting HTTPS transport");
         return Ok(());
@@ -1102,6 +1130,35 @@ fn verify_optional_prebuilt_checksum(binary_url: &str, binary: &Path) -> Result<
         "Prebuilt plugin SHA-256 mismatch"
     );
     Ok(())
+}
+
+fn resolve_hook_path(root: &Path, hook: &str) -> Result<PathBuf> {
+    let root = fs::canonicalize(root).context("Resolve plugin hook directory")?;
+    let mut path = root.clone();
+    let components: Vec<_> = hook.split(['/', '\\']).collect();
+    for (index, component) in components.iter().enumerate() {
+        path.push(component);
+        let metadata =
+            fs::symlink_metadata(&path).with_context(|| format!("Missing hook '{hook}'"))?;
+        ensure!(
+            !metadata.file_type().is_symlink(),
+            "Hook '{hook}' must not traverse symlinks"
+        );
+        if index + 1 == components.len() {
+            ensure!(metadata.is_file(), "Hook '{hook}' must be a regular file");
+        } else {
+            ensure!(
+                metadata.is_dir(),
+                "Hook '{hook}' parent must be a directory"
+            );
+        }
+    }
+    let canonical = fs::canonicalize(&path).context("Resolve plugin hook path")?;
+    ensure!(
+        canonical.starts_with(&root),
+        "Hook '{hook}' escapes plugin directory"
+    );
+    Ok(canonical)
 }
 
 fn try_download_prebuilt(
