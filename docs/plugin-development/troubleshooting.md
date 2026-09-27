@@ -17,7 +17,6 @@ description: 定位插件清单、构建、安装、运行协议和数据库环�
 | locked build 失败 | 缺少或过期的 `Cargo.lock`。 | 运行 `cargo generate-lockfile`，本地执行 `cargo build --release --locked` 后提交。 |
 | Git 无法获取插件 | URL 不是 HTTPS、需要交互认证或网络不可用。 | 使用可访问的 HTTPS Git URL；私有仓库需由用户提前配置非交互 Git 凭证。 |
 | 插件已安装 | 同名目录已经存在。 | 升级用 `dm update <name>`；要从包目录（例如安装脚本解包出的目录）替换安装，用 `dm install <目录> --replace`，它保留插件的 config/data/cache。 |
-| 要求 `--accept-permissions` | 首次安装包含权限/环境声明，或升级新增了声明。 | 审查 `permissions`、`environment` 和源码后显式确认；不要把该选项当成沙箱。 |
 | `Hook ... failed` | hook 不可执行、退出非零或依赖了被清理的环境。 | 检查相对路径、执行权限、`DM_HOOK_PHASE` 和清单环境白名单；失败的安装/卸载会回滚。 |
 
 ## 运行错误

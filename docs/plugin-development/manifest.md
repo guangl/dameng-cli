@@ -49,7 +49,7 @@ post_uninstall = "hooks/post-uninstall.sh"
 | `permissions` | 可选的 `filesystem`、`network`、`process` 声明，用于审查和展示。 |
 | `[hooks]` | 可选生命周期命令；键为 `pre_install`、`post_install`、`pre_uninstall`、`post_uninstall`。 |
 
-清单拒绝未知字段。所有宿主命令（包括 `doctor`、`self-update`）都是保留名；Windows 设备名也会被拒绝。权限声明目前不构成强制沙箱，插件仍是当前用户权限的原生进程。首次安装带权限/环境变量声明的插件，或升级时新增声明，用户必须传入 `--accept-permissions`。
+清单拒绝未知字段。所有宿主命令（包括 `doctor`、`self-update`）都是保留名；Windows 设备名也会被拒绝。权限声明目前只用于审查和展示，不构成强制沙箱，也不会触发宿主的额外确认；插件仍是当前用户权限的原生进程。
 
 ## 生命周期 hook
 
@@ -57,7 +57,7 @@ hook 路径必须是插件根目录内的相对路径，不允许绝对路径、
 
 | hook | 工作目录与时机 |
 | --- | --- |
-| `pre_install` | 源码根目录；Cargo 构建前。 |
+| `pre_install` | 源码根目录；插件文件发布前运行。当前宿主只接受预编译插件，不会由宿主构建 Rust 源码。 |
 | `post_install` | 新安装目录；文件发布后、SQLite 元数据提交前。失败会触发安装/升级回滚。 |
 | `pre_uninstall` | 当前安装目录；移除前。失败会阻止卸载。 |
 | `post_uninstall` | 暂存的待删除目录；成功后才永久删除。失败会恢复插件。 |

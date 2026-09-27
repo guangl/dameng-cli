@@ -52,7 +52,7 @@ DM_PLUGIN_HOME="$plugin_test_home" dm uninstall backup
 - 未在清单白名单中的环境变量不会传入插件。
 - 配置、数据和缓存分别写入三个 Context 目录。
 - 更新构建失败时，已安装版本仍能运行且通过 `dm verify`。
-- 新增 `permissions` 或 `environment` 时，无 `--accept-permissions` 的安装/升级会被拒绝。
+- `permissions` 和 `environment` 声明只影响审查与环境变量继承；宿主不会因新增声明要求确认。权限声明不构成沙箱。
 - 每个生命周期 hook 的工作目录、`DM_HOOK_PHASE` 和失败回滚符合约定。
 - `dm outdated --json`、`dm list --json` 等机器输出能被测试代码解析；`dm list` 的表格输出仅供人读，不保证列宽或边框稳定。
 - 错误信息不泄漏密码或连接串。

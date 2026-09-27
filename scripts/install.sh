@@ -25,7 +25,7 @@ if ! command -v curl >/dev/null 2>&1; then
 fi
 
 if [ "$version" = latest ]; then
-    release_url=$(curl -fsSIL -o /dev/null -w '%{url_effective}' \
+    release_url=$(curl -q -fsSIL -o /dev/null -w '%{url_effective}' \
         "https://github.com/${repository}/releases/latest")
     version=${release_url##*/}
 fi
@@ -73,7 +73,7 @@ verify_sha256() {
 # installation for every other transport, HTTP or checksum error.
 download_asset() {
     asset=$1
-    status=$(curl -sSL -o "$work_dir/${asset}" -w '%{http_code}' "${base_url}/${asset}") || {
+    status=$(curl -q -sSL -o "$work_dir/${asset}" -w '%{http_code}' "${base_url}/${asset}") || {
         echo "dm installer: cannot download ${asset}" >&2
         exit 1
     }
@@ -88,7 +88,7 @@ download_asset() {
             exit 1
             ;;
     esac
-    status=$(curl -sSL -o "$work_dir/${asset}.sha256" -w '%{http_code}' "${base_url}/${asset}.sha256") || {
+    status=$(curl -q -sSL -o "$work_dir/${asset}.sha256" -w '%{http_code}' "${base_url}/${asset}.sha256") || {
         echo "dm installer: cannot download ${asset}.sha256" >&2
         exit 1
     }
