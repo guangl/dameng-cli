@@ -59,7 +59,14 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: python scripts/release.py verify
       - run: cargo build --release --locked --bin dm --target ${{ matrix.target }}
-      - run: cargo build --release --locked --bin dm-ssh --manifest-path plugins/ssh/Cargo.toml --target ${{ matrix.target }}
+      - name: Build bundled plugins
+        shell: bash
+        run: |
+          for manifest in plugins/*/dm-plugin.toml; do
+            directory=$(dirname "$manifest")
+            name=$(python3 -c "import tomllib,sys; print(tomllib.load(open(sys.argv[1], 'rb'))['name'])" "$manifest")
+            cargo build --release --locked --bin "dm-$name" --manifest-path "$directory/Cargo.toml" --target ${{ matrix.target }}
+          done
       - name: Package binary, license and checksums
         env:
           RELEASE_TAG: ${{ github.ref_name }}
