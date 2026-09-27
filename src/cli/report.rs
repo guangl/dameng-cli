@@ -10,7 +10,7 @@ use anyhow::Error;
 ///
 /// The full `anyhow` chain is preserved verbatim so scripts and tests that
 /// scan stderr keep working, while humans get a short summary and a hint.
-pub(crate) fn report(error: &Error) {
+pub fn report(error: &Error) {
     log::error!("{error:#}");
 
     let summary = error
@@ -26,7 +26,9 @@ pub(crate) fn report(error: &Error) {
 }
 
 /// Choose an actionable hint from the full error chain.
-fn hint_for(error: &Error) -> String {
+///
+/// Public so the hint table can be exercised from `tests/unit/report.rs`.
+pub fn hint_for(error: &Error) -> String {
     let text = error
         .chain()
         .map(|cause| cause.to_string())
@@ -108,70 +110,4 @@ fn hint_for(error: &Error) -> String {
     }
 
     "运行 `dm --help` 查看用法，或运行 `dm doctor` 检查插件存储状态。".into()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn hint_for_message(message: &str) -> String {
-        hint_for(&anyhow::anyhow!(message.to_owned()))
-    }
-
-    #[test]
-    fn known_failures_get_specific_hints() {
-        assert!(hint_for_message("Plugin 'x' is not installed").contains("dm install"));
-        assert!(
-            hint_for_message("Plugin 'x' is already installed; run dm update")
-                .contains("--replace")
-        );
-        assert!(hint_for_message("Plugin source is not updateable").contains("--replace"));
-        assert!(hint_for_message("Source must be a local plugin directory").contains("<source>"));
-        assert!(hint_for_message("directory is not writable").contains("DM_PLUGIN_HOME"));
-        assert!(hint_for_message("Prebuilt plugin SHA-256 mismatch").contains("重新下载"));
-        assert!(
-            hint_for_message(
-                "Invalid configuration /home/me/.config/dm/config.toml: unknown field"
-            )
-            .contains("config.toml")
-        );
-        // The previous flat layout points at the table that replaced it.
-        assert!(
-            hint_for_message(
-                "Invalid configuration /x/config.toml: unknown field `update_repository`"
-            )
-            .contains("[update]")
-        );
-        assert!(
-            hint_for_message("Self-update repository 'x' must be in owner/repository form")
-                .contains("owner/repository")
-        );
-        assert!(hint_for_message("stale transaction directory: .install-x").contains("dm doctor"));
-        assert!(hint_for_message("unknown permission 'root'").contains("permissions"));
-        assert!(hint_for_message("Unsupported plugin API version 2").contains("API 版本"));
-        assert!(hint_for_message("Invalid manifest /x/dm-plugin.toml").contains("dm-plugin.toml"));
-        assert!(hint_for_message("Self-update release asset is missing").contains("自更新失败"));
-        assert!(hint_for_message("Invalid plugin name").contains("插件名"));
-        assert!(
-            hint_for_message("Invalid DM_PLUGIN_ENVIRONMENT; use a comma-separated list")
-                .contains("[plugin] environment")
-        );
-        assert!(
-            hint_for_message("Configuration key 'plugin.environment' entry 'DB-URL' is invalid")
-                .contains("[plugin] environment")
-        );
-        assert!(
-            hint_for_message("DM_PROGRESS must be true or false, got 'maybe'")
-                .contains("true/false")
-        );
-        assert!(
-            hint_for_message("Self-update is not published for target x; supported targets are y")
-                .contains("--target")
-        );
-    }
-
-    #[test]
-    fn unknown_failures_still_get_a_hint() {
-        assert!(hint_for_message("unexpected failure").contains("dm --help"));
-    }
 }

@@ -1,6 +1,6 @@
+use crate::PluginInfo;
 use comfy_table::presets::UTF8_FULL;
 use comfy_table::{ContentArrangement, Table};
-use dameng_cli::PluginInfo;
 
 const NON_TTY_WIDTH: u16 = 120;
 
@@ -49,7 +49,9 @@ pub fn render(plugins: &[PluginInfo]) -> String {
 }
 
 /// Format a Unix timestamp (seconds since the epoch) as UTC.
-fn format_installed_at(unix_seconds: i64) -> String {
+///
+/// Public so the calendar conversion can be exercised from `tests/unit/table.rs`.
+pub fn format_installed_at(unix_seconds: i64) -> String {
     let days = unix_seconds.div_euclid(86_400);
     let seconds_of_day = unix_seconds.rem_euclid(86_400);
     let (year, month, day) = civil_from_days(days);
@@ -63,7 +65,7 @@ fn format_installed_at(unix_seconds: i64) -> String {
 ///
 /// This is Howard Hinnant's civil-from-days algorithm, adapted to work with
 /// negative inputs as well.
-fn civil_from_days(days_since_epoch: i64) -> (i64, u32, u32) {
+pub fn civil_from_days(days_since_epoch: i64) -> (i64, u32, u32) {
     let z = days_since_epoch + 719_468;
     let era = z.div_euclid(146_097);
     let day_of_era = z.rem_euclid(146_097);
@@ -80,84 +82,4 @@ fn civil_from_days(days_since_epoch: i64) -> (i64, u32, u32) {
     };
     let year = if month <= 2 { year + 1 } else { year };
     (year, month as u32, day as u32)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use dameng_cli::{API_VERSION, Manifest};
-
-    fn plugin_info(
-        name: &str,
-        version: &str,
-        description: &str,
-        source: Option<&str>,
-        revision: Option<&str>,
-        installed_at: i64,
-    ) -> PluginInfo {
-        PluginInfo {
-            manifest: Manifest {
-                name: name.to_owned(),
-                version: version.to_owned(),
-                description: description.to_owned(),
-                api_version: API_VERSION,
-                min_host_version: None,
-                license: None,
-                homepage: None,
-                environment: Vec::new(),
-                permissions: Vec::new(),
-                hooks: Default::default(),
-            },
-            source: source.map(str::to_owned),
-            revision: revision.map(str::to_owned),
-            source_ref: None,
-            checksum: String::new(),
-            installed_at,
-        }
-    }
-
-    #[test]
-    fn empty_table_renders_empty() {
-        assert_eq!(render(&[]), "");
-    }
-
-    #[test]
-    fn table_contains_headers_and_rows() {
-        let output = render(&[plugin_info(
-            "probe",
-            "0.1.0",
-            "Test plugin",
-            Some("/tmp/probe"),
-            Some("deadbeef"),
-            0,
-        )]);
-
-        for needle in [
-            "Name",
-            "Version",
-            "Description",
-            "Source",
-            "Revision",
-            "Installed At",
-            "probe",
-            "0.1.0",
-            "Test plugin",
-            "/tmp/probe",
-            "deadbeef",
-            "1970-01-01 00:00:00Z",
-        ] {
-            assert!(
-                output.contains(needle),
-                "missing {needle:?} in:
-{output}"
-            );
-        }
-    }
-
-    #[test]
-    fn formats_epoch_seconds_as_utc() {
-        assert_eq!(format_installed_at(0), "1970-01-01 00:00:00Z");
-        assert_eq!(format_installed_at(951_782_400), "2000-02-29 00:00:00Z");
-        assert_eq!(format_installed_at(-1), "1969-12-31 23:59:59Z");
-    }
 }

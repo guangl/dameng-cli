@@ -1,92 +1,28 @@
-mod report;
-mod table;
+//! Command-line interface for the `dm` plugin host.
+//!
+//! The tree is split by responsibility: `args` holds the clap definitions,
+//! the sibling modules implement one group of subcommands each, and
+//! `report`/`table` render the human-facing output.
 
-pub(crate) use report::report;
+mod args;
+mod doctor;
+mod plugins;
+pub mod report;
+mod self_update;
+pub mod table;
+mod update;
 
-use anyhow::{Context, Result};
-use clap::{CommandFactory, Parser, Subcommand};
-use dameng_cli::{Config, PluginStore, SelfUpdateOptions, self_update_with_options};
-use std::ffi::OsString;
+pub use args::{Cli, Command};
+pub use report::report;
 
-#[derive(Parser)]
-#[command(name = "dm", version, about = "Plugin host for Dameng database tools")]
-struct Cli {
-    #[command(subcommand)]
-    command: Command,
-}
+use crate::{Config, PluginStore};
+use anyhow::Result;
+use clap::{CommandFactory, Parser};
 
-#[derive(Subcommand)]
-enum Command {
-    /// Install a prebuilt Rust plugin from a directory or HTTPS Git repository.
-    Install {
-        source: String,
-        /// Install an exact Git tag, branch or commit.
-        #[arg(long)]
-        rev: Option<String>,
-        /// Replace an installed plugin of the same name instead of refusing;
-        /// its config/data/cache directories are kept.
-        #[arg(long)]
-        replace: bool,
-    },
-    /// List installed plugins.
-    List {
-        #[arg(long)]
-        json: bool,
-    },
-    /// Show installation metadata for one plugin.
-    Info {
-        name: String,
-        #[arg(long)]
-        json: bool,
-    },
-    /// Atomically update one plugin or every installed plugin.
-    Update {
-        name: Option<String>,
-        #[arg(long, conflicts_with = "name")]
-        all: bool,
-    },
-    /// Check installed plugins for newer versions.
-    Outdated {
-        #[arg(long)]
-        json: bool,
-    },
-    /// Verify installed plugin manifests and binary checksums.
-    Verify { name: Option<String> },
-    /// Diagnose and optionally repair plugin-store inconsistencies.
-    Doctor {
-        #[arg(long)]
-        repair: bool,
-        #[arg(long)]
-        json: bool,
-    },
-    /// Securely update the dm host from its GitHub Release.
-    SelfUpdate {
-        #[arg(long)]
-        check: bool,
-        #[arg(long)]
-        version: Option<String>,
-        /// Reinstall or downgrade even when the requested version is not newer.
-        #[arg(long)]
-        force: bool,
-        /// Override the release target triple for this update.
-        #[arg(long)]
-        target: Option<String>,
-        #[arg(long)]
-        json: bool,
-    },
-    /// Generate shell completion definitions on stdout.
-    Completions { shell: clap_complete::Shell },
-    /// Remove an installed plugin.
-    Uninstall { name: String },
-    /// Run an installed plugin, forwarding all remaining arguments unchanged.
-    #[command(external_subcommand)]
-    Plugin(Vec<OsString>),
-}
-
-fn print_no_plugins() {
-    println!("No plugins installed. Run `dm install <source>` to add one.");
-}
-
+/// Parse the process arguments and run the requested subcommand.
+///
+/// Returns the exit code the process should use. Every host subcommand reports
+/// success with `0`; the plugin passthrough returns the plugin's own code.
 pub fn run(config: &Config) -> Result<i32> {
     let cli = Cli::parse();
     let store = PluginStore::from_env()?
@@ -97,188 +33,37 @@ pub fn run(config: &Config) -> Result<i32> {
             source,
             rev,
             replace,
-        } => {
-            let manifest = store.install_with_revision(&source, rev.as_deref(), replace)?;
-            println!("Installed {} {}", manifest.name, manifest.version);
-        }
-        Command::List { json } => {
-            let plugins = store.list_info()?;
-            if json {
-                println!("{}", serde_json::to_string_pretty(&plugins)?);
-            } else if plugins.is_empty() {
-                print_no_plugins();
-            } else {
-                print!("{}", table::render(&plugins));
-            }
-        }
-        Command::Info { name, json } => {
-            let plugin = store.info(&name)?;
-            // Plugins configure themselves inside their own directory; expose the
-            // paths so users can find (and edit) the right file.
-            let directories = store.plugin_directories(&plugin.manifest.name);
-            let config_file = Config::path_in(&directories[0]);
-            if json {
-                let mut value = serde_json::to_value(&plugin)?;
-                value["paths"] = serde_json::json!({
-                    "config": directories[0],
-                    "data": directories[1],
-                    "cache": directories[2],
-                    "config_file": config_file,
-                    "config_file_present": config_file.is_file(),
-                });
-                println!("{}", serde_json::to_string_pretty(&value)?);
-            } else {
-                println!("Name: {}", plugin.manifest.name);
-                println!("Version: {}", plugin.manifest.version);
-                println!("Source: {}", plugin.source.as_deref().unwrap_or("unknown"));
-                println!(
-                    "Revision: {}",
-                    plugin.revision.as_deref().unwrap_or("unknown")
-                );
-                println!("SHA-256: {}", plugin.checksum);
-                if !plugin.manifest.permissions.is_empty() {
-                    println!("Permissions: {}", plugin.manifest.permissions.join(", "));
-                }
-                if !plugin.manifest.environment.is_empty() {
-                    println!("Environment: {}", plugin.manifest.environment.join(", "));
-                }
-                println!("Config dir: {}", directories[0].display());
-                println!("Data dir: {}", directories[1].display());
-                println!("Cache dir: {}", directories[2].display());
-                println!(
-                    "Config file: {} ({})",
-                    config_file.display(),
-                    if config_file.is_file() {
-                        "present"
-                    } else {
-                        "absent"
-                    }
-                );
-            }
-        }
-        Command::Update { name, all } => {
-            if all {
-                let results = store.update_all();
-                let mut failures = Vec::new();
-                let mut updated = Vec::new();
-                for (name, result) in results {
-                    match result {
-                        Ok(manifest) => {
-                            println!("Updated {name} to {}", manifest.version);
-                            updated.push(name);
-                        }
-                        Err(error) => failures.push(format!("{name}: {error:#}")),
-                    }
-                }
-                if !failures.is_empty() {
-                    anyhow::bail!("Some updates failed:\n{}", failures.join("\n"));
-                }
-                if updated.is_empty() {
-                    print_no_plugins();
-                }
-            } else {
-                let name = name.context("Provide a plugin name or use --all")?;
-                let manifest = store.update(&name)?;
-                println!("Updated {} to {}", manifest.name, manifest.version);
-            }
-        }
-        Command::Outdated { json } => {
-            let statuses = store.outdated()?;
-            if json {
-                println!("{}", serde_json::to_string_pretty(&statuses)?);
-            } else if statuses.is_empty() {
-                print_no_plugins();
-            } else {
-                for status in statuses {
-                    println!(
-                        "{}\t{}\t{}\t{}",
-                        status.name,
-                        status.installed_version,
-                        status.available_version.as_deref().unwrap_or("unknown"),
-                        if status.update_available {
-                            "update available"
-                        } else {
-                            "current"
-                        }
-                    );
-                }
-            }
-        }
-        Command::Verify { name } => {
-            let names = store.verify(name.as_deref())?;
-            if names.is_empty() {
-                print_no_plugins();
-            } else {
-                for name in names {
-                    println!("Verified {name}");
-                }
-            }
-        }
-        Command::Doctor { repair, json } => {
-            let report = store.doctor(repair)?;
-            if json {
-                println!("{}", serde_json::to_string_pretty(&report)?);
-            } else if report.issues.is_empty() {
-                println!("Plugin store is healthy");
-            } else {
-                for issue in &report.issues {
-                    println!("Issue: {issue}");
-                }
-                for repair in &report.repairs {
-                    println!("Repaired: {repair}");
-                }
-                if !repair && report.repairs.is_empty() {
-                    println!("Run dm doctor --repair to repair recoverable issues");
-                }
-            }
-        }
+        } => plugins::install(&store, &source, rev.as_deref(), replace)?,
+        Command::List { json } => plugins::list(&store, json)?,
+        Command::Info { name, json } => plugins::info(&store, &name, json)?,
+        Command::Update { name, all } => update::update(&store, name.as_deref(), all)?,
+        Command::Outdated { json } => update::outdated(&store, json)?,
+        Command::Verify { name } => plugins::verify(&store, name.as_deref())?,
+        Command::Doctor { repair, json } => doctor::doctor(&store, repair, json)?,
         Command::SelfUpdate {
             check,
             version,
             force,
             target,
             json,
-        } => {
-            let repository = config.update_repository();
-            let configured_target = config.update_target();
-            let result = self_update_with_options(SelfUpdateOptions {
-                version: version.as_deref(),
-                check_only: check,
-                force,
-                target: target.as_deref().or(configured_target.as_deref()),
-                repository: repository.as_deref(),
-            })?;
-            if json {
-                println!("{}", serde_json::to_string_pretty(&result)?);
-            } else if result.updated {
-                println!(
-                    "Updated dm from {} to {}",
-                    result.current_version, result.available_version
-                );
-            } else if result.current_version == result.available_version {
-                println!("dm {} is current", result.current_version);
-            } else {
-                println!(
-                    "dm {} is installed; {} is available",
-                    result.current_version, result.available_version
-                );
-            }
-        }
+        } => self_update::run(
+            config,
+            version.as_deref(),
+            check,
+            force,
+            target.as_deref(),
+            json,
+        )?,
         Command::Completions { shell } => {
             clap_complete::generate(shell, &mut Cli::command(), "dm", &mut std::io::stdout());
         }
-        Command::Uninstall { name } => {
-            store.uninstall(&name)?;
-            println!("Uninstalled {name}");
-        }
-        Command::Plugin(args) => {
-            let name = args
-                .first()
-                .context("Missing plugin name")?
-                .to_str()
-                .ok_or_else(|| anyhow::anyhow!("Plugin name must be UTF-8"))?;
-            return store.run(name, &args[1..]);
-        }
+        Command::Uninstall { name } => plugins::uninstall(&store, &name)?,
+        Command::Plugin(args) => return plugins::run_plugin(&store, &args),
     }
     Ok(0)
+}
+
+/// Tell the user that no plugin is installed yet.
+pub(crate) fn print_no_plugins() {
+    println!("No plugins installed. Run `dm install <source>` to add one.");
 }

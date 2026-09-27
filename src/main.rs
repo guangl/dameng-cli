@@ -1,6 +1,4 @@
-mod cli;
-
-use dameng_cli::{Config, DEFAULT_LOG_FILTER, cleanup_self_update_backup};
+use dameng_cli::{Config, DEFAULT_LOG_FILTER, cleanup_self_update_backup, cli};
 
 fn main() {
     // The configuration file also selects the log filter, so it is loaded before
