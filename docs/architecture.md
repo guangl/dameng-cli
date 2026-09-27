@@ -50,6 +50,7 @@ DM_PLUGIN_HOME/
 ├── store.sqlite3              # 插件元数据
 ├── store.sqlite3-wal          # SQLite 运行时文件，存在时不要单独移动
 ├── store.sqlite3-shm          # SQLite 运行时文件，存在时不要单独移动
+├── dm.log                     # 宿主运行日志，满 5 MiB 后轮转为 dm.log.1
 ├── plugins/                   # 可执行文件不能存入 SQLite 后直接运行
     └── hello/
         ├── dm-plugin.toml

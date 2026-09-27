@@ -40,7 +40,11 @@ pub(crate) enum DbCommand {
         driver: Option<String>,
     },
     /// List saved connections.
-    List,
+    List {
+        /// Print the same fields as machine-readable JSON instead of a table.
+        #[arg(long)]
+        json: bool,
+    },
     /// Remove a saved connection.
     Remove { name: String },
     /// Export connection settings. Passwords are omitted unless encrypted export is requested.

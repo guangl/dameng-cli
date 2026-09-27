@@ -12,6 +12,7 @@ mod crypto;
 mod export;
 mod hints;
 mod import;
+mod list;
 mod private_file;
 mod prompts;
 mod servers;
@@ -28,6 +29,7 @@ pub use export::{EXPORT_VERSION, ExportDocument, PortableServer, export_document
 pub use hints::ssh_hint;
 #[doc(hidden)]
 pub use import::import_document;
+pub use list::{ServerSummary, render_json, render_table};
 #[doc(hidden)]
 pub use private_file::{write_private_file, write_private_file_with};
 pub use prompts::{

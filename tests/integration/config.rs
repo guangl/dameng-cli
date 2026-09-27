@@ -14,17 +14,17 @@ fn config_file_sets_log_filter() {
 
     let output = dm(temp.path()).arg("list").output().unwrap();
     assert!(output.status.success(), "{}", stderr(&output));
-    assert!(
-        stderr(&output).contains("opened plugin store"),
-        "stderr: {}",
-        stderr(&output)
-    );
+    // Diagnostics go to the log file of the data directory, never to stderr.
+    let log = fs::read_to_string(temp.path().join("dm.log")).unwrap();
+    assert!(log.contains("opened plugin store"), "{log}");
+    assert!(!stderr(&output).contains("opened plugin store"));
 
     // Without the file the documented default of `info` keeps debug lines hidden.
     let default_home = TempDir::new().unwrap();
     let output = dm(default_home.path()).arg("list").output().unwrap();
     assert!(output.status.success(), "{}", stderr(&output));
-    assert!(!stderr(&output).contains("opened plugin store"));
+    let log = fs::read_to_string(default_home.path().join("dm.log")).unwrap();
+    assert!(!log.contains("opened plugin store"), "{log}");
 }
 #[test]
 fn invalid_config_file_reports_actionable_error() {

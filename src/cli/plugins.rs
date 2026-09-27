@@ -26,7 +26,7 @@ pub(super) fn list(store: &PluginStore, json: bool) -> Result<()> {
     } else if plugins.is_empty() {
         print_no_plugins();
     } else {
-        print!("{}", table::render(&plugins));
+        println!("{}", table::render(&plugins));
     }
     Ok(())
 }

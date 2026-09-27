@@ -7,6 +7,7 @@ use crate::commands::add::{AddRequest, add_server};
 use crate::commands::cli::{Cli, SshCommand};
 use crate::export::{ExportDocument, export_document};
 use crate::import::import_document;
+use crate::list::{render_json, render_table};
 use crate::private_file::write_private_file;
 use crate::prompts::{Prompter, terminal_prompter};
 use crate::servers::{load_servers, remove_server};
@@ -51,17 +52,17 @@ pub fn run_with_prompter(context: &PluginContext, prompter: Option<&dyn Prompter
             )?;
             println!("Saved SSH server {name}");
         }
-        SshCommand::List => {
-            for server in load_servers(context)? {
-                println!(
-                    "{}\t{}@{}:{}\t{}\t{}",
-                    server.name,
-                    server.username,
-                    server.host,
-                    server.port,
-                    server.auth_type,
-                    server.key_path.as_deref().unwrap_or("")
-                );
+        SshCommand::List { json } => {
+            let servers = load_servers(context)?;
+            if json {
+                println!("{}", render_json(&servers)?);
+            } else {
+                let table = render_table(&servers);
+                // An empty store renders nothing at all, so "--json" is the
+                // only form that reports an empty list explicitly.
+                if !table.is_empty() {
+                    println!("{table}");
+                }
             }
         }
         SshCommand::Remove { name } => {

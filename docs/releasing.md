@@ -18,13 +18,13 @@
 1. 同步宿主、SDK 的 package version 和宿主 SDK dependency version；按需更新示例、Cargo.lock 和 CHANGELOG。最低 Rust 版本为 1.85。
 2. 从功能分支创建 PR，完成本地检查并确认 PR 的 CI 全绿；获得确认后再合并，不直接推送 `main`。
 3. 创建并推送与 Cargo package version 一致的 `vX.Y.Z` 标签。
-4. Release workflow 先运行完整 CI，再为 Linux x86_64、Linux ARM64、Linux x86_64 musl、macOS Apple Silicon、Windows x86_64 编译宿主，并按 `plugins/*/dm-plugin.toml` 为每个内置插件编译 `dm-<name>`。
+4. Release workflow 先运行完整 CI，再为 Linux x86_64、Linux ARM64、Linux x86_64 musl、macOS Apple Silicon、macOS Intel、Windows x86_64 编译宿主，并按 `plugins/*/dm-plugin.toml` 为每个内置插件编译 `dm-<name>`。
 5. 全部成功后创建 GitHub Release：宿主与每个内置插件各自一个压缩包，普通发行提供 tar.gz、Windows 提供 zip，并附带 SHA-256 校验文件；另有 `dm-plugins-<tag>-<target>.txt` 列出随本次发布的内置插件，安装脚本按它安装。插件归档包含 `dm-<name>`、`dm-plugin.toml`，以及插件自己的 README/`config.example.toml`（缺失时回退到宿主根目录的 LICENSE 与 README）。带 `-` 的版本标签标记为预发布。归档命名和目录结构也是 `dm self-update` 的稳定协议，不得在同一主版本中随意改变；`scripts/release.py` 会在打包前校验标签、SDK、插件版本与 `min_host_version`。
 
-当前仍不发布 Intel macOS 或 aarch64 musl 产物，也不承诺旧 Linux 的 glibc 兼容性。产物在 GitHub hosted runner 上构建，需要更旧系统兼容性时另行制定构建基线。
+当前仍不发布 aarch64 musl、aarch64 Windows 或 Linux ARMv7 产物，也不承诺旧 Linux 的 glibc 兼容性。产物在 GitHub hosted runner 上构建，需要更旧系统兼容性时另行制定构建基线。
 
 本工作流仅发布 GitHub 宿主二进制，不自动发布 crates.io 包。未来若启用 crates.io，应先发布 `dm-plugin-sdk`，再发布依赖它的 `dameng-cli`；凭证通过 GitHub Secrets 管理。首次 SDK 发布前，使用源码/path 或固定提交的 Git 依赖。
 
 二进制宿主运行只需要系统运行环境；SQLite 已静态编译进宿主，不要求系统预装 SQLite。`dm install` 只安装预编译插件，不需要 Rust/Cargo；远程插件来源需要 Git，下载预编译产物在所有平台都需要 `curl`（Windows 也一样，`PowerShell` 只用于 `dm self-update` 解包 zip）。只有 `scripts/install-local.sh` 才需要 Rust/Cargo，因为它要构建宿主和两个内置插件。
 
-仓库提供 `scripts/install.sh`，根据系统选择 Release 归档并校验 SHA-256，随后按 `dm-plugins-<tag>-<target>.txt` 依次安装内置插件（清单缺失时回退到脚本内置名单）；只有明确未发布的资产才提示并跳过，其余网络或 HTTP 错误会直接让安装失败；覆盖 Linux x86_64、Linux ARM64、Apple Silicon macOS，可用 `DM_INSTALL_TARGET` 选择 `x86_64-unknown-linux-musl` 等产物。已安装的宿主可运行 `dm self-update --check` 或 `dm self-update`，会校验 SHA-256；Unix 需要系统提供 `curl` 和 `tar`，Windows 解压使用 PowerShell。`scripts/install-local.sh` 从当前检出执行 locked release build，把宿主与 `ssh`、`db` 两个内置插件一起安装（已装过则用 `dm update <name>` 升级）。两者默认写入 `$HOME/.local/bin`，也接受 `DM_INSTALL_DIR`。
+仓库提供 `scripts/install.sh`，根据系统选择 Release 归档并校验 SHA-256，随后按 `dm-plugins-<tag>-<target>.txt` 依次安装内置插件（清单缺失时回退到脚本内置名单）；只有明确未发布的资产才提示并跳过，其余网络或 HTTP 错误会直接让安装失败；覆盖 Linux x86_64、Linux ARM64、Apple Silicon macOS 与 Intel macOS，可用 `DM_INSTALL_TARGET` 选择 `x86_64-unknown-linux-musl` 等产物。已安装的宿主可运行 `dm self-update --check` 或 `dm self-update`，会校验 SHA-256；Unix 需要系统提供 `curl` 和 `tar`，Windows 解压使用 PowerShell。`scripts/install-local.sh` 从当前检出执行 locked release build，把宿主与 `ssh`、`db` 两个内置插件一起安装（已装过则用 `dm update <name>` 升级）。两者默认写入 `$HOME/.local/bin`，也接受 `DM_INSTALL_DIR`。

@@ -7,6 +7,7 @@
 mod cli_report;
 mod cli_table;
 mod config;
+mod logging;
 mod manifest;
 mod self_update;
 mod store;

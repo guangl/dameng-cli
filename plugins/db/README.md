@@ -12,7 +12,7 @@
 | 命令 | 说明 |
 | --- | --- |
 | `dm db add <name> --host H [--port 5236] [--username SYSDBA] [--password P] [--schema S] [--driver NAME]` | 新增或覆盖连接；终端下省略的参数会逐项提示，密码隐藏回显 |
-| `dm db list` | 列出已保存的连接（名称、用户@主机:端口、模式、驱动名） |
+| `dm db list [--json]` | 以带边框表格列出名称、主机、端口、用户、模式与驱动名；`--json` 输出同样字段的机器可读 JSON（未选模式时 `schema` 为 `null`），空列表为 `[]`，从不包含密码 |
 | `dm db remove <name>` | 删除连接 |
 | `dm db export [--file PATH] [--include-passwords]` | 导出连接配置；默认不包含密码，省略 `--file` 时输出到 stdout；`--include-passwords` 会要求输入并确认导出加密口令 |
 | `dm db import <file> [--replace]` | 从 JSON 文件导入；默认遇到同名连接报错，`--replace` 覆盖；未包含密码的导入会保留同名连接原有密码 |

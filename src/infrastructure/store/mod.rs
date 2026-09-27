@@ -13,11 +13,9 @@ mod uninstall;
 mod update;
 mod util;
 
-pub(crate) use self::{
-    download::*, git::checkout_git, home::home_from_env, types::InstallMode, util::*,
-};
+pub(crate) use self::{download::*, git::checkout_git, types::InstallMode, util::*};
 pub use self::{
-    home::PluginStore,
+    home::{PluginStore, home_from_env},
     prebuilt::*,
     types::{DoctorReport, PluginInfo, UpdateStatus},
 };

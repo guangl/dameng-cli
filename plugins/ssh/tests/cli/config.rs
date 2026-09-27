@@ -25,7 +25,9 @@ fn plugin_config_supplies_add_defaults() {
     assert!(add.contains("Saved SSH server prod"), "{add}");
 
     let list = ok(ssh(&home).args(["list"]).output().unwrap());
-    assert!(list.contains("ubuntu@10.0.0.8:2200"), "{list}");
+    for needle in ["ubuntu", "10.0.0.8", "2200"] {
+        assert!(list.contains(needle), "missing {needle:?} in:\n{list}");
+    }
 
     // An explicit flag still wins over the plugin configuration.
     ok(ssh(&home)
@@ -44,7 +46,9 @@ fn plugin_config_supplies_add_defaults() {
         .output()
         .unwrap());
     let list = ok(ssh(&home).args(["list"]).output().unwrap());
-    assert!(list.contains("root@10.0.0.9:2222"), "{list}");
+    for needle in ["root", "10.0.0.9", "2222"] {
+        assert!(list.contains(needle), "missing {needle:?} in:\n{list}");
+    }
 }
 
 #[test]
@@ -141,6 +145,7 @@ fn plugin_config_supplies_a_default_key() {
         .unwrap());
 
     let list = ok(ssh(&home).args(["list"]).output().unwrap());
-    assert!(list.contains("ubuntu@10.0.0.9:22"), "{list}");
-    assert!(list.contains("/tmp/id_ed25519"), "{list}");
+    for needle in ["ubuntu", "10.0.0.9", "key", "/tmp/id_ed25519"] {
+        assert!(list.contains(needle), "missing {needle:?} in:\n{list}");
+    }
 }

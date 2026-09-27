@@ -1,5 +1,5 @@
 use anyhow::{Context, Result, bail, ensure};
-use log::{debug, warn};
+use log::debug;
 use std::{fs, path::Path, process::Command};
 
 use crate::Manifest;
@@ -59,7 +59,9 @@ fn verify_optional_prebuilt_checksum(binary_url: &str, binary: &Path) -> Result<
     let downloaded =
         download_optional_prebuilt_checksum(&format!("{binary_url}.sha256"), &checksum_path)?;
     if !downloaded {
-        warn!("prebuilt plugin has no SHA-256 sidecar; trusting HTTPS transport");
+        // Security-relevant, so it goes to the terminal and not only to the log
+        // file the diagnostics are written to.
+        eprintln!("dm: prebuilt plugin has no SHA-256 sidecar; trusting HTTPS transport");
         return Ok(());
     }
     let expected = fs::read_to_string(&checksum_path)?;

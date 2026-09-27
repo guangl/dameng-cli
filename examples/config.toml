@@ -11,10 +11,11 @@
 #   - 未知表、未知键、空值、类型错误或非法 TOML 都会让命令直接失败并打印该文件路径。
 #   - 文件位于数据目录内，因此不能在这里修改数据目录本身；请用 DM_PLUGIN_HOME 改变它。
 
-# 诊断日志：始终写入 stderr，stdout 只保留命令结果与 JSON。
+# 诊断日志：写入 <DM_PLUGIN_HOME>/dm.log（超过 5 MiB 时轮转为 dm.log.1）；
+# stdout 只保留命令结果与 JSON，stderr 只保留用户可见的错误报告。
 [log]
 # 过滤级别，等价于环境变量 DM_LOG，默认 "info"。
-# 取值：off / error / warn / info / debug / trace，或过滤表达式，例如 "dm=debug"。
+# 取值：off / error / warn / info / debug / trace，或过滤表达式，例如 "dm=debug"；off 时不创建日志文件。
 level = "info"
 
 # dm self-update 的发布来源。
@@ -25,7 +26,7 @@ repository = "guangl/dameng-cli"
 # 取消注释可固定取用的 Release 产物目标（等价于 DM_UPDATE_TARGET），默认跟随本机平台。
 # target = "aarch64-apple-darwin"
 # 可选值：x86_64-unknown-linux-gnu、aarch64-unknown-linux-gnu、x86_64-unknown-linux-musl、
-#         aarch64-apple-darwin、x86_64-pc-windows-msvc。
+#         aarch64-apple-darwin、x86_64-apple-darwin、x86_64-pc-windows-msvc。
 
 # 输出与进度。
 [output]
