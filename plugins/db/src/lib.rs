@@ -206,7 +206,7 @@ const CONNECTIONS_TABLE_SCHEMA: &str = "CREATE TABLE IF NOT EXISTS connections (
 const EXPORT_VERSION: u32 = 1;
 const EXPORT_KDF_ROUNDS: u32 = 600_000;
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ExportDocument {
     version: u32,
@@ -219,7 +219,7 @@ struct ExportDocument {
     salt: Option<String>,
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct PortableConnection {
     name: String,
@@ -1164,4 +1164,227 @@ pub fn db_hint(error: &Error) -> String {
     }
 
     "使用 dm db --help 查看可用子命令和参数。".into()
+}
+
+#[cfg(test)]
+mod export_tests {
+    use super::*;
+    use std::cell::RefCell;
+    use tempfile::TempDir;
+
+    struct PasswordPrompter(RefCell<Vec<String>>);
+
+    impl Prompter for PasswordPrompter {
+        fn line(&self, _prompt: &str) -> Result<String> {
+            anyhow::bail!("Unexpected text prompt")
+        }
+
+        fn secret(&self, _prompt: &str) -> Result<String> {
+            self.0
+                .borrow_mut()
+                .pop()
+                .ok_or_else(|| anyhow::anyhow!("No scripted password"))
+        }
+    }
+
+    fn context(temp: &TempDir, id: &str) -> PluginContext {
+        let home = temp.path().join(id);
+        PluginContext {
+            args: vec![],
+            plugin_dir: home.join("plugins/db"),
+            config_dir: home.join("config/db"),
+            data_dir: home.join("data/db"),
+            cache_dir: home.join("cache/db"),
+            home,
+            capabilities: vec![],
+        }
+    }
+
+    fn connection(
+        name: &str,
+        password: Option<&str>,
+        context: &PluginContext,
+    ) -> DatabaseConnection {
+        DatabaseConnection {
+            name: name.to_owned(),
+            host: "127.0.0.1".to_owned(),
+            port: DEFAULT_PORT,
+            username: DEFAULT_USERNAME.to_owned(),
+            schema: Some("DMHR".to_owned()),
+            driver: DEFAULT_DRIVER.to_owned(),
+            secret: password.map(|value| encrypt(context, value.as_bytes()).unwrap()),
+        }
+    }
+
+    fn prompter(password: &str) -> PasswordPrompter {
+        PasswordPrompter(RefCell::new(vec![password.to_owned()]))
+    }
+
+    #[test]
+    fn plain_export_omits_passwords_and_round_trips_configuration() {
+        let temp = TempDir::new().unwrap();
+        let source = context(&temp, "source");
+        let export = export_document(
+            &source,
+            vec![connection("prod", Some("secret"), &source)],
+            false,
+            None,
+        )
+        .unwrap();
+        let json = serde_json::to_string(&export).unwrap();
+        assert!(!json.contains("secret"));
+        let imported: ExportDocument = serde_json::from_str(&json).unwrap();
+        let target = context(&temp, "target");
+        assert_eq!(import_document(&target, imported, false, None).unwrap(), 1);
+        let saved = find_connection(&target, "prod").unwrap();
+        assert_eq!(saved.host, "127.0.0.1");
+        assert!(saved.secret.is_none());
+    }
+
+    #[test]
+    fn encrypted_export_import_reencrypts_password_for_destination() {
+        let temp = TempDir::new().unwrap();
+        let source = context(&temp, "source");
+        let target = context(&temp, "target");
+        let source_connection = connection("prod", Some("secret"), &source);
+        let source_secret = source_connection.secret.clone().unwrap();
+        let encrypted = export_document(
+            &source,
+            vec![source_connection],
+            true,
+            Some(&prompter("transfer-passphrase")),
+        )
+        .unwrap();
+        let json = serde_json::to_string(&encrypted).unwrap();
+        assert!(!json.contains("secret"));
+        let document: ExportDocument = serde_json::from_str(&json).unwrap();
+        import_document(
+            &target,
+            document,
+            false,
+            Some(&prompter("transfer-passphrase")),
+        )
+        .unwrap();
+        let saved = find_connection(&target, "prod").unwrap();
+        assert_eq!(
+            decrypt(&target, saved.secret.as_deref().unwrap()).unwrap(),
+            b"secret"
+        );
+        assert_ne!(saved.secret.as_deref(), Some(source_secret.as_str()));
+    }
+
+    #[test]
+    fn encrypted_import_rejects_wrong_passphrase_and_missing_terminal() {
+        let temp = TempDir::new().unwrap();
+        let source = context(&temp, "source");
+        let export = export_document(
+            &source,
+            vec![connection("prod", Some("secret"), &source)],
+            true,
+            Some(&prompter("right")),
+        )
+        .unwrap();
+        assert!(
+            import_document(
+                &context(&temp, "wrong"),
+                export,
+                false,
+                Some(&prompter("wrong"))
+            )
+            .is_err()
+        );
+
+        let no_passwords = export_document(&source, vec![], true, None);
+        assert!(no_passwords.is_err());
+    }
+
+    #[test]
+    fn import_validates_document_shape_and_connection_records() {
+        let temp = TempDir::new().unwrap();
+        let context = context(&temp, "target");
+        let mut export = ExportDocument {
+            version: EXPORT_VERSION,
+            count: 1,
+            connections: Some(vec![PortableConnection {
+                name: "bad/name".to_owned(),
+                host: "127.0.0.1".to_owned(),
+                port: DEFAULT_PORT,
+                username: DEFAULT_USERNAME.to_owned(),
+                schema: None,
+                driver: DEFAULT_DRIVER.to_owned(),
+                password: None,
+            }]),
+            encrypted_payload: None,
+            salt: None,
+        };
+        assert!(import_document(&context, export.clone(), false, None).is_err());
+        export.version += 1;
+        assert!(import_document(&context, export, false, None).is_err());
+    }
+
+    #[test]
+    fn import_refuses_collisions_unless_replaced_and_preserves_password() {
+        let temp = TempDir::new().unwrap();
+        let context = context(&temp, "target");
+        upsert_connection(
+            &context,
+            &connection("prod", Some("local-secret"), &context),
+        )
+        .unwrap();
+        let export = ExportDocument {
+            version: EXPORT_VERSION,
+            count: 1,
+            connections: Some(vec![PortableConnection {
+                name: "prod".to_owned(),
+                host: "new-host".to_owned(),
+                port: DEFAULT_PORT,
+                username: DEFAULT_USERNAME.to_owned(),
+                schema: None,
+                driver: DEFAULT_DRIVER.to_owned(),
+                password: None,
+            }]),
+            encrypted_payload: None,
+            salt: None,
+        };
+        assert!(import_document(&context, export, false, None).is_err());
+        let export = ExportDocument {
+            version: EXPORT_VERSION,
+            count: 1,
+            connections: Some(vec![PortableConnection {
+                name: "prod".to_owned(),
+                host: "new-host".to_owned(),
+                port: DEFAULT_PORT,
+                username: DEFAULT_USERNAME.to_owned(),
+                schema: None,
+                driver: DEFAULT_DRIVER.to_owned(),
+                password: None,
+            }]),
+            encrypted_payload: None,
+            salt: None,
+        };
+        import_document(&context, export, true, None).unwrap();
+        let saved = find_connection(&context, "prod").unwrap();
+        assert_eq!(saved.host, "new-host");
+        assert_eq!(
+            decrypt(&context, saved.secret.as_deref().unwrap()).unwrap(),
+            b"local-secret"
+        );
+    }
+
+    #[test]
+    fn export_file_is_private_and_never_overwritten() {
+        let temp = TempDir::new().unwrap();
+        let path = temp.path().join("connections.json");
+        write_private_file(&path, b"first").unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"first");
+        assert!(write_private_file(&path, b"second").is_err());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                fs::metadata(path).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+        }
+    }
 }
