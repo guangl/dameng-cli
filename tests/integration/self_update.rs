@@ -111,8 +111,10 @@ fn self_update_wrapper_reports_up_to_date_without_network() {
 }
 #[test]
 fn self_update_check_non_json_reports_current_and_available() {
+    // Read the version from the crate so a release bump cannot stale this test.
+    let version = env!("CARGO_PKG_VERSION");
     let current = Command::new(env!("CARGO_BIN_EXE_dm"))
-        .args(["self-update", "--check", "--version", "0.2.0"])
+        .args(["self-update", "--check", "--version", version])
         .output()
         .unwrap();
     assert!(
@@ -121,7 +123,7 @@ fn self_update_check_non_json_reports_current_and_available() {
         String::from_utf8_lossy(&current.stderr)
     );
     assert!(
-        String::from_utf8_lossy(&current.stdout).contains("dm 0.2.0 is current"),
+        String::from_utf8_lossy(&current.stdout).contains(&format!("dm {version} is current")),
         "{}",
         String::from_utf8_lossy(&current.stdout)
     );
@@ -136,6 +138,9 @@ fn self_update_check_non_json_reports_current_and_available() {
         String::from_utf8_lossy(&available.stderr)
     );
     let stdout = String::from_utf8_lossy(&available.stdout);
-    assert!(stdout.contains("dm 0.2.0 is installed"), "{stdout}");
+    assert!(
+        stdout.contains(&format!("dm {version} is installed")),
+        "{stdout}"
+    );
     assert!(stdout.contains("0.1.0 is available"), "{stdout}");
 }
