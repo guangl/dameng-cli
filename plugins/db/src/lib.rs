@@ -20,14 +20,16 @@ use anyhow::{Context, Error, Result, ensure};
 use clap::{Parser, Subcommand};
 use dm_plugin_sdk::{Context as PluginContext, Plugin, PluginResult};
 use driver::PendingFactory;
+use pbkdf2::pbkdf2_hmac;
 use rand::{RngCore, rngs::OsRng};
 use rusqlite::{Connection as Sqlite, params};
 use serde::Deserialize;
+use sha2::Sha256;
 use std::{
     ffi::OsString,
     fs,
-    io::{IsTerminal, Read},
-    path::PathBuf,
+    io::{IsTerminal, Read, Write},
+    path::{Path, PathBuf},
     time::Duration,
 };
 
@@ -151,6 +153,21 @@ enum DbCommand {
     List,
     /// Remove a saved connection.
     Remove { name: String },
+    /// Export connection settings. Passwords are omitted unless encrypted export is requested.
+    Export {
+        #[arg(long)]
+        file: Option<PathBuf>,
+        /// Include passwords encrypted with an export passphrase.
+        #[arg(long)]
+        include_passwords: bool,
+    },
+    /// Import connection settings from a JSON export.
+    Import {
+        file: PathBuf,
+        /// Replace connections with matching names.
+        #[arg(long)]
+        replace: bool,
+    },
     /// Test a saved connection through the driver (not implemented yet).
     Test { name: String },
     /// Run SQL on a saved connection; reads stdin when no SQL and no --file is given.
@@ -185,6 +202,293 @@ const CONNECTIONS_TABLE_SCHEMA: &str = "CREATE TABLE IF NOT EXISTS connections (
     secret TEXT,
     updated_at INTEGER NOT NULL DEFAULT (unixepoch())
 ) STRICT";
+
+const EXPORT_VERSION: u32 = 1;
+const EXPORT_KDF_ROUNDS: u32 = 600_000;
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ExportDocument {
+    version: u32,
+    count: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    connections: Option<Vec<PortableConnection>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    encrypted_payload: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    salt: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PortableConnection {
+    name: String,
+    host: String,
+    port: u16,
+    username: String,
+    schema: Option<String>,
+    driver: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    password: Option<String>,
+}
+
+fn export_document(
+    context: &PluginContext,
+    connections: Vec<DatabaseConnection>,
+    include_passwords: bool,
+    prompter: Option<&dyn Prompter>,
+) -> Result<ExportDocument> {
+    let mut portable = Vec::with_capacity(connections.len());
+    for connection in connections {
+        let password = if include_passwords {
+            connection
+                .secret
+                .as_deref()
+                .map(|secret| {
+                    String::from_utf8(decrypt(context, secret)?)
+                        .context("Saved password is not valid UTF-8")
+                })
+                .transpose()?
+        } else {
+            None
+        };
+        portable.push(PortableConnection {
+            name: connection.name,
+            host: connection.host,
+            port: connection.port,
+            username: connection.username,
+            schema: connection.schema,
+            driver: connection.driver,
+            password,
+        });
+    }
+    let count = portable.len();
+    if !include_passwords {
+        return Ok(ExportDocument {
+            version: EXPORT_VERSION,
+            count,
+            connections: Some(portable),
+            encrypted_payload: None,
+            salt: None,
+        });
+    }
+    let passphrase = prompt_export_passphrase(prompter)?;
+    ensure!(
+        !passphrase.is_empty(),
+        "Export passphrase must not be empty"
+    );
+    let mut salt = [0_u8; 16];
+    OsRng.fill_bytes(&mut salt);
+    let mut key = [0_u8; 32];
+    pbkdf2_hmac::<Sha256>(passphrase.as_bytes(), &salt, EXPORT_KDF_ROUNDS, &mut key);
+    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
+    let mut nonce = [0_u8; 12];
+    OsRng.fill_bytes(&mut nonce);
+    let plaintext = serde_json::to_vec(&portable)?;
+    let encrypted = cipher
+        .encrypt(Nonce::from_slice(&nonce), plaintext.as_ref())
+        .map_err(|_| anyhow::anyhow!("Encrypt the export"))?;
+    let mut payload = nonce.to_vec();
+    payload.extend(encrypted);
+    Ok(ExportDocument {
+        version: EXPORT_VERSION,
+        count,
+        connections: None,
+        encrypted_payload: Some(hex(&payload)),
+        salt: Some(hex(&salt)),
+    })
+}
+
+fn import_document(
+    context: &PluginContext,
+    document: ExportDocument,
+    replace: bool,
+    prompter: Option<&dyn Prompter>,
+) -> Result<usize> {
+    ensure!(
+        document.version == EXPORT_VERSION,
+        "Unsupported export version {}",
+        document.version
+    );
+    let portable = match (
+        document.connections,
+        document.encrypted_payload,
+        document.salt,
+    ) {
+        (Some(connections), None, None) => {
+            ensure!(
+                connections
+                    .iter()
+                    .all(|connection| connection.password.is_none()),
+                "Plain exports cannot contain passwords; use an encrypted export"
+            );
+            connections
+        }
+        (None, Some(payload), Some(salt)) => {
+            let passphrase = prompt_secret(prompter, "Import passphrase: ")?;
+            let salt = unhex(&salt)?;
+            ensure!(salt.len() == 16, "Invalid export salt length");
+            let payload = unhex(&payload)?;
+            ensure!(payload.len() >= 12, "Invalid encrypted export length");
+            let mut key = [0_u8; 32];
+            pbkdf2_hmac::<Sha256>(passphrase.as_bytes(), &salt, EXPORT_KDF_ROUNDS, &mut key);
+            let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
+            let (nonce, ciphertext) = payload.split_at(12);
+            let plaintext = cipher
+                .decrypt(Nonce::from_slice(nonce), ciphertext)
+                .map_err(|_| {
+                    anyhow::anyhow!("Import passphrase is incorrect or export is damaged")
+                })?;
+            serde_json::from_slice(&plaintext).context("Parse decrypted database connections")?
+        }
+        _ => anyhow::bail!(
+            "Invalid export document: expected plain connections or an encrypted payload"
+        ),
+    };
+    ensure!(
+        portable.len() == document.count,
+        "Export connection count does not match its contents"
+    );
+    let mut imported_names = std::collections::HashSet::new();
+    for item in &portable {
+        validate_name(&item.name)?;
+        ensure!(
+            item.port > 0,
+            "Connection '{}' has an invalid port",
+            item.name
+        );
+        ensure!(
+            !item.host.trim().is_empty(),
+            "Connection '{}' has an empty host",
+            item.name
+        );
+        ensure!(
+            !item.username.trim().is_empty(),
+            "Connection '{}' has an empty username",
+            item.name
+        );
+        ensure!(
+            !item.driver.trim().is_empty(),
+            "Connection '{}' has an empty driver",
+            item.name
+        );
+        ensure!(
+            imported_names.insert(&item.name),
+            "Export contains duplicate connection '{}'",
+            item.name
+        );
+    }
+    let mut database = open_database(context)?;
+    let transaction =
+        database.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    let mut statement = transaction.prepare("SELECT name, secret FROM connections")?;
+    let rows = statement.query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+    })?;
+    let existing: std::collections::HashMap<String, Option<String>> =
+        rows.collect::<rusqlite::Result<_>>()?;
+    drop(statement);
+    let collisions: Vec<_> = portable
+        .iter()
+        .filter(|connection| existing.contains_key(&connection.name))
+        .map(|connection| connection.name.as_str())
+        .collect();
+    ensure!(
+        replace || collisions.is_empty(),
+        "Connections already exist: {}; pass --replace to overwrite",
+        collisions.join(", ")
+    );
+    let mut prepared = Vec::with_capacity(portable.len());
+    for item in portable {
+        let secret = match item.password {
+            Some(password) => Some(encrypt(context, password.as_bytes())?),
+            None => existing.get(&item.name).and_then(|secret| secret.clone()),
+        };
+        prepared.push(DatabaseConnection {
+            name: item.name,
+            host: item.host,
+            port: item.port,
+            username: item.username,
+            schema: item.schema,
+            driver: item.driver,
+            secret,
+        });
+    }
+    for connection in &prepared {
+        let sql = if replace {
+            "INSERT INTO connections (name, host, port, username, schema, driver, secret)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+             ON CONFLICT(name) DO UPDATE SET host = excluded.host,
+                 port = excluded.port, username = excluded.username,
+                 schema = excluded.schema, driver = excluded.driver,
+                 secret = excluded.secret, updated_at = unixepoch()"
+        } else {
+            "INSERT INTO connections (name, host, port, username, schema, driver, secret)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)"
+        };
+        transaction.execute(
+            sql,
+            params![
+                connection.name,
+                connection.host,
+                connection.port,
+                connection.username,
+                connection.schema,
+                connection.driver,
+                connection.secret
+            ],
+        )?;
+    }
+    transaction.commit()?;
+    Ok(document.count)
+}
+
+fn prompt_secret(prompter: Option<&dyn Prompter>, prompt: &str) -> Result<String> {
+    prompter
+        .context("A terminal is required for encrypted import/export passphrases")?
+        .secret(prompt)
+}
+
+fn prompt_export_passphrase(prompter: Option<&dyn Prompter>) -> Result<String> {
+    let first = prompt_secret(prompter, "Export passphrase: ")?;
+    let confirmation = prompt_secret(prompter, "Confirm export passphrase: ")?;
+    ensure!(first == confirmation, "Export passphrases do not match");
+    Ok(first)
+}
+
+fn write_private_file(path: &Path, bytes: &[u8]) -> Result<()> {
+    write_private_file_with(path, bytes, |output, contents| output.write_all(contents))
+}
+
+fn write_private_file_with(
+    path: &Path,
+    bytes: &[u8],
+    write: impl FnOnce(&mut fs::File, &[u8]) -> std::io::Result<()>,
+) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).with_context(|| format!("Create {}", parent.display()))?;
+    }
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut output = options.open(path).with_context(|| {
+        format!(
+            "Create export file {} without overwriting an existing file",
+            path.display()
+        )
+    })?;
+    if let Err(error) = write(&mut output, bytes) {
+        drop(output);
+        fs::remove_file(path)
+            .with_context(|| format!("Remove incomplete export file {}", path.display()))?;
+        return Err(error).with_context(|| format!("Write {}", path.display()));
+    }
+    Ok(())
+}
 
 pub fn database_path(context: &PluginContext) -> PathBuf {
     context.data_dir.join("connections.sqlite3")
@@ -749,6 +1053,36 @@ pub fn run_with_prompter(
             remove_connection(context, &name)?;
             println!("Removed database connection {name}");
         }
+        DbCommand::Export {
+            file,
+            include_passwords,
+        } => {
+            let connections = load_connections(context)?;
+            let document = export_document(context, connections, include_passwords, prompter)?;
+            let json = serde_json::to_vec_pretty(&document)?;
+            match file {
+                Some(path) => {
+                    write_private_file(&path, &json)?;
+                    println!(
+                        "Exported {} database connections to {}",
+                        document.count,
+                        path.display()
+                    );
+                }
+                None => {
+                    std::io::stdout().write_all(&json)?;
+                    println!();
+                }
+            }
+        }
+        DbCommand::Import { file, replace } => {
+            let document: ExportDocument = serde_json::from_slice(
+                &fs::read(&file).with_context(|| format!("Read {}", file.display()))?,
+            )
+            .with_context(|| format!("Parse database connection export {}", file.display()))?;
+            let connections = import_document(context, document, replace, prompter)?;
+            println!("Imported {connections} database connections");
+        }
         DbCommand::Test { name } => {
             let config = load_config(context)?;
             let connection = find_connection(context, &name)?;
@@ -865,4 +1199,272 @@ pub fn db_hint(error: &Error) -> String {
     }
 
     "使用 dm db --help 查看可用子命令和参数。".into()
+}
+
+#[cfg(test)]
+mod export_tests {
+    use super::*;
+    use std::cell::RefCell;
+    use tempfile::TempDir;
+
+    struct PasswordPrompter(RefCell<Vec<String>>);
+
+    impl Prompter for PasswordPrompter {
+        fn line(&self, _prompt: &str) -> Result<String> {
+            anyhow::bail!("Unexpected text prompt")
+        }
+
+        fn secret(&self, _prompt: &str) -> Result<String> {
+            self.0
+                .borrow_mut()
+                .pop()
+                .ok_or_else(|| anyhow::anyhow!("No scripted password"))
+        }
+    }
+
+    fn context(temp: &TempDir, id: &str) -> PluginContext {
+        let home = temp.path().join(id);
+        PluginContext {
+            args: vec![],
+            plugin_dir: home.join("plugins/db"),
+            config_dir: home.join("config/db"),
+            data_dir: home.join("data/db"),
+            cache_dir: home.join("cache/db"),
+            home,
+            capabilities: vec![],
+        }
+    }
+
+    fn connection(
+        name: &str,
+        password: Option<&str>,
+        context: &PluginContext,
+    ) -> DatabaseConnection {
+        DatabaseConnection {
+            name: name.to_owned(),
+            host: "127.0.0.1".to_owned(),
+            port: DEFAULT_PORT,
+            username: DEFAULT_USERNAME.to_owned(),
+            schema: Some("DMHR".to_owned()),
+            driver: DEFAULT_DRIVER.to_owned(),
+            secret: password.map(|value| encrypt(context, value.as_bytes()).unwrap()),
+        }
+    }
+
+    fn prompter(password: &str) -> PasswordPrompter {
+        PasswordPrompter(RefCell::new(vec![password.to_owned()]))
+    }
+
+    fn confirmed_prompter(password: &str, confirmation: &str) -> PasswordPrompter {
+        PasswordPrompter(RefCell::new(vec![
+            confirmation.to_owned(),
+            password.to_owned(),
+        ]))
+    }
+
+    #[test]
+    fn plain_export_omits_passwords_and_round_trips_configuration() {
+        let temp = TempDir::new().unwrap();
+        let source = context(&temp, "source");
+        let export = export_document(
+            &source,
+            vec![connection("prod", Some("secret"), &source)],
+            false,
+            None,
+        )
+        .unwrap();
+        let json = serde_json::to_string(&export).unwrap();
+        assert!(!json.contains("secret"));
+        let imported: ExportDocument = serde_json::from_str(&json).unwrap();
+        let target = context(&temp, "target");
+        assert_eq!(import_document(&target, imported, false, None).unwrap(), 1);
+        let saved = find_connection(&target, "prod").unwrap();
+        assert_eq!(saved.host, "127.0.0.1");
+        assert!(saved.secret.is_none());
+    }
+
+    #[test]
+    fn encrypted_export_import_reencrypts_password_for_destination() {
+        let temp = TempDir::new().unwrap();
+        let source = context(&temp, "source");
+        let target = context(&temp, "target");
+        let source_connection = connection("prod", Some("secret"), &source);
+        let source_secret = source_connection.secret.clone().unwrap();
+        let encrypted = export_document(
+            &source,
+            vec![source_connection],
+            true,
+            Some(&confirmed_prompter(
+                "transfer-passphrase",
+                "transfer-passphrase",
+            )),
+        )
+        .unwrap();
+        let json = serde_json::to_string(&encrypted).unwrap();
+        assert!(!json.contains("secret"));
+        let document: ExportDocument = serde_json::from_str(&json).unwrap();
+        import_document(
+            &target,
+            document,
+            false,
+            Some(&prompter("transfer-passphrase")),
+        )
+        .unwrap();
+        let saved = find_connection(&target, "prod").unwrap();
+        assert_eq!(
+            decrypt(&target, saved.secret.as_deref().unwrap()).unwrap(),
+            b"secret"
+        );
+        assert_ne!(saved.secret.as_deref(), Some(source_secret.as_str()));
+    }
+
+    #[test]
+    fn encrypted_import_rejects_wrong_passphrase_and_missing_terminal() {
+        let temp = TempDir::new().unwrap();
+        let source = context(&temp, "source");
+        let export = export_document(
+            &source,
+            vec![connection("prod", Some("secret"), &source)],
+            true,
+            Some(&confirmed_prompter("right", "right")),
+        )
+        .unwrap();
+        assert!(
+            import_document(
+                &context(&temp, "wrong"),
+                export,
+                false,
+                Some(&prompter("wrong"))
+            )
+            .is_err()
+        );
+
+        let no_passwords = export_document(&source, vec![], true, None);
+        assert!(no_passwords.is_err());
+        assert!(
+            export_document(
+                &source,
+                vec![],
+                true,
+                Some(&confirmed_prompter("first", "different")),
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn import_validates_document_shape_and_connection_records() {
+        let temp = TempDir::new().unwrap();
+        let context = context(&temp, "target");
+        let mut export = ExportDocument {
+            version: EXPORT_VERSION,
+            count: 1,
+            connections: Some(vec![PortableConnection {
+                name: "bad/name".to_owned(),
+                host: "127.0.0.1".to_owned(),
+                port: DEFAULT_PORT,
+                username: DEFAULT_USERNAME.to_owned(),
+                schema: None,
+                driver: DEFAULT_DRIVER.to_owned(),
+                password: None,
+            }]),
+            encrypted_payload: None,
+            salt: None,
+        };
+        assert!(import_document(&context, export.clone(), false, None).is_err());
+        export.version += 1;
+        assert!(import_document(&context, export, false, None).is_err());
+
+        for (username, driver) in [(" ", DEFAULT_DRIVER), (DEFAULT_USERNAME, "\t")] {
+            let invalid = ExportDocument {
+                version: EXPORT_VERSION,
+                count: 1,
+                connections: Some(vec![PortableConnection {
+                    name: "test".to_owned(),
+                    host: "127.0.0.1".to_owned(),
+                    port: DEFAULT_PORT,
+                    username: username.to_owned(),
+                    schema: None,
+                    driver: driver.to_owned(),
+                    password: None,
+                }]),
+                encrypted_payload: None,
+                salt: None,
+            };
+            assert!(import_document(&context, invalid, false, None).is_err());
+        }
+    }
+
+    #[test]
+    fn import_refuses_collisions_unless_replaced_and_preserves_password() {
+        let temp = TempDir::new().unwrap();
+        let context = context(&temp, "target");
+        upsert_connection(
+            &context,
+            &connection("prod", Some("local-secret"), &context),
+        )
+        .unwrap();
+        let export = ExportDocument {
+            version: EXPORT_VERSION,
+            count: 1,
+            connections: Some(vec![PortableConnection {
+                name: "prod".to_owned(),
+                host: "new-host".to_owned(),
+                port: DEFAULT_PORT,
+                username: DEFAULT_USERNAME.to_owned(),
+                schema: None,
+                driver: DEFAULT_DRIVER.to_owned(),
+                password: None,
+            }]),
+            encrypted_payload: None,
+            salt: None,
+        };
+        assert!(import_document(&context, export, false, None).is_err());
+        let export = ExportDocument {
+            version: EXPORT_VERSION,
+            count: 1,
+            connections: Some(vec![PortableConnection {
+                name: "prod".to_owned(),
+                host: "new-host".to_owned(),
+                port: DEFAULT_PORT,
+                username: DEFAULT_USERNAME.to_owned(),
+                schema: None,
+                driver: DEFAULT_DRIVER.to_owned(),
+                password: None,
+            }]),
+            encrypted_payload: None,
+            salt: None,
+        };
+        import_document(&context, export, true, None).unwrap();
+        let saved = find_connection(&context, "prod").unwrap();
+        assert_eq!(saved.host, "new-host");
+        assert_eq!(
+            decrypt(&context, saved.secret.as_deref().unwrap()).unwrap(),
+            b"local-secret"
+        );
+    }
+
+    #[test]
+    fn export_file_is_private_and_never_overwritten() {
+        let temp = TempDir::new().unwrap();
+        let path = temp.path().join("connections.json");
+        write_private_file(&path, b"first").unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"first");
+        assert!(write_private_file(&path, b"second").is_err());
+        let partial = temp.path().join("partial.json");
+        let error = write_private_file_with(&partial, b"contents", |output, contents| {
+            output.write_all(&contents[..1])?;
+            Err(std::io::Error::other("simulated write failure"))
+        });
+        assert!(error.is_err());
+        assert!(!partial.exists());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                fs::metadata(path).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+        }
+    }
 }
