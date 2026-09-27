@@ -1,4 +1,5 @@
 mod auth;
+mod commands;
 mod common;
 mod config;
 mod crypto;
