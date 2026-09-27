@@ -14,7 +14,7 @@
 | `dm db add <name> --host H [--port 5236] [--username SYSDBA] [--password P] [--schema S] [--driver NAME]` | 新增或覆盖连接；终端下省略的参数会逐项提示，密码隐藏回显 |
 | `dm db list` | 列出已保存的连接（名称、用户@主机:端口、模式、驱动名） |
 | `dm db remove <name>` | 删除连接 |
-| `dm db export [--file PATH] [--include-passwords]` | 导出连接配置；默认不包含密码，省略 `--file` 时输出到 stdout；`--include-passwords` 会要求输入导出加密口令 |
+| `dm db export [--file PATH] [--include-passwords]` | 导出连接配置；默认不包含密码，省略 `--file` 时输出到 stdout；`--include-passwords` 会要求输入并确认导出加密口令 |
 | `dm db import <file> [--replace]` | 从 JSON 文件导入；默认遇到同名连接报错，`--replace` 覆盖；未包含密码的导入会保留同名连接原有密码 |
 | `dm db test <name>` | 通过驱动连接并执行探测语句（默认 `SELECT 1`）；驱动接入后可用 |
 | `dm db exec <name> [SQL]` / `dm db exec <name> --file script.sql` | 执行 SQL 并输出制表符分隔的结果集（省略 SQL 与 `--file` 时从 stdin 读取）；驱动接入后可用 |

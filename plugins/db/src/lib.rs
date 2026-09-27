@@ -272,7 +272,7 @@ fn export_document(
             salt: None,
         });
     }
-    let passphrase = prompt_secret(prompter, "Export passphrase: ")?;
+    let passphrase = prompt_export_passphrase(prompter)?;
     ensure!(
         !passphrase.is_empty(),
         "Export passphrase must not be empty"
@@ -363,16 +363,31 @@ fn import_document(
             item.name
         );
         ensure!(
+            !item.username.trim().is_empty(),
+            "Connection '{}' has an empty username",
+            item.name
+        );
+        ensure!(
+            !item.driver.trim().is_empty(),
+            "Connection '{}' has an empty driver",
+            item.name
+        );
+        ensure!(
             imported_names.insert(&item.name),
             "Export contains duplicate connection '{}'",
             item.name
         );
     }
-    let existing: std::collections::HashMap<String, DatabaseConnection> =
-        load_connections(context)?
-            .into_iter()
-            .map(|connection| (connection.name.clone(), connection))
-            .collect();
+    let mut database = open_database(context)?;
+    let transaction =
+        database.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    let mut statement = transaction.prepare("SELECT name, secret FROM connections")?;
+    let rows = statement.query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+    })?;
+    let existing: std::collections::HashMap<String, Option<String>> =
+        rows.collect::<rusqlite::Result<_>>()?;
+    drop(statement);
     let collisions: Vec<_> = portable
         .iter()
         .filter(|connection| existing.contains_key(&connection.name))
@@ -387,9 +402,7 @@ fn import_document(
     for item in portable {
         let secret = match item.password {
             Some(password) => Some(encrypt(context, password.as_bytes())?),
-            None => existing
-                .get(&item.name)
-                .and_then(|connection| connection.secret.clone()),
+            None => existing.get(&item.name).and_then(|secret| secret.clone()),
         };
         prepared.push(DatabaseConnection {
             name: item.name,
@@ -401,16 +414,20 @@ fn import_document(
             secret,
         });
     }
-    let mut database = open_database(context)?;
-    let transaction = database.transaction()?;
     for connection in &prepared {
-        transaction.execute(
+        let sql = if replace {
             "INSERT INTO connections (name, host, port, username, schema, driver, secret)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
              ON CONFLICT(name) DO UPDATE SET host = excluded.host,
                  port = excluded.port, username = excluded.username,
                  schema = excluded.schema, driver = excluded.driver,
-                 secret = excluded.secret, updated_at = unixepoch()",
+                 secret = excluded.secret, updated_at = unixepoch()"
+        } else {
+            "INSERT INTO connections (name, host, port, username, schema, driver, secret)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)"
+        };
+        transaction.execute(
+            sql,
             params![
                 connection.name,
                 connection.host,
@@ -432,7 +449,22 @@ fn prompt_secret(prompter: Option<&dyn Prompter>, prompt: &str) -> Result<String
         .secret(prompt)
 }
 
+fn prompt_export_passphrase(prompter: Option<&dyn Prompter>) -> Result<String> {
+    let first = prompt_secret(prompter, "Export passphrase: ")?;
+    let confirmation = prompt_secret(prompter, "Confirm export passphrase: ")?;
+    ensure!(first == confirmation, "Export passphrases do not match");
+    Ok(first)
+}
+
 fn write_private_file(path: &Path, bytes: &[u8]) -> Result<()> {
+    write_private_file_with(path, bytes, |output, contents| output.write_all(contents))
+}
+
+fn write_private_file_with(
+    path: &Path,
+    bytes: &[u8],
+    write: impl FnOnce(&mut fs::File, &[u8]) -> std::io::Result<()>,
+) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).with_context(|| format!("Create {}", parent.display()))?;
     }
@@ -449,9 +481,12 @@ fn write_private_file(path: &Path, bytes: &[u8]) -> Result<()> {
             path.display()
         )
     })?;
-    output
-        .write_all(bytes)
-        .with_context(|| format!("Write {}", path.display()))?;
+    if let Err(error) = write(&mut output, bytes) {
+        drop(output);
+        fs::remove_file(path)
+            .with_context(|| format!("Remove incomplete export file {}", path.display()))?;
+        return Err(error).with_context(|| format!("Write {}", path.display()));
+    }
     Ok(())
 }
 
@@ -1220,6 +1255,13 @@ mod export_tests {
         PasswordPrompter(RefCell::new(vec![password.to_owned()]))
     }
 
+    fn confirmed_prompter(password: &str, confirmation: &str) -> PasswordPrompter {
+        PasswordPrompter(RefCell::new(vec![
+            confirmation.to_owned(),
+            password.to_owned(),
+        ]))
+    }
+
     #[test]
     fn plain_export_omits_passwords_and_round_trips_configuration() {
         let temp = TempDir::new().unwrap();
@@ -1252,7 +1294,10 @@ mod export_tests {
             &source,
             vec![source_connection],
             true,
-            Some(&prompter("transfer-passphrase")),
+            Some(&confirmed_prompter(
+                "transfer-passphrase",
+                "transfer-passphrase",
+            )),
         )
         .unwrap();
         let json = serde_json::to_string(&encrypted).unwrap();
@@ -1281,7 +1326,7 @@ mod export_tests {
             &source,
             vec![connection("prod", Some("secret"), &source)],
             true,
-            Some(&prompter("right")),
+            Some(&confirmed_prompter("right", "right")),
         )
         .unwrap();
         assert!(
@@ -1296,6 +1341,15 @@ mod export_tests {
 
         let no_passwords = export_document(&source, vec![], true, None);
         assert!(no_passwords.is_err());
+        assert!(
+            export_document(
+                &source,
+                vec![],
+                true,
+                Some(&confirmed_prompter("first", "different")),
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -1320,6 +1374,25 @@ mod export_tests {
         assert!(import_document(&context, export.clone(), false, None).is_err());
         export.version += 1;
         assert!(import_document(&context, export, false, None).is_err());
+
+        for (username, driver) in [(" ", DEFAULT_DRIVER), (DEFAULT_USERNAME, "\t")] {
+            let invalid = ExportDocument {
+                version: EXPORT_VERSION,
+                count: 1,
+                connections: Some(vec![PortableConnection {
+                    name: "test".to_owned(),
+                    host: "127.0.0.1".to_owned(),
+                    port: DEFAULT_PORT,
+                    username: username.to_owned(),
+                    schema: None,
+                    driver: driver.to_owned(),
+                    password: None,
+                }]),
+                encrypted_payload: None,
+                salt: None,
+            };
+            assert!(import_document(&context, invalid, false, None).is_err());
+        }
     }
 
     #[test]
@@ -1378,6 +1451,13 @@ mod export_tests {
         write_private_file(&path, b"first").unwrap();
         assert_eq!(fs::read(&path).unwrap(), b"first");
         assert!(write_private_file(&path, b"second").is_err());
+        let partial = temp.path().join("partial.json");
+        let error = write_private_file_with(&partial, b"contents", |output, contents| {
+            output.write_all(&contents[..1])?;
+            Err(std::io::Error::other("simulated write failure"))
+        });
+        assert!(error.is_err());
+        assert!(!partial.exists());
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
