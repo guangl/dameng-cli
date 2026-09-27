@@ -837,7 +837,7 @@ impl PluginStore {
         .flatten()
         {
             let from = resolve_hook_path(source, hook)?;
-            let to = package.join(hook);
+            let to = package.join(normalize_hook_path(hook));
             if let Some(parent) = to.parent() {
                 fs::create_dir_all(parent)?;
             }
@@ -1082,6 +1082,9 @@ fn download_prebuilt_asset(url: &str, destination: &Path) -> bool {
 fn download_optional_prebuilt_checksum(url: &str, destination: &Path) -> Result<bool> {
     let output = Command::new("curl")
         .args([
+            // Keep curl's behavior deterministic even when the user's .curlrc
+            // enables --fail, which would turn an expected 404 into an error.
+            "-q",
             "-sSL",
             "--retry",
             "3",
@@ -1159,6 +1162,14 @@ fn resolve_hook_path(root: &Path, hook: &str) -> Result<PathBuf> {
         "Hook '{hook}' escapes plugin directory"
     );
     Ok(canonical)
+}
+
+fn normalize_hook_path(hook: &str) -> PathBuf {
+    let mut path = PathBuf::new();
+    for component in hook.split(['/', '\\']) {
+        path.push(component);
+    }
+    path
 }
 
 fn try_download_prebuilt(
