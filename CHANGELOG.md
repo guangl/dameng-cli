@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 新增 `plugins/db` 插件，提供 `dm db add/list/remove/test/exec` 达梦数据库连接管理：连接保存在插件自身的 `data/db/connections.sqlite3`，密码用本机 AES-GCM 密钥加密；`add` 在终端下省略参数时逐项交互式输入、密码隐藏回显；插件配置为 `config/db/config.toml`（`[defaults]` 的 port/username/driver/schema 与 `[connect]` 的 timeout/probe）；组装连接串时拒绝主机/用户名/模式中的 `;`、`{`、`}` 并对密码加引号。`test` 与 `exec` 保留了命令、参数解析和 Database/Session/DatabaseFactory 接口（含可注入的提示源，测试用脚本化驱动覆盖全部命令分支），但驱动实现为占位，运行时会明确报告“驱动尚未接入”而不会假装连接成功。
 - 明确插件由各自的目录配置：新增 SDK 约定 `Context::config_file()` / `CONFIG_FILE`（`<config_dir>/config.toml`），宿主不读取插件配置，`dm info <name>` 增加该插件的 config/data/cache 目录与配置文件是否存在（`--json` 为 `paths`）；`dm ssh` 插件改为读取自己的 `config/ssh/config.toml`（`[defaults]` 的 port/username/auth/key 与 `[test] connect_timeout`），首次给出可运行的插件配置范例。
 - 配置文件改为按用途分表：`[log] level`、`[update] repository/target`、`[output] progress`、`[plugin] environment`；平铺旧键不再接受。新增 `[update] target`（环境变量 `DM_UPDATE_TARGET`）、`[output] progress`（`DM_PROGRESS`）与 `[plugin] environment`（`DM_PLUGIN_ENVIRONMENT`）；自更新拒绝未发布 target 时会列出可选值，配置键名错误仍会直接失败并指出文件。
 - 行覆盖率提升到 97%，并在 CI 中以 `cargo llvm-cov --fail-under-lines 95` 强制不低于 95%；补齐 SSH 插件交互输入（提示抽象为可注入的 `Prompter`，测试用脚本化回答驱动）、宿主空状态、损坏 store、doctor 事务恢复和错误提示分支的测试。

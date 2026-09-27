@@ -5,6 +5,8 @@
 .env.*
 !.env.example
 lcov.info
+/plugins/db/dm-db
+/plugins/db/dm-db.exe
 /plugins/ssh/dm-ssh
 /plugins/ssh/dm-ssh.exe
 *.profraw

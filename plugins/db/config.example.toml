@@ -1,0 +1,24 @@
+# dm db 插件自己的配置示例（config.toml）
+#
+# 每个插件由自己的目录配置，宿主只创建目录并把路径传给插件：
+#   <DM_PLUGIN_HOME>/config/db/config.toml
+# 用 `dm info db` 可以查看该目录与文件是否存在（默认 ~/.config/dm/config/db）。
+# 文件不存在时插件使用同样的默认值；未知表、未知键或非法值会让命令直接失败并打印该文件路径。
+
+# dm db add 中省略参数时使用的默认值（命令行显式传参始终优先）。
+[defaults]
+# 省略 --port 时使用的端口；交互式提示直接回车也用它。
+port = 5236
+# 省略 --username 时使用的用户名。
+username = "SYSDBA"
+# 省略 --driver 时为连接记录的驱动名；接入 ODBC 驱动后需与 odbcinst.ini 中注册的名称一致。
+driver = "DM8 ODBC DRIVER"
+# 省略 --schema 时使用的模式名；不设置表示使用登录用户的默认模式。
+# schema = "DMHR"
+
+# dm db test / dm db exec 的连接参数。
+[connect]
+# 连接与语句超时（秒），默认 10。
+timeout = 10
+# dm db test 使用的探测语句。
+probe = "SELECT 1"

@@ -348,6 +348,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "dm-plugin-db"
+version = "0.1.0"
+dependencies = [
+ "aes-gcm",
+ "anyhow",
+ "clap",
+ "dm-plugin-sdk",
+ "rand",
+ "rpassword",
+ "rusqlite",
+ "serde",
+ "tempfile",
+ "toml",
+]
+
+[[package]]
 name = "dm-plugin-hello"
 version = "0.1.0"
 dependencies = [

@@ -5,8 +5,8 @@
 
 面向达梦（Dameng）数据库工具的 **Rust 插件宿主**。命令名为 `dm`。
 
-宿主只负责插件安装、发现、执行和卸载；所有数据库功能由独立 Rust 插件提供。
-当前仓库提供架构和演示插件，不包含数据库驱动、连接配置或具体数据库操作。
+宿主只负责插件安装、发现、执行和卸载；所有数据库功能由独立 Rust 插件提供，宿主自身不包含数据库驱动、连接配置或具体数据库操作。
+当前仓库包含两个插件：`plugins/ssh` 管理 SSH 服务器连接，`plugins/db` 管理达梦数据库连接配置（`test`/`exec` 的驱动实现待接入）。
 这是独立社区项目，与达梦官方无隶属关系。
 
 ## 快速开始
@@ -63,6 +63,7 @@ dm uninstall hello
 | `dm doctor [--repair]` | 检查或修复 SQLite、插件目录、残留事务与孤立配置/数据/缓存目录 |
 | `dm uninstall <name>` | 删除插件及其 config/data/cache 隔离目录 |
 | `dm ssh add/list/remove/test/ssh` | 由 `plugins/ssh` 插件提供的 SSH 服务器管理；配置写入插件自身的 `data/ssh/servers.sqlite3`，`add` 在终端下省略任意字段时逐项交互式输入，密码/口令隐藏回显；插件自己的默认值写在 `config/ssh/config.toml`（`[defaults]`、`[test]`） |
+| `dm db add/list/remove/test/exec` | 由 `plugins/db` 插件提供的达梦数据库连接管理；连接写入插件自身的 `data/db/connections.sqlite3`，密码用本机 AES-GCM 密钥加密，`add` 在终端下省略任意字段时逐项交互式输入；插件自己的默认值写在 `config/db/config.toml`（`[defaults]` 的 port/username/driver/schema 与 `[connect]` 的 timeout/probe）。`test`（探测语句）与 `exec`（输出制表符分隔的结果集）的命令与接口已就位，但驱动仍是占位实现，当前会明确报错 |
 | `dm self-update [--check] [--version X.Y.Z] [--force] [--target TARGET]` | 校验 GitHub Release SHA-256 后原子升级宿主；`--force` 允许重装或降级，`--target` 覆盖产物目标 |
 | `dm completions <shell>` | 生成 shell completion |
 | `dm --help` / `dm --version` | 宿主帮助和版本 |

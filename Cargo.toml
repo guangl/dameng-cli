@@ -1,5 +1,10 @@
 [workspace]
-members = ["crates/dm-plugin-sdk", "examples/hello", "plugins/ssh"]
+members = [
+    "crates/dm-plugin-sdk",
+    "examples/hello",
+    "plugins/db",
+    "plugins/ssh",
+]
 default-members = ["."]
 resolver = "3"
 
