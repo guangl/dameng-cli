@@ -25,9 +25,6 @@ pub struct Manifest {
     /// Environment variables explicitly inherited by the plugin process.
     #[serde(default)]
     pub environment: Vec<String>,
-    /// Declarative permissions shown to users. Native plugins are not sandboxed.
-    #[serde(default)]
-    pub permissions: Vec<String>,
     /// Lifecycle hooks run by the host.
     #[serde(default)]
     pub hooks: Hooks,
@@ -102,13 +99,6 @@ impl Manifest {
                 "Environment variable '{variable}' must use uppercase ASCII letters, digits and '_'"
             );
         }
-        const PERMISSIONS: &[&str] = &["filesystem", "network", "process"];
-        for permission in &manifest.permissions {
-            ensure!(
-                PERMISSIONS.contains(&permission.as_str()),
-                "Unknown permission '{permission}'; supported values are filesystem, network and process"
-            );
-        }
         for hook in [
             manifest.hooks.pre_install.as_deref(),
             manifest.hooks.post_install.as_deref(),
@@ -121,20 +111,6 @@ impl Manifest {
             validate_hook(hook)?;
         }
         Ok(manifest)
-    }
-
-    /// True when this manifest requests permissions or environment variables the previous manifest did not.
-    pub fn requests_consent_from(&self, previous: Option<&Self>) -> bool {
-        let Some(previous) = previous else {
-            return !self.permissions.is_empty() || !self.environment.is_empty();
-        };
-        self.permissions
-            .iter()
-            .any(|permission| !previous.permissions.contains(permission))
-            || self
-                .environment
-                .iter()
-                .any(|variable| !previous.environment.contains(variable))
     }
 
     pub fn binary_name(&self) -> String {

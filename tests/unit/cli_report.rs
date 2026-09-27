@@ -30,7 +30,6 @@ fn known_failures_get_specific_hints() {
             .contains("owner/repository")
     );
     assert!(hint_for_message("stale transaction directory: .install-x").contains("dm doctor"));
-    assert!(hint_for_message("unknown permission 'root'").contains("permissions"));
     assert!(hint_for_message("Unsupported plugin API version 2").contains("API 版本"));
     assert!(hint_for_message("Invalid manifest /x/dm-plugin.toml").contains("dm-plugin.toml"));
     assert!(hint_for_message("Self-update release asset is missing").contains("自更新失败"));

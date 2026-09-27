@@ -14,7 +14,7 @@ description: 独立插件仓库、本地安装、Git 安装和版本策略。
 - 仓库根目录就是插件 crate，不依赖未初始化的 submodule。
 - README 记录用法、配置、退出码、数据库客户端依赖和许可证。
 - 若使用生命周期 hook，脚本位于仓库内、可执行、可重复运行，并正确处理失败。
-- 所需 `environment` 和 `permissions` 最小化；新增声明在发布说明中醒目标出。
+- 所需 `environment` 最小化；新增声明在发布说明中醒目标出。
 - 所有目标系统的格式、Clippy、测试和文档检查通过。
 - 错误消息、fixture 和 CI 日志中没有真实凭证。
 
@@ -71,7 +71,7 @@ dm install https://github.com/your-org/dm-plugin-backup.git --rev v1.0.0
 - 宿主 API 仍为 v1 时保持 `api_version = 1`。
 - `dm update` 在临时目录完成下载和校验，再原子切换安装目录；下载或元数据写入失败会保留旧版本。
 - 升级通过原子替换完成；需要保留历史版本时请使用 Git tag 与固定 revision。
-- `permissions` 与 `environment` 随清单记录，升级时直接更新，不再要求交互确认。
+- `environment` 随清单记录，升级时直接更新，不再要求交互确认。
 - 使用固定 `--rev` 的插件不会被 `dm outdated` 误报为跟踪默认分支；变更固定版本时重新安装或明确选择新 revision。
 
 出现问题时查看[故障排查](troubleshooting.html)。

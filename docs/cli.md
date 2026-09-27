@@ -19,14 +19,14 @@ description: dm 命令、环境变量、JSON 输出和常见工作流参考。
 
 数据库插件支持连接配置迁移：`dm db export [--file PATH] [--include-passwords]` 默认省略密码，未指定文件时输出 JSON 到 stdout；加 `--include-passwords` 后会在终端输入并确认加密口令。`dm db import <file> [--replace]` 默认拒绝覆盖同名连接；使用 `--replace` 覆盖配置时，若导入文件没有密码则保留本机原密码。密码导入后由本机密钥重新加密。文件导出不会覆盖已有文件，Unix 文件权限为 `0600`。
 
-`permissions` 与 `environment` 会随清单记录，用于审查和展示，不再要求交互确认。
+`environment` 会随清单记录，用于审查和展示，不再要求交互确认。
 
 ## 查询、执行与修复
 
 | 命令 | 说明 |
 | --- | --- |
 | `dm list [--json]` | 以带边框表格列出 Name、Version、Description、Source、Revision 与 Installed At（UTC）；`--json` 输出机器可读 JSON。 |
-| `dm info <name> [--json]` | 显示来源、revision、SHA-256、权限、环境变量，以及该插件的 config/data/cache 目录与配置文件是否存在（`--json` 中为 `paths`）。 |
+| `dm info <name> [--json]` | 显示来源、revision、SHA-256、环境变量，以及该插件的 config/data/cache 目录与配置文件是否存在（`--json` 中为 `paths`）。 |
 | `dm <name> [args...]` | 执行启用的插件并原样转发参数。 |
 | `dm outdated [--json]` | 并行读取各来源的清单版本；固定 ref 仍按原 ref 检查。 |
 | `dm verify [name]` | 校验磁盘清单与记录的 binary SHA-256。 |

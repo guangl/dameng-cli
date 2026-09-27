@@ -21,7 +21,6 @@ fn plugin_info(
             license: None,
             homepage: None,
             environment: Vec::new(),
-            permissions: Vec::new(),
             hooks: Default::default(),
         },
         source: source.map(str::to_owned),

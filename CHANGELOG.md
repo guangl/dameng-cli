@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 移除插件清单的 `permissions` 字段：`dm-plugin.toml` 不再接受权限声明，`dm info` 不再打印 `Permissions:`，`dm info --json` 与 `dm list --json` 的清单中也不再有该键；宿主执行的插件本来就是当前用户权限的原生进程，从未提供权限沙箱。这是破坏性清单变更：清单继续拒绝未知字段，仍写着 `permissions` 的插件仓库会被判为非法清单，SQLite 中记录的旧清单也不再解析，需用 `dm install <包目录> --replace` 重装插件刷新元数据。同时删除已无调用方的 `Manifest::requests_consent_from`。
 - 重构文件组织：测试全部移入 `tests/`，实现文件里不再保留 `#[cfg(test)]` 模块；`tests/unit/main.rs` 与 `tests/integration/main.rs` 各自汇总一个测试二进制，按主题拆成多个模块，共享夹具集中在该目标的 `common` 模块。`src/` 与两个插件按职责拆分为更小的模块，宿主 `src/cli/` 移入库 `dameng_cli::cli`，其错误提示与表格渲染可直接被测试调用；新增 `scripts/check_file_lines.sh` 在 CI 中强制每个 `.rs` 文件不超过 200 行。
 - `dm install` 新增 `--replace`：用一个包目录替换同名已安装插件，保留其 config/data/cache，并在任一步失败时回滚到旧版本（与 `dm update` 相同的原子切换），重复安装不再只能走 `dm update`；重复安装的报错也会提示这两种方式。`scripts/install.sh` 改用 `dm install <包目录> --replace`，因此再次运行安装脚本可以原地升级内置插件（此前会因临时来源目录已被清理而报 `Plugin source is not updateable`），并为这类不可更新来源补了可操作 `提示`。
 - 修复发布与安装脚本：`scripts/release.py` 里的 f-string 跨行导致 `SyntaxError`，`verify` 与 `package` 完全无法运行；现在校验发布标签与宿主版本、SDK 与宿主版本一致，逐个检查 `plugins/*` 插件（Cargo 版本与 `dm-plugin.toml` 一致、目录名与清单 `name` 一致、`api_version` 受宿主支持、`min_host_version` 按完整 SemVer 不高于宿主版本，含预发布版本比较），并为每个内置插件单独打包（附带插件 README、`config.example.toml` 与清单声明的 hooks），同时发布 `dm-plugins-<tag>-<target>.txt` 列出本次发布的内置插件。`scripts/install.sh` 用同一个校验并下载的函数处理每个资产，只有明确未发布（HTTP 404）的资产才提示并跳过，其余网络或 HTTP 错误直接让安装失败，插件清单缺失时回退到脚本内置名单；`release.yml` 按插件目录循环构建 `dm-<name>`，CI 增加 `scripts/release.py verify` 与 `scripts/test_release.py`（15 个用例覆盖 SemVer 比较、插件校验与打包内容）。

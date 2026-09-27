@@ -57,9 +57,6 @@ pub(super) fn info(store: &PluginStore, name: &str, json: bool) -> Result<()> {
             plugin.revision.as_deref().unwrap_or("unknown")
         );
         println!("SHA-256: {}", plugin.checksum);
-        if !plugin.manifest.permissions.is_empty() {
-            println!("Permissions: {}", plugin.manifest.permissions.join(", "));
-        }
         if !plugin.manifest.environment.is_empty() {
             println!("Environment: {}", plugin.manifest.environment.join(", "));
         }
