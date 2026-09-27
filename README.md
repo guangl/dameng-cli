@@ -52,7 +52,7 @@ dm uninstall hello
 
 | 命令 | 作用 |
 | --- | --- |
-| `dm install ./path/to/plugin` | 从包含预编译二进制和清单的本地目录安装 |
+| `dm install ./path/to/plugin [--replace]` | 从包含预编译二进制和清单的本地目录安装；`--replace` 允许替换同名已安装插件 |
 | `dm install https://github.com/OWNER/REPO.git --rev v1.2.0` | 从 GitHub Release 安装固定版本的预编译插件 |
 | `dm list [--json]` | 以带边框表格列出已安装插件的 Name、Version、Description、Source、Revision 与 Installed At；`--json` 输出机器可读 JSON |
 | `dm info <name> [--json]` | 查看来源、revision、校验和、权限，以及该插件自己的 config/data/cache 目录 |
@@ -70,7 +70,7 @@ dm uninstall hello
 
 完整参数、JSON 输出、环境变量和退出行为见 [CLI 参考](docs/cli.md)。
 
-同名插件拒绝直接覆盖；使用 `dm update` 无损升级。`dm uninstall` 会一并删除 `config/<name>`、`data/<name>`、`cache/<name>`，`dm doctor --repair` 也会清理这些目录中的孤立残留。
+同名插件默认拒绝直接覆盖：`dm update <name>` 按已记录来源原子升级，`dm install <source> --replace` 用当前包替换同名插件，两者都保留插件的 config/data/cache。`dm uninstall` 会一并删除 `config/<name>`、`data/<name>`、`cache/<name>`，`dm doctor --repair` 也会清理这些目录中的孤立残留。
 
 插件可以在 `dm-plugin.toml` 的 `[hooks]` 中声明 `pre_install`、`post_install`、`pre_uninstall` 和 `post_uninstall`。hook 必须是插件根目录内的相对可执行文件，并以对应的源码或安装目录作为工作目录运行；它们与 Cargo 构建脚本一样拥有当前用户权限，只应安装可信插件。异常中断留下的安装或卸载事务可由 `dm doctor --repair` 协调恢复。
 

@@ -23,6 +23,10 @@ enum Command {
         /// Install an exact Git tag, branch or commit.
         #[arg(long)]
         rev: Option<String>,
+        /// Replace an installed plugin of the same name instead of refusing;
+        /// its config/data/cache directories are kept.
+        #[arg(long)]
+        replace: bool,
     },
     /// List installed plugins.
     List {
@@ -89,8 +93,12 @@ pub fn run(config: &Config) -> Result<i32> {
         .with_progress(config.progress()?)
         .with_plugin_environment(config.plugin_environment()?);
     match cli.command {
-        Command::Install { source, rev } => {
-            let manifest = store.install_with_revision(&source, rev.as_deref())?;
+        Command::Install {
+            source,
+            rev,
+            replace,
+        } => {
+            let manifest = store.install_with_revision(&source, rev.as_deref(), replace)?;
             println!("Installed {} {}", manifest.name, manifest.version);
         }
         Command::List { json } => {
