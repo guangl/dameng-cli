@@ -603,7 +603,7 @@ fn prebuilt_release_is_used_before_source_build() {
     let curl = tools.join("curl");
     fs::write(
         &curl,
-        "#!/bin/sh\nout=\nurl=\nwhile [ \"$#\" -gt 0 ]; do\n  case \"$1\" in\n    --output) out=\"$2\"; shift 2;;\n    *) url=\"$1\"; shift;;\n  esac\ndone\ncase \"$url\" in\n  *.sha256) exit 22 ;;\n  *) cp \"$FAKE_BIN\" \"$out\" ;;\nesac\n",
+        "#!/bin/sh\nout=\nurl=\nwhile [ \"$#\" -gt 0 ]; do\n  case \"$1\" in\n    --output) out=\"$2\"; shift 2;;\n    -w) shift 2;;\n    *) url=\"$1\"; shift;;\n  esac\ndone\ncase \"$url\" in\n  *.sha256) printf 404;;\n  *) cp \"$FAKE_BIN\" \"$out\"; printf 200;;\nesac\n",
     )
     .unwrap();
     fs::set_permissions(&curl, fs::Permissions::from_mode(0o755)).unwrap();
@@ -1398,6 +1398,7 @@ url=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --output) out="$2"; shift 2;;
+    -w) shift 2;;
     *) url="$1"; shift;;
   esac
 done
@@ -1405,6 +1406,7 @@ case "$url" in
   *.sha256) printf '0000000000000000000000000000000000000000000000000000000000000000' > "$out";;
   *) cp "$FAKE_BIN" "$out";;
 esac
+printf 200
 "#,
     )
     .unwrap();
@@ -1518,6 +1520,7 @@ url=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --output) out="$2"; shift 2;;
+    -w) shift 2;;
     *) url="$1"; shift;;
   esac
 done
@@ -1525,6 +1528,7 @@ case "$url" in
   *.sha256) printf '%s' "__DIGEST__" > "$out";;
   *) cp "$FAKE_BIN" "$out";;
 esac
+printf 200
 "#
         .replace("__DIGEST__", &digest),
     )
