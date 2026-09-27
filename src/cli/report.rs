@@ -38,7 +38,12 @@ fn hint_for(error: &Error) -> String {
         return "请先运行 `dm install <source>` 安装插件，或用 `dm list` 查看已安装插件。".into();
     }
     if text.contains("already installed") {
-        return "该插件已安装；如需升级，请运行 `dm update <name>`。".into();
+        return "该插件已安装；升级请运行 `dm update <name>`，从新的包目录替换（保留配置与数据）请加 `--replace`。"
+            .into();
+    }
+    if text.contains("not updateable") {
+        return "该插件的来源不是可更新的仓库（例如安装脚本使用的临时目录）：请重新运行安装脚本，或运行 `dm install <新的包目录> --replace` 覆盖安装并保留配置与数据。"
+            .into();
     }
     if text.contains("already exists on disk") || text.contains("stale transaction") {
         return "磁盘上存在残留或未完成的事务；运行 `dm doctor --repair` 可自动修复。".into();
@@ -116,6 +121,11 @@ mod tests {
     #[test]
     fn known_failures_get_specific_hints() {
         assert!(hint_for_message("Plugin 'x' is not installed").contains("dm install"));
+        assert!(
+            hint_for_message("Plugin 'x' is already installed; run dm update")
+                .contains("--replace")
+        );
+        assert!(hint_for_message("Plugin source is not updateable").contains("--replace"));
         assert!(hint_for_message("Source must be a local plugin directory").contains("<source>"));
         assert!(hint_for_message("directory is not writable").contains("DM_PLUGIN_HOME"));
         assert!(hint_for_message("Prebuilt plugin SHA-256 mismatch").contains("重新下载"));

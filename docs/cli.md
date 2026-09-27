@@ -12,7 +12,7 @@ description: dm 命令、环境变量、JSON 输出和常见工作流参考。
 
 | 命令 | 说明 |
 | --- | --- |
-| `dm install <source> [--rev REF]` | 从本地预编译目录或 HTTPS Git URL 安装。Git 来源可固定 tag、branch 或 commit；只安装预编译插件，不执行源码编译。 |
+| `dm install <source> [--rev REF] [--replace]` | 从本地预编译目录或 HTTPS Git URL 安装。Git 来源可固定 tag、branch 或 commit；只安装预编译插件，不执行源码编译。`--replace` 允许替换同名已安装插件，保留其 config/data/cache。 |
 | `dm update <name>` | 从已记录来源原子升级一个插件。 |
 | `dm update --all` | 逐个升级全部插件，最后汇总失败项。 |
 | `dm uninstall <name>` | 运行卸载 hook 后删除插件、备份及其 config/data/cache 目录。 |

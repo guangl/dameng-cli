@@ -678,6 +678,63 @@ fn update_all_command_updates_installed_plugins() {
     assert!(home.join("plugins/probe/dm-plugin.toml").is_file());
 }
 
+#[test]
+fn install_replace_upgrades_in_place_and_keeps_plugin_data() {
+    let temp = TempDir::new().unwrap();
+    let source = fixture(temp.path());
+    let home = temp.path().join("home");
+    ok(dm(&home)
+        .args(["install", source.to_str().unwrap()])
+        .output()
+        .unwrap());
+
+    // Data the plugin wrote itself has to survive a replacement.
+    let data = home.join("data/probe");
+    fs::create_dir_all(&data).unwrap();
+    fs::write(data.join("state.txt"), "kept").unwrap();
+
+    // Without --replace an installed plugin is still refused, and the error
+    // points at both ways forward.
+    let refused = dm(&home)
+        .args(["install", source.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(!refused.status.success());
+    let stderr = String::from_utf8_lossy(&refused.stderr);
+    assert!(stderr.contains("already installed"), "{stderr}");
+    assert!(stderr.contains("--replace"), "{stderr}");
+
+    // A newer package of the same plugin replaces the installed one.
+    let newer = temp.path().join("probe 0.2.0");
+    fs::create_dir_all(&newer).unwrap();
+    fs::write(
+        newer.join("dm-plugin.toml"),
+        manifest("probe").replace("0.1.0", "0.2.0"),
+    )
+    .unwrap();
+    fs::copy(
+        source.join(format!("dm-probe{}", std::env::consts::EXE_SUFFIX)),
+        newer.join(format!("dm-probe{}", std::env::consts::EXE_SUFFIX)),
+    )
+    .unwrap();
+    let replaced = ok(dm(&home)
+        .args(["install", newer.to_str().unwrap(), "--replace"])
+        .output()
+        .unwrap());
+    assert!(replaced.contains("Installed probe 0.2.0"), "{replaced}");
+    assert!(ok(dm(&home).arg("list").output().unwrap()).contains("0.2.0"));
+    assert_eq!(fs::read_to_string(data.join("state.txt")).unwrap(), "kept");
+    assert!(ok(dm(&home).args(["verify", "probe"]).output().unwrap()).contains("probe"));
+
+    // Replacing also covers the first installation of a plugin.
+    ok(dm(&home).args(["uninstall", "probe"]).output().unwrap());
+    ok(dm(&home)
+        .args(["install", newer.to_str().unwrap(), "--replace"])
+        .output()
+        .unwrap());
+    assert!(ok(dm(&home).arg("list").output().unwrap()).contains("probe"));
+}
+
 #[cfg(unix)]
 #[test]
 fn local_installer_installs_host_and_ssh_plugin() {

@@ -126,10 +126,8 @@ for plugin in $plugins; do
     fi
     tar -xzf "$work_dir/${plugin_archive}" -C "$work_dir"
     plugin_dir="$work_dir/dm-${plugin}-${version}-${target}"
-    if "$install_dir/dm" info "$plugin" >/dev/null 2>&1; then
-        "$install_dir/dm" update "$plugin"
-    else
-        "$install_dir/dm" install "$plugin_dir"
-    fi
+    # --replace keeps the plugin's config/data/cache directories and also works
+    # for a first installation, so running the installer again upgrades in place.
+    "$install_dir/dm" install "$plugin_dir" --replace
 done
 echo "Installed dm ${version} and its bundled plugins to $install_dir/dm"

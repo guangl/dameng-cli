@@ -41,8 +41,12 @@ pub struct UpdateStatus {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum InstallMode {
+    /// Refuse to touch a plugin of the same name.
     New,
+    /// Replace a plugin that is already installed.
     Update,
+    /// Replace an installed plugin, or install it when it is not installed yet.
+    Replace,
 }
 
 /// Resolve the host data directory from the environment.
@@ -196,11 +200,28 @@ impl PluginStore {
     }
 
     pub fn install(&self, source: &str) -> Result<Manifest> {
-        self.install_with_revision(source, None)
+        self.install_with_revision(source, None, false)
     }
 
-    pub fn install_with_revision(&self, source: &str, revision: Option<&str>) -> Result<Manifest> {
+    /// Install a prebuilt plugin, optionally replacing an installed plugin of
+    /// the same name.
+    ///
+    /// Replacing keeps the plugin's config/data/cache directories and stages the
+    /// previous version exactly like `update`; it exists for installers that hold
+    /// a verified package directory, where `update` cannot work because the
+    /// recorded source of the previous installation may be gone.
+    pub fn install_with_revision(
+        &self,
+        source: &str,
+        revision: Option<&str>,
+        replace: bool,
+    ) -> Result<Manifest> {
         info!("install source={source} rev={}", revision.unwrap_or("-"));
+        let mode = if replace {
+            InstallMode::Replace
+        } else {
+            InstallMode::New
+        };
         if Path::new(source).is_dir() {
             ensure!(
                 revision.is_none(),
@@ -212,7 +233,7 @@ impl PluginStore {
                 Some(canonical.display().to_string()),
                 None,
                 None,
-                InstallMode::New,
+                mode,
             );
         }
         ensure!(
@@ -226,7 +247,7 @@ impl PluginStore {
             Some(source.to_owned()),
             Some(resolved_revision),
             revision.map(str::to_owned),
-            InstallMode::New,
+            mode,
         );
         drop(checkout);
         result
@@ -261,29 +282,53 @@ impl PluginStore {
             [&manifest.name],
             |row| row.get::<_, bool>(0),
         )?;
-        match mode {
+        let missing_on_disk = fs::symlink_metadata(&destination)
+            .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound);
+        let present_on_disk =
+            fs::symlink_metadata(&destination).is_ok_and(|metadata| metadata.is_dir());
+        let replacing = match mode {
             InstallMode::New => {
                 ensure!(
                     !installed,
-                    "Plugin '{}' is already installed; use dm update",
+                    "Plugin '{}' is already installed; run dm update to upgrade it, or dm install --replace to replace this installation",
                     manifest.name
                 );
                 ensure!(
-                    fs::symlink_metadata(&destination)
-                        .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound),
+                    missing_on_disk,
                     "Plugin '{}' already exists on disk; run dm doctor",
                     manifest.name
                 );
+                false
             }
             InstallMode::Update => {
                 ensure!(installed, "Plugin '{}' is not installed", manifest.name);
                 ensure!(
-                    fs::symlink_metadata(&destination).is_ok_and(|metadata| metadata.is_dir()),
+                    present_on_disk,
                     "Installed plugin '{}' is missing or invalid; run dm doctor",
                     manifest.name
                 );
+                true
             }
-        }
+            // Replacement may also bring the first installation of a plugin, so
+            // an installed plugin has to exist on disk, while a new one must not
+            // hit a leftover directory.
+            InstallMode::Replace => {
+                if installed {
+                    ensure!(
+                        present_on_disk,
+                        "Installed plugin '{}' is missing or invalid; run dm doctor",
+                        manifest.name
+                    );
+                } else {
+                    ensure!(
+                        missing_on_disk,
+                        "Plugin '{}' already exists on disk; run dm doctor",
+                        manifest.name
+                    );
+                }
+                installed
+            }
+        };
         let stage = tempfile::Builder::new()
             .prefix(".install-")
             .tempdir_in(&plugins)?;
@@ -324,11 +369,11 @@ impl PluginStore {
         self.copy_hooks(&source, &package, &manifest)?;
         let checksum = sha256_file(&package.join(manifest.executable_name()))?;
         let previous = stage.path().join("previous");
-        if mode == InstallMode::Update {
+        if replacing {
             fs::rename(&destination, &previous).context("Stage previous plugin version")?;
         }
         if let Err(error) = fs::rename(&package, &destination) {
-            if mode == InstallMode::Update {
+            if replacing {
                 let _ = fs::rename(&previous, &destination);
             }
             return Err(error).context("Publish installed plugin");
@@ -336,15 +381,15 @@ impl PluginStore {
         if let Some(hook) = manifest.hooks.post_install.as_deref() {
             if let Err(error) = self.run_hook(&destination, hook, "post-install", &manifest) {
                 let _ = fs::remove_dir_all(&destination);
-                if mode == InstallMode::Update {
+                if replacing {
                     let _ = fs::rename(&previous, &destination);
                 }
                 return Err(error).context("Run post-install hook");
             }
         }
         let transaction = connection.transaction()?;
-        let database_result = match mode {
-            InstallMode::New => transaction.execute(
+        let database_result = match installed {
+            false => transaction.execute(
                 "INSERT INTO installed_plugins
                  (name, manifest, source, revision, source_ref, checksum)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -357,7 +402,7 @@ impl PluginStore {
                     checksum
                 ],
             ),
-            InstallMode::Update => transaction.execute(
+            true => transaction.execute(
                 "UPDATE installed_plugins
                  SET manifest = ?2, source = ?3, revision = ?4, source_ref = ?5, checksum = ?6,
                      installed_at = unixepoch()
@@ -374,7 +419,7 @@ impl PluginStore {
         };
         if let Err(error) = database_result.and_then(|_| transaction.commit()) {
             let _ = fs::remove_dir_all(&destination);
-            if mode == InstallMode::Update {
+            if replacing {
                 let _ = fs::rename(&previous, &destination);
             }
             return Err(error).context("Record installed plugin in SQLite");
