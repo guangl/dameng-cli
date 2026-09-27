@@ -1,0 +1,40 @@
+# dm db 插件
+
+由 `plugins/db` 提供的达梦（Dameng）数据库连接管理插件。宿主只负责安装与转发参数，
+连接配置与凭据加密都在插件内完成。
+
+> 驱动实现暂缓：当前版本只管理连接配置。`dm db test` 与 `dm db exec` 的命令、
+> 参数和内部接口（Database/Session/DatabaseFactory）都已就位，但驱动仍是占位实现，
+> 运行时会明确报告“驱动尚未接入”，不会假装连接成功。
+
+## 命令
+
+| 命令 | 说明 |
+| --- | --- |
+| `dm db add <name> --host H [--port 5236] [--username SYSDBA] [--password P] [--schema S] [--driver NAME]` | 新增或覆盖连接；终端下省略的参数会逐项提示，密码隐藏回显 |
+| `dm db list` | 列出已保存的连接（名称、用户@主机:端口、模式、驱动名） |
+| `dm db remove <name>` | 删除连接 |
+| `dm db test <name>` | 通过驱动连接并执行探测语句（默认 `SELECT 1`）；驱动接入后可用 |
+| `dm db exec <name> [SQL]` / `dm db exec <name> --file script.sql` | 执行 SQL 并输出制表符分隔的结果集（省略 SQL 与 `--file` 时从 stdin 读取）；驱动接入后可用 |
+
+失败时 stderr 会给出 `错误`、`详情` 与中文 `提示`；缺少必填项、连接不存在或存储异常都会给出可操作建议。
+
+## 配置
+
+插件由自己的目录配置：`<DM_PLUGIN_HOME>/config/db/config.toml`（默认
+`~/.config/dm/config/db/config.toml`，可用 `dm info db` 查看）。完整示例见
+[config.example.toml](config.example.toml)，包含 `[defaults]`（port/username/driver/schema）
+与 `[connect]`（timeout/probe）。优先级为命令行参数 > 配置文件 > 内置默认值；未知表、未知键或非法值会让命令直接失败并指出该文件。
+
+## 数据与安全
+
+- 连接保存在 `<data dir>/connections.sqlite3`（`dm info db` 给出路径）。
+- 密码用本机随机密钥 `.db-key`（权限 `0600`）做 AES-GCM 加密后存储，`dm db list` 不会回显密码。
+- 组装连接串时会拒绝主机、用户名与模式中的 `;`、`{`、`}`，密码按连接串语法加引号，避免注入。
+- `dm uninstall db` 会连同这些目录一起删除。
+
+## 驱动接入
+
+驱动只需实现 `DatabaseFactory`（返回 `Database`）与 `Session`（执行 SQL 并返回
+`Outcome`），命令层无需改动：`src/driver.rs` 中的 `PendingFactory` 即占位实现，
+单元测试用同样的接口注入脚本化驱动，覆盖 `test`/`exec` 的全部命令分支。
