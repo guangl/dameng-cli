@@ -50,7 +50,7 @@ pub struct Manifest {
 #[derive(Debug, Clone, Default, Deserialize, serde::Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct Hooks {
-    /// Run from the source root before the Rust build.
+    /// Run from the source root before the package is installed.
     #[serde(default)]
     pub pre_install: Option<String>,
     /// Run from the installed plugin directory after a successful install.

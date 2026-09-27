@@ -820,10 +820,23 @@ impl PluginStore {
             let _ = fs::rename(&removed, &path);
             return Err(error).context("Remove plugin metadata");
         }
-        for directory in self.per_plugin_directories(name) {
-            let _ = fs::remove_dir_all(directory);
+        let mut cleanup_failures = Vec::new();
+        for directory in self
+            .per_plugin_directories(name)
+            .into_iter()
+            .chain(std::iter::once(self.backups().join(name)))
+        {
+            if let Err(error) = fs::remove_dir_all(&directory) {
+                if error.kind() != std::io::ErrorKind::NotFound {
+                    cleanup_failures.push(format!("{}: {error}", directory.display()));
+                }
+            }
         }
-        let _ = fs::remove_dir_all(self.backups().join(name));
+        ensure!(
+            cleanup_failures.is_empty(),
+            "Plugin '{name}' was uninstalled, but cleanup failed for: {}. Review the reported paths; `dm doctor --repair` can clean orphaned config/data/cache directories",
+            cleanup_failures.join("; ")
+        );
         Ok(())
     }
 

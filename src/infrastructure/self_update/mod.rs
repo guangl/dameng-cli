@@ -224,12 +224,13 @@ fn extract_binary(
     #[cfg(windows)]
     let status = {
         Command::new("powershell")
-            .args(["-NoProfile", "-Command"])
-            .arg(format!(
-                "Expand-Archive -LiteralPath '{}' -DestinationPath '{}' -Force",
-                archive.display(),
-                root.display()
-            ))
+            .args([
+                "-NoProfile",
+                "-Command",
+                "Expand-Archive -LiteralPath $env:DM_UPDATE_ARCHIVE -DestinationPath $env:DM_UPDATE_ROOT -Force",
+            ])
+            .env("DM_UPDATE_ARCHIVE", archive)
+            .env("DM_UPDATE_ROOT", root)
             .status()
             .context("Self-update requires PowerShell to extract zip archives")?
     };
