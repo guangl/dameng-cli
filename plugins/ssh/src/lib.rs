@@ -9,16 +9,27 @@ mod auth;
 mod commands;
 mod config;
 mod crypto;
+mod export;
 mod hints;
+mod import;
+mod private_file;
 mod prompts;
 mod servers;
 mod ssh_command;
 
 pub use auth::resolve_auth;
-pub use commands::run_cli;
+pub use commands::{run_cli, run_with_prompter};
 pub use config::{SshConfig, SshDefaults, SshTestSettings, config_path, load_config};
 pub use crypto::{decrypt, encrypt, hex, key_path, machine_key, unhex};
+// The export tests reach these internals through the public API; they stay
+// doc(hidden) so the documented surface does not grow.
+#[doc(hidden)]
+pub use export::{EXPORT_VERSION, ExportDocument, PortableServer, export_document};
 pub use hints::ssh_hint;
+#[doc(hidden)]
+pub use import::import_document;
+#[doc(hidden)]
+pub use private_file::{write_private_file, write_private_file_with};
 pub use prompts::{
     Prompter, TerminalPrompter, resolve_passphrase, resolve_password, resolve_port,
     resolve_required,

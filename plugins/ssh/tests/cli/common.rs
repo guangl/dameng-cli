@@ -30,6 +30,12 @@ pub fn ok(output: Output) -> String {
 }
 
 #[allow(dead_code)]
+pub fn failure(output: Output) -> String {
+    assert!(!output.status.success(), "expected a failing command");
+    String::from_utf8_lossy(&output.stderr).into_owned()
+}
+
+#[allow(dead_code)]
 /// The plugin owns its configuration inside the directory the host passes.
 pub fn write_plugin_config(home: &Path, text: &str) {
     let directory = home.join("config/ssh");
