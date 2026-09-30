@@ -25,6 +25,9 @@ pub struct Manifest {
     /// Environment variables explicitly inherited by the plugin process.
     #[serde(default)]
     pub environment: Vec<String>,
+    /// Opt into the read-only __complete process protocol.
+    #[serde(default)]
+    pub completion: bool,
     /// Lifecycle hooks run by the host.
     #[serde(default)]
     pub hooks: Hooks,

@@ -14,7 +14,7 @@ pub(super) fn install(
     replace: bool,
 ) -> Result<()> {
     let manifest = store.install_with_revision(source, rev, replace)?;
-    println!("Installed {} {}", manifest.name, manifest.version);
+    println!("已安装 {} {}", manifest.name, manifest.version);
     Ok(())
 }
 
@@ -49,37 +49,55 @@ pub(super) fn info(store: &PluginStore, name: &str, json: bool) -> Result<()> {
         });
         println!("{}", serde_json::to_string_pretty(&value)?);
     } else {
-        println!("Name: {}", plugin.manifest.name);
-        println!("Version: {}", plugin.manifest.version);
-        println!("Source: {}", plugin.source.as_deref().unwrap_or("unknown"));
-        println!(
-            "Revision: {}",
-            plugin.revision.as_deref().unwrap_or("unknown")
-        );
+        println!("名称： {}", plugin.manifest.name);
+        println!("版本： {}", plugin.manifest.version);
+        println!("来源： {}", plugin.source.as_deref().unwrap_or("unknown"));
+        println!("修订： {}", plugin.revision.as_deref().unwrap_or("unknown"));
         println!("SHA-256: {}", plugin.checksum);
         if !plugin.manifest.environment.is_empty() {
-            println!("Environment: {}", plugin.manifest.environment.join(", "));
+            println!("继承环境变量： {}", plugin.manifest.environment.join(", "));
         }
-        println!("Config dir: {}", directories[0].display());
-        println!("Data dir: {}", directories[1].display());
-        println!("Cache dir: {}", directories[2].display());
+        println!("配置目录： {}", directories[0].display());
+        println!("数据目录： {}", directories[1].display());
+        println!("缓存目录： {}", directories[2].display());
         println!(
-            "Config file: {} ({})",
+            "配置文件： {} ({})",
             config_file.display(),
             if config_file.is_file() {
-                "present"
+                "存在"
             } else {
-                "absent"
+                "不存在"
             }
         );
     }
     Ok(())
 }
 
-/// Remove an installed plugin.
-pub(super) fn uninstall(store: &PluginStore, name: &str) -> Result<()> {
-    store.uninstall(name)?;
-    println!("Uninstalled {name}");
+/// 卸载插件，默认保留配置和连接数据。
+pub(super) fn uninstall(store: &PluginStore, name: &str, purge: bool, yes: bool) -> Result<()> {
+    if purge {
+        if !store.has_retained_data(name)? {
+            store.info(name)?;
+        }
+        eprintln!("将清除插件 {name} 的配置、连接、缓存及备份：");
+        for path in store.removal_paths(name) {
+            eprintln!("  {}", path.display());
+        }
+        dm_plugin_support::interaction::confirm(
+            dm_plugin_support::interaction::terminal_prompter(),
+            yes,
+            &format!("彻底卸载 {name}？"),
+        )?;
+    }
+    store.uninstall_with_options(name, purge)?;
+    println!(
+        "已卸载 {name}。{}",
+        if purge {
+            "已清除数据。"
+        } else {
+            "配置和连接已保留，重新安装后可继续使用。"
+        }
+    );
     Ok(())
 }
 
@@ -90,5 +108,27 @@ pub(super) fn run_plugin(store: &PluginStore, args: &[OsString]) -> Result<i32> 
         .context("Missing plugin name")?
         .to_str()
         .ok_or_else(|| anyhow::anyhow!("Plugin name must be UTF-8"))?;
+    let names = store.completion_names().unwrap_or_default();
+    if !names.iter().any(|candidate| candidate == name) {
+        let mut candidates = names;
+        candidates.extend(
+            [
+                "list",
+                "info",
+                "install",
+                "update",
+                "uninstall",
+                "doctor",
+                "config",
+                "completions",
+                "self-update",
+            ]
+            .map(str::to_owned),
+        );
+        anyhow::bail!(
+            "Plugin '{name}' is not installed；相近命令或插件：{}",
+            dm_plugin_support::interaction::suggestions(name, &candidates)
+        );
+    }
     store.run(name, &args[1..])
 }

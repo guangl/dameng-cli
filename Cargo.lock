@@ -178,15 +178,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "clap_complete"
-version = "4.6.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0a7a9bfdb35811f9e59832f0f05975114d2251b415fb534108e6f34060fd772"
-dependencies = [
- "clap",
-]
-
-[[package]]
 name = "clap_derive"
 version = "4.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -287,13 +278,13 @@ dependencies = [
 
 [[package]]
 name = "dameng-cli"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "clap",
- "clap_complete",
  "comfy-table",
  "dm-plugin-sdk",
+ "dm-plugin-support",
  "env_logger",
  "indicatif",
  "log",
@@ -350,7 +341,7 @@ dependencies = [
 
 [[package]]
 name = "dm-plugin-db"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -378,11 +369,11 @@ dependencies = [
 
 [[package]]
 name = "dm-plugin-sdk"
-version = "0.3.0"
+version = "0.4.0"
 
 [[package]]
 name = "dm-plugin-ssh"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -407,7 +398,12 @@ version = "0.1.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
+ "clap",
  "rand",
+ "rpassword",
+ "serde",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]

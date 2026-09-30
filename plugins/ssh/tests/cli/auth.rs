@@ -37,7 +37,7 @@ fn add_with_key_reports_and_key_auth_runs_ssh() {
         ])
         .output()
         .unwrap());
-    assert!(add.contains("Saved SSH server keyed"), "{add}");
+    assert!(add.contains("已保存 SSH 连接 keyed"), "{add}");
 
     let list = ok(ssh(&home).args(["list"]).output().unwrap());
     assert!(list.contains("key"), "{list}");
@@ -45,10 +45,7 @@ fn add_with_key_reports_and_key_auth_runs_ssh() {
     let mut test = ssh(&home);
     test.env("PATH", &path);
     let test_out = ok(test.args(["test", "keyed"]).output().unwrap());
-    assert!(
-        test_out.contains("SSH server keyed is reachable"),
-        "{test_out}"
-    );
+    assert!(test_out.contains("SSH 连接 keyed 测试成功"), "{test_out}");
 }
 
 #[cfg(unix)]
@@ -86,10 +83,7 @@ fn password_auth_test_and_ssh_exit_codes_are_preserved() {
     let mut test = ssh(&home);
     test.env("PATH", &path);
     let test_out = ok(test.args(["test", "pw"]).output().unwrap());
-    assert!(
-        test_out.contains("SSH server pw is reachable"),
-        "{test_out}"
-    );
+    assert!(test_out.contains("SSH 连接 pw 测试成功"), "{test_out}");
 
     fs::write(&sshpass, "#!/bin/sh\nexit 7\n").unwrap();
     let mut session = ssh(&home);

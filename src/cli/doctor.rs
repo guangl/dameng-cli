@@ -9,16 +9,16 @@ pub(super) fn doctor(store: &PluginStore, repair: bool, json: bool) -> Result<()
     if json {
         println!("{}", serde_json::to_string_pretty(&report)?);
     } else if report.issues.is_empty() {
-        println!("Plugin store is healthy");
+        println!("插件存储正常");
     } else {
         for issue in &report.issues {
-            println!("Issue: {issue}");
+            println!("问题： {issue}");
         }
         for repair in &report.repairs {
-            println!("Repaired: {repair}");
+            println!("已修复： {repair}");
         }
         if !repair && report.repairs.is_empty() {
-            println!("Run dm doctor --repair to repair recoverable issues");
+            println!("运行 dm doctor --repair 修复可恢复问题");
         }
     }
     Ok(())

@@ -21,3 +21,7 @@ mod prebuilt_release;
 mod self_update;
 mod store;
 mod update;
+
+mod usability;
+
+mod release_plugins;

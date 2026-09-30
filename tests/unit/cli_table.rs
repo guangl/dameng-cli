@@ -20,6 +20,7 @@ fn plugin_info(
             min_host_version: None,
             license: None,
             homepage: None,
+            completion: false,
             environment: Vec::new(),
             hooks: Default::default(),
         },
@@ -48,12 +49,12 @@ fn table_contains_headers_and_rows() {
     )]);
 
     for needle in [
-        "Name",
-        "Version",
-        "Description",
-        "Source",
-        "Revision",
-        "Installed At",
+        "名称",
+        "版本",
+        "说明",
+        "来源",
+        "修订",
+        "安装时间 (UTC)",
         "probe",
         "0.1.0",
         "Test plugin",

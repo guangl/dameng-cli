@@ -8,3 +8,5 @@ mod connections;
 mod exec;
 mod failures;
 mod help;
+
+mod completion;

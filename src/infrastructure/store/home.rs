@@ -148,7 +148,8 @@ impl PluginStore {
                      revision TEXT,
                      source_ref TEXT,
                      checksum TEXT NOT NULL DEFAULT ''
-                 ) STRICT;",
+                 ) STRICT;
+                 CREATE TABLE IF NOT EXISTS retained_plugin_data (name TEXT PRIMARY KEY) STRICT;",
             )
             .map_err(|error| self.store_open_error(error))
             .context("Initialize SQLite plugin store")?;

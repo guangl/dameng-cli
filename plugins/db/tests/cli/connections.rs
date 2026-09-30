@@ -27,7 +27,7 @@ fn add_list_and_remove_connections() {
         ])
         .output()
         .unwrap());
-    assert!(add.contains("Saved database connection prod"), "{add}");
+    assert!(add.contains("已保存数据库连接 prod"), "{add}");
     assert!(
         !add.contains("SYSDBA@123"),
         "the password must not be echoed"
@@ -35,12 +35,12 @@ fn add_list_and_remove_connections() {
 
     let list = ok(db(&home).args(["list"]).output().unwrap());
     for needle in [
-        "Name",
-        "Host",
-        "Port",
-        "User",
+        "名称",
+        "地址",
+        "端口",
+        "用户名",
         "Schema",
-        "Driver",
+        "驱动",
         "prod",
         "10.0.0.8",
         "5237",
@@ -53,11 +53,11 @@ fn add_list_and_remove_connections() {
     assert!(!list.contains("SYSDBA@123"), "{list}");
     assert!(list.ends_with('\n'), "the table must end with a newline");
 
-    let remove = ok(db(&home).args(["remove", "prod"]).output().unwrap());
-    assert!(
-        remove.contains("Removed database connection prod"),
-        "{remove}"
-    );
+    let remove = ok(db(&home)
+        .args(["remove", "prod", "--yes"])
+        .output()
+        .unwrap());
+    assert!(remove.contains("已删除数据库连接 prod"), "{remove}");
     let empty = ok(db(&home).args(["list"]).output().unwrap());
     assert!(empty.contains("dm db add <name>"), "{empty}");
 }

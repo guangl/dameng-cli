@@ -91,17 +91,12 @@ fn interactive_auth_chooses_method_and_encrypts_secret() {
         b"secret"
     );
 
-    // A key answer that forgets the path is rejected instead of saving an empty one.
-    let empty_key = Script::new(&["key", ""], &[]);
-    let error = resolve_auth(&context, None, None, None, Some(&empty_key), None).unwrap_err();
-    assert!(error.to_string().contains("key path"), "{error:#}");
-
-    let unknown = Script::new(&["token"], &[]);
-    let error = resolve_auth(&context, None, None, None, Some(&unknown), None).unwrap_err();
-    assert!(
-        error.to_string().contains("Unknown authentication"),
-        "{error:#}"
-    );
+    let empty_key = Script::new(&["key", "", "/tmp/retry-key"], &[""]);
+    let (_, path, _) = resolve_auth(&context, None, None, None, Some(&empty_key), None).unwrap();
+    assert_eq!(path.as_deref(), Some("/tmp/retry-key"));
+    let unknown = Script::new(&["token", "password"], &["retry-password"]);
+    let (method, _, _) = resolve_auth(&context, None, None, None, Some(&unknown), None).unwrap();
+    assert_eq!(method, "password");
 }
 
 #[test]

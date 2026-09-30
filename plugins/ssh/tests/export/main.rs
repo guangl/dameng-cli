@@ -63,7 +63,7 @@ fn prompter(secret: &str) -> SecretPrompter {
     SecretPrompter(RefCell::new(vec![secret.to_owned()]))
 }
 
-/// Answers "Export passphrase: " and "Confirm export passphrase: " in order.
+/// Answers "导出口令: " and "再次输入导出口令: " in order.
 fn confirmed(first: &str, confirmation: &str) -> SecretPrompter {
     SecretPrompter(RefCell::new(vec![
         confirmation.to_owned(),

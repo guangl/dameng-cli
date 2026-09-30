@@ -20,7 +20,12 @@ pub fn ssh_command(context: &PluginContext, name: &str, test: bool) -> Result<Co
             .unwrap_or(DEFAULT_CONNECT_TIMEOUT);
         common.extend([
             "-o".to_owned(),
-            "BatchMode=yes".to_owned(),
+            if server.auth_type == "key" {
+                "BatchMode=yes"
+            } else {
+                "BatchMode=no"
+            }
+            .to_owned(),
             "-o".to_owned(),
             format!("ConnectTimeout={timeout}"),
         ]);

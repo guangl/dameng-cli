@@ -69,9 +69,12 @@ pub fn load_servers(context: &PluginContext) -> Result<Vec<Server>> {
 }
 
 pub fn upsert_server(context: &PluginContext, server: &Server) -> Result<()> {
+    save_server(context, server, true)
+}
+
+pub(crate) fn save_server(context: &PluginContext, server: &Server, replace: bool) -> Result<()> {
     let connection = open_database(context)?;
-    connection.execute(
-        "INSERT INTO servers (name, host, port, username, auth_type, secret, key_path)
+    let query = "INSERT INTO servers (name, host, port, username, auth_type, secret, key_path)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
          ON CONFLICT(name) DO UPDATE SET host = excluded.host,
              port = excluded.port,
@@ -79,7 +82,14 @@ pub fn upsert_server(context: &PluginContext, server: &Server) -> Result<()> {
              auth_type = excluded.auth_type,
              secret = excluded.secret,
              key_path = excluded.key_path,
-             updated_at = unixepoch()",
+             updated_at = unixepoch()";
+    let query = if replace {
+        query
+    } else {
+        query.split("ON CONFLICT").next().unwrap_or(query)
+    };
+    connection.execute(
+        query,
         params![
             server.name,
             server.host,

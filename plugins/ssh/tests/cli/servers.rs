@@ -25,11 +25,20 @@ fn add_list_and_remove_servers() {
         ])
         .output()
         .unwrap());
-    assert!(add.contains("Saved SSH server prod"), "{add}");
+    assert!(add.contains("已保存 SSH 连接 prod"), "{add}");
 
     let list = ok(ssh(&home).args(["list"]).output().unwrap());
     for needle in [
-        "Name", "Host", "Port", "User", "Auth", "Key", "prod", "10.0.0.8", "2222", "root",
+        "名称",
+        "地址",
+        "端口",
+        "用户名",
+        "认证方式",
+        "私钥",
+        "prod",
+        "10.0.0.8",
+        "2222",
+        "root",
         "password",
     ] {
         assert!(list.contains(needle), "missing {needle:?} in:\n{list}");
@@ -37,8 +46,11 @@ fn add_list_and_remove_servers() {
     assert!(!list.contains("p@ssw0rd"), "{list}");
     assert!(list.ends_with('\n'), "the table must end with a newline");
 
-    let remove = ok(ssh(&home).args(["remove", "prod"]).output().unwrap());
-    assert!(remove.contains("Removed SSH server prod"), "{remove}");
+    let remove = ok(ssh(&home)
+        .args(["remove", "prod", "--yes"])
+        .output()
+        .unwrap());
+    assert!(remove.contains("已删除 SSH 连接 prod"), "{remove}");
     let empty = ok(ssh(&home).args(["list"]).output().unwrap());
     assert!(empty.contains("dm ssh add <name>"), "{empty}");
 }

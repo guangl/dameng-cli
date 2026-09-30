@@ -42,7 +42,7 @@ SDK 提供路径约定，插件不必自己拼接：
 let config = context.config_file();   // <config_dir>/config.toml
 ```
 
-数据与缓存同理：需要长期保存的数据放 `DM_PLUGIN_DATA_DIR`，可再生成的放 `DM_PLUGIN_CACHE_DIR`。`dm uninstall` 会连同这三个目录一起删除，`dm doctor --repair` 会清理已卸载插件的残留。
+数据与缓存同理：需要长期保存的数据放 `DM_PLUGIN_DATA_DIR`，可再生成的放 `DM_PLUGIN_CACHE_DIR`。`dm uninstall` 默认保留这三个目录并登记保留状态，重新安装即可继续使用；`--purge` 才清空。`dm doctor --repair` 不会清理主动保留的数据。
 
 生命周期 hook 使用不同的执行契约：工作目录固定为对应插件根目录，phase 名称既写入 `DM_HOOK_PHASE`，也作为第一个参数传入。完整时机与失败语义见[项目结构与清单](manifest.html)。
 
@@ -76,3 +76,5 @@ printf 'select 1;\n' | dm formatter > formatted.sql
 `api_version` 描述宿主与插件之间的进程契约，不是插件业务版本。宿主维护受支持版本集合，不会因为新增兼容能力就淘汰 v1；普通扩展通过 `DM_PLUGIN_CAPABILITIES` 协商。只有契约发生破坏性变化时才增加 API 版本，同时应为旧版本保留明确的支持窗口。普通插件功能升级只更新插件 `version`。
 
 下一步阅读[测试与调试](testing.html)。
+
+可选的 `completion-v1` capability 允许插件以只读方式响应 `__complete`，需在清单中设置 `completion = true`。补全进程不会创建目录，详细协议见[使用体验与自动补全](../usability.html)。

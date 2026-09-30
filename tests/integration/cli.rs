@@ -41,9 +41,9 @@ fn cli_reporting_branches_cover_info_update_doctor() {
         .unwrap());
 
     let info = ok(dm(&home).args(["info", "probe"]).output().unwrap());
-    assert!(info.contains("Name: probe"), "{info}");
-    assert!(info.contains("Version: 0.1.0"), "{info}");
-    assert!(info.contains("Environment: DM_DATABASE_URL"), "{info}");
+    assert!(info.contains("名称： probe"), "{info}");
+    assert!(info.contains("版本： 0.1.0"), "{info}");
+    assert!(info.contains("继承环境变量： DM_DATABASE_URL"), "{info}");
     let info_json = ok(dm(&home)
         .args(["info", "--json", "probe"])
         .output()
@@ -77,7 +77,7 @@ fn cli_reporting_branches_cover_info_update_doctor() {
     ok(dm(&home).args(["update", "probe"]).output().unwrap());
 
     let healthy = ok(dm(&home).args(["doctor"]).output().unwrap());
-    assert!(healthy.contains("Plugin store is healthy"), "{healthy}");
+    assert!(healthy.contains("插件存储正常"), "{healthy}");
     let doctor_json = ok(dm(&home).args(["doctor", "--json"]).output().unwrap());
     let doctor: serde_json::Value = serde_json::from_str(&doctor_json).unwrap();
     assert!(doctor["issues"].is_array());
@@ -86,10 +86,10 @@ fn cli_reporting_branches_cover_info_update_doctor() {
     fs::create_dir_all(&orphan).unwrap();
     fs::write(orphan.join("leftover"), "leftover").unwrap();
     let issues = ok(dm(&home).args(["doctor"]).output().unwrap());
-    assert!(issues.contains("Issue:"), "{issues}");
-    assert!(issues.contains("Run dm doctor --repair"), "{issues}");
+    assert!(issues.contains("问题："), "{issues}");
+    assert!(issues.contains("运行 dm doctor --repair"), "{issues}");
     let repaired = ok(dm(&home).args(["doctor", "--repair"]).output().unwrap());
-    assert!(repaired.contains("Repaired:"), "{repaired}");
+    assert!(repaired.contains("已修复："), "{repaired}");
     assert!(!orphan.exists());
 
     fs::remove_file(source.join(format!("dm-probe{}", std::env::consts::EXE_SUFFIX))).unwrap();
@@ -123,9 +123,9 @@ fn empty_state_messages_cover_update_and_version_checks() {
     let home = temp.path().join("home");
 
     let update = ok(dm(&home).args(["update", "--all"]).output().unwrap());
-    assert!(update.contains("No plugins installed"), "{update}");
+    assert!(update.contains("尚无插件"), "{update}");
     let outdated = ok(dm(&home).args(["update"]).output().unwrap());
-    assert!(outdated.contains("No plugins installed"), "{outdated}");
+    assert!(outdated.contains("尚无插件"), "{outdated}");
     let json = ok(dm(&home).args(["update", "--json"]).output().unwrap());
     assert_eq!(json.trim(), "[]");
 }
@@ -148,16 +148,16 @@ fn info_points_at_the_plugin_owned_configuration() {
     store.install(source.to_str().unwrap()).unwrap();
 
     let info = ok(dm(&home).args(["info", "probe"]).output().unwrap());
-    assert!(info.contains("Config dir:"), "{info}");
-    assert!(info.contains("Data dir:"), "{info}");
-    assert!(info.contains("Cache dir:"), "{info}");
-    assert!(info.contains("(absent)"), "{info}");
+    assert!(info.contains("配置目录："), "{info}");
+    assert!(info.contains("数据目录："), "{info}");
+    assert!(info.contains("缓存目录："), "{info}");
+    assert!(info.contains("(不存在)"), "{info}");
 
     // The plugin owns this file; the host only reports where it belongs.
     fs::create_dir_all(home.join("config/probe")).unwrap();
     fs::write(home.join("config/probe/config.toml"), "greeting = \"hi\"\n").unwrap();
     let info = ok(dm(&home).args(["info", "probe"]).output().unwrap());
-    assert!(info.contains("(present)"), "{info}");
+    assert!(info.contains("(存在)"), "{info}");
 
     let json = ok(dm(&home)
         .args(["info", "--json", "probe"])

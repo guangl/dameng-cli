@@ -1,0 +1,11 @@
+#compdef dm
+_dm() {
+    local -a candidates
+    candidates=("${(@f)$(dm complete -- "${words[@]:1:$((CURRENT-1))}" 2>/dev/null)}")
+    (( ${#candidates} )) && compadd -- "${candidates[@]}"
+}
+if [[ -n ${curcontext-} ]]; then
+    _dm "$@"
+else
+    compdef _dm dm
+fi

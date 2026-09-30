@@ -129,6 +129,11 @@ for plugin in $plugins; do
     plugin_dir="$work_dir/dm-${plugin}-${version}-${target}"
     # --replace keeps the plugin's config/data/cache directories and also works
     # for a first installation, so running the installer again upgrades in place.
-    "$install_dir/dm" install "$plugin_dir" --replace
+    if "$install_dir/dm" install --help | grep -q -- '--release-source'; then
+        "$install_dir/dm" install "$plugin_dir" --replace --release-source "$repository" --release-tag "$version" --release-target "$target"
+    else
+        # Older released hosts do not yet support persistent Release sources.
+        "$install_dir/dm" install "$plugin_dir" --replace
+    fi
 done
 echo "Installed dm ${version} and its bundled plugins to $install_dir/dm"

@@ -14,7 +14,7 @@ fn update_checks_report_newer_local_version() {
         .args(["install", source.to_str().unwrap()])
         .output()
         .unwrap());
-    assert!(ok(dm(&home).args(["update"]).output().unwrap()).contains("current"));
+    assert!(ok(dm(&home).args(["update"]).output().unwrap()).contains("已是最新"));
 
     fs::write(
         source.join("dm-plugin.toml"),
@@ -23,7 +23,7 @@ fn update_checks_report_newer_local_version() {
     .unwrap();
     let output = ok(dm(&home).args(["update"]).output().unwrap());
     assert!(output.contains("0.2.0"));
-    assert!(output.contains("update available"));
+    assert!(output.contains("可升级"));
     let json = ok(dm(&home).args(["update", "--json"]).output().unwrap());
     let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
     assert_eq!(parsed[0]["update_available"], true);
@@ -41,7 +41,7 @@ fn update_all_command_updates_installed_plugins() {
         .output()
         .unwrap());
     let output = ok(dm(&home).args(["update", "--all"]).output().unwrap());
-    assert!(output.contains("Updated probe to 0.1.0"), "{output}");
+    assert!(output.contains("已升级 probe 至 0.1.0"), "{output}");
     assert!(home.join("plugins/probe/dm-plugin.toml").is_file());
 }
 #[cfg(unix)]
@@ -95,7 +95,7 @@ esac
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(String::from_utf8_lossy(&output.stdout).contains("Updated probe"));
+    assert!(String::from_utf8_lossy(&output.stdout).contains("已升级 probe"));
 }
 #[test]
 fn outdated_without_source_reports_no_available_version() {

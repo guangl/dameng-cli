@@ -65,9 +65,16 @@ pub fn load_connections(context: &PluginContext) -> Result<Vec<DatabaseConnectio
 }
 
 pub fn upsert_connection(context: &PluginContext, connection: &DatabaseConnection) -> Result<()> {
+    save_connection(context, connection, true)
+}
+
+pub(crate) fn save_connection(
+    context: &PluginContext,
+    connection: &DatabaseConnection,
+    replace: bool,
+) -> Result<()> {
     let database = open_database(context)?;
-    database.execute(
-        "INSERT INTO connections (name, host, port, username, schema, driver, secret)
+    let query = "INSERT INTO connections (name, host, port, username, schema, driver, secret)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
          ON CONFLICT(name) DO UPDATE SET host = excluded.host,
              port = excluded.port,
@@ -75,7 +82,14 @@ pub fn upsert_connection(context: &PluginContext, connection: &DatabaseConnectio
              schema = excluded.schema,
              driver = excluded.driver,
              secret = excluded.secret,
-             updated_at = unixepoch()",
+             updated_at = unixepoch()";
+    let query = if replace {
+        query
+    } else {
+        query.split("ON CONFLICT").next().unwrap_or(query)
+    };
+    database.execute(
+        query,
         params![
             connection.name,
             connection.host,

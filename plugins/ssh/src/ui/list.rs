@@ -65,7 +65,7 @@ pub fn render_table(servers: &[Server]) -> String {
         .load_preset(UTF8_FULL)
         .set_content_arrangement(ContentArrangement::Dynamic)
         .set_truncation_indicator("…")
-        .set_header(["Name", "Host", "Port", "User", "Auth", "Key"]);
+        .set_header(["名称", "地址", "端口", "用户名", "认证方式", "私钥"]);
 
     // comfy-table auto-detects the terminal width only when stdout is a TTY.
     // Keep piped output deterministic and reasonably narrow as well.

@@ -1,13 +1,13 @@
-//! The "dm ssh" command line as clap derives it.
-
+use super::fields::Fields;
 use clap::{Parser, Subcommand};
+use dm_plugin_support::config::ConfigCommand;
 use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(
     name = "dm ssh",
-    about = "Manage saved SSH server connections",
-    after_help = "Getting started:\n  dm ssh add prod         Save a connection interactively\n  dm ssh list             Show saved connections\n  dm ssh export --file connections.json\n\nThis plugin reads its own configuration file (<config dir>/config.toml, see `dm info ssh`):\n  [defaults] port, username, auth, key\n  [test] connect_timeout"
+    about = "管理保存的SSH连接",
+    after_help = "配置文件位于 config.toml；运行 dm info ssh 查看路径。\n\n常用操作：\n  dm ssh add prod       添加连接\n  dm ssh edit prod      修改连接，回车保留原值\n  dm ssh list           查看连接\n  dm ssh doctor         检查使用环境\n  dm ssh config init    创建配置示例\n  dm ssh export --file connections.json"
 )]
 pub(crate) struct Cli {
     #[command(subcommand)]
@@ -16,55 +16,57 @@ pub(crate) struct Cli {
 
 #[derive(Subcommand)]
 pub(crate) enum SshCommand {
-    /// Add or replace a saved SSH server; prompts interactively for any value that is omitted.
+    /// 添加连接；同名连接需使用 --replace。
     Add {
-        /// SSH server name (prompted when omitted on a terminal).
         name: Option<String>,
-        /// SSH host (prompted when omitted on a terminal).
-        #[arg(long)]
-        host: Option<String>,
-        /// SSH port, default 22 (prompted when omitted on a terminal).
-        #[arg(long)]
-        port: Option<u16>,
-        /// SSH username (prompted when omitted on a terminal).
-        #[arg(long)]
-        username: Option<String>,
-        /// Password for password authentication; prompted when omitted on a terminal.
-        #[arg(long)]
-        password: Option<String>,
-        /// Private key path for key authentication; prompted when key authentication is chosen.
-        #[arg(long)]
-        key: Option<PathBuf>,
-        /// Key passphrase; prompted when omitted on a terminal.
-        #[arg(long)]
-        passphrase: Option<String>,
-    },
-    /// List saved SSH servers.
-    List {
-        /// Print the same fields as machine-readable JSON instead of a table.
-        #[arg(long)]
-        json: bool,
-    },
-    /// Remove a saved SSH server.
-    Remove { name: String },
-    /// Export server settings. Passwords and key passphrases are omitted unless encrypted export is requested.
-    Export {
-        /// Write the JSON export to this file instead of stdout; it never overwrites.
-        #[arg(long)]
-        file: Option<PathBuf>,
-        /// Include passwords and key passphrases encrypted with an export passphrase.
-        #[arg(long)]
-        include_secrets: bool,
-    },
-    /// Import server settings from a JSON export.
-    Import {
-        file: PathBuf,
-        /// Replace servers with matching names.
+        #[command(flatten)]
+        fields: Fields,
         #[arg(long)]
         replace: bool,
     },
-    /// Test an SSH connection non-interactively.
-    Test { name: String },
-    /// Start an interactive SSH session.
-    Ssh { name: String },
+    /// 修改连接；省略的字段和密码会保留。
+    Edit {
+        name: String,
+        #[command(flatten)]
+        fields: Fields,
+    },
+    /// 查看保存的连接（不会显示密码）。
+    List {
+        #[arg(long)]
+        json: bool,
+    },
+    /// 删除连接；终端下确认，脚本须使用 --yes。
+    Remove {
+        name: String,
+        #[arg(long)]
+        yes: bool,
+    },
+    /// 导出连接，默认不包含秘密；不覆盖已有文件。
+    Export {
+        #[arg(long)]
+        file: Option<PathBuf>,
+        #[arg(long)]
+        include_secrets: bool,
+    },
+    /// 导入连接；--replace 覆盖同名配置。
+    Import {
+        file: PathBuf,
+        #[arg(long)]
+        replace: bool,
+    },
+    /// 检查本机工具、配置与连接文件。
+    Doctor {
+        #[arg(long)]
+        json: bool,
+    },
+    /// 创建或查看本插件的配置。
+    Config {
+        #[command(subcommand)]
+        command: ConfigCommand,
+    },
+    /// 测试连接（非交互网络测试）。
+    Test { name: Option<String> },
+    /// 登录 SSH；省略名称可搜索选择连接。
+    #[command(name = "connect", visible_alias = "ssh")]
+    Ssh { name: Option<String> },
 }

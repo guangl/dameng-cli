@@ -2,6 +2,8 @@ use anyhow::{Result, ensure};
 
 const RESERVED_NAMES: &[&str] = &[
     "doctor",
+    "complete",
+    "config",
     "completions",
     "help",
     "info",

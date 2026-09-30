@@ -2,7 +2,7 @@
 
 use crate::domain::types::{DEFAULT_DRIVER, DEFAULT_USERNAME, DatabaseConnection};
 use crate::storage::config::load_config;
-use crate::storage::connections::{upsert_connection, validate_name};
+use crate::storage::connections::{save_connection, validate_name};
 use crate::storage::crypto::encrypt;
 use crate::ui::prompts::{
     Prompter, resolve_optional, resolve_password, resolve_port, resolve_required,
@@ -27,18 +27,34 @@ pub(crate) fn add_connection(
     context: &PluginContext,
     request: &AddRequest,
     prompter: Option<&dyn Prompter>,
+    replace: bool,
+    yes: bool,
 ) -> Result<String> {
     let config = load_config(context)?;
-    let name = resolve_required(
-        request.name.clone(),
-        "Name: ",
-        "Connection name is required",
-        prompter,
-    )?;
-    validate_name(&name)?;
+    let name = match request.name.clone() {
+        Some(name) => {
+            validate_name(&name)?;
+            name
+        }
+        None => dm_plugin_support::interaction::validated(
+            prompter.ok_or_else(|| anyhow::anyhow!("连接名称必填"))?,
+            "连接名称: ",
+            |name| {
+                validate_name(name)?;
+                Ok(name.to_owned())
+            },
+        )?,
+    };
+    let existing = crate::storage::connections::load_connections(context)?
+        .into_iter()
+        .any(|entry| entry.name == name);
+    ensure!(
+        !existing || replace,
+        "同名连接 '{name}' 已存在，请使用 edit 修改，或 add --replace 覆盖"
+    );
     let host = resolve_required(
         request.host.clone(),
-        "Host: ",
+        "地址: ",
         "Database host is required",
         prompter,
     )?;
@@ -48,23 +64,30 @@ pub(crate) fn add_connection(
         request.username.clone(),
         config.defaults.username.clone(),
         DEFAULT_USERNAME,
-        "Username: ",
+        "用户名: ",
         prompter,
     )?;
     let driver = resolve_with_default(
         request.driver.clone(),
         config.defaults.driver.clone(),
         DEFAULT_DRIVER,
-        "Driver: ",
+        "驱动: ",
         prompter,
     )?;
     let schema = resolve_optional(
         request.schema.clone().or(config.defaults.schema.clone()),
-        "Schema (leave empty for the login default): ",
+        "Schema（留空使用登录默认值）: ",
         prompter,
     )?;
     let password = resolve_password(request.password.clone(), prompter)?;
-    upsert_connection(
+    if prompter.is_some() {
+        dm_plugin_support::interaction::confirm(
+            prompter,
+            yes,
+            &format!("保存连接 {name}：{username}@{host}:{port}（密码已隐藏）？"),
+        )?;
+    }
+    save_connection(
         context,
         &DatabaseConnection {
             name: name.clone(),
@@ -75,6 +98,7 @@ pub(crate) fn add_connection(
             driver: driver.trim().to_owned(),
             secret: Some(encrypt(context, password.as_bytes())?),
         },
+        replace,
     )?;
     Ok(name)
 }

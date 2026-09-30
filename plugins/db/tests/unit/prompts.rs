@@ -12,18 +12,18 @@ fn prompts_supply_required_and_defaulted_values() {
     let prompter = Some(&script as &dyn Prompter);
 
     assert_eq!(
-        resolve_required(None, "Name: ", "name is required", prompter).unwrap(),
+        resolve_required(None, "名称： ", "name is required", prompter).unwrap(),
         "prod"
     );
     assert_eq!(resolve_port(None, None, prompter).unwrap(), DEFAULT_PORT);
     assert_eq!(resolve_port(None, None, prompter).unwrap(), 5237);
     assert_eq!(resolve_port(Some(6000), None, prompter).unwrap(), 6000);
     assert_eq!(
-        resolve_with_default(None, None, DEFAULT_USERNAME, "Username: ", prompter).unwrap(),
+        resolve_with_default(None, None, DEFAULT_USERNAME, "用户名: ", prompter).unwrap(),
         "DMHR"
     );
     assert_eq!(
-        resolve_with_default(None, None, DEFAULT_DRIVER, "Driver: ", prompter).unwrap(),
+        resolve_with_default(None, None, DEFAULT_DRIVER, "驱动: ", prompter).unwrap(),
         DEFAULT_DRIVER
     );
     assert_eq!(resolve_optional(None, "Schema: ", prompter).unwrap(), None);
@@ -33,10 +33,10 @@ fn prompts_supply_required_and_defaulted_values() {
 #[test]
 fn prompts_fall_back_without_a_terminal() {
     assert_eq!(
-        resolve_required(Some("prod".to_owned()), "Name: ", "missing", None).unwrap(),
+        resolve_required(Some("prod".to_owned()), "名称： ", "missing", None).unwrap(),
         "prod"
     );
-    assert!(resolve_required(None, "Name: ", "name is required", None).is_err());
+    assert!(resolve_required(None, "名称： ", "name is required", None).is_err());
     assert_eq!(resolve_port(None, None, None).unwrap(), DEFAULT_PORT);
     assert_eq!(resolve_port(None, Some(5300), None).unwrap(), 5300);
     assert_eq!(
@@ -68,12 +68,9 @@ fn prompts_fall_back_without_a_terminal() {
 }
 
 #[test]
-fn prompts_report_invalid_answers() {
-    let script = Script::new(&["not-a-port"], &[""]);
+fn prompts_retry_invalid_answers() {
+    let script = Script::new(&["not-a-port", "0", "5237"], &["", "pw"]);
     let prompter = Some(&script as &dyn Prompter);
-    let error = resolve_port(None, None, prompter).unwrap_err();
-    assert!(error.to_string().contains("must be a number"), "{error:#}");
-
-    let error = resolve_password(None, prompter).unwrap_err();
-    assert!(error.to_string().contains("must not be empty"), "{error:#}");
+    assert_eq!(resolve_port(None, None, prompter).unwrap(), 5237);
+    assert_eq!(resolve_password(None, prompter).unwrap(), "pw");
 }

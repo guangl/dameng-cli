@@ -2,15 +2,19 @@
 
 mod add;
 mod args;
+mod completion;
+mod edit;
+mod fields;
+mod session;
+mod settings;
 mod transfer;
 
 use crate::cli::add::{AddRequest, add_server};
 use crate::cli::args::{Cli, SshCommand};
-use crate::domain::ssh_command::ssh_command;
 use crate::storage::servers::{load_servers, remove_server};
 use crate::ui::list::{render_json, render_table};
 use crate::ui::prompts::{Prompter, terminal_prompter};
-use anyhow::{Context, Result, ensure};
+use anyhow::Result;
 use clap::Parser;
 use dm_plugin_sdk::Context as PluginContext;
 use std::ffi::OsString;
@@ -22,34 +26,38 @@ pub fn run_cli(context: &PluginContext) -> Result<i32> {
 /// Command dispatch with an injectable prompt source, so tests cover the
 /// interactive branches without a terminal.
 pub fn run_with_prompter(context: &PluginContext, prompter: Option<&dyn Prompter>) -> Result<i32> {
+    if completion::handle(context)? {
+        return Ok(0);
+    }
     let mut argv = vec![OsString::from("dm ssh")];
     argv.extend(context.args.iter().cloned());
     let cli = Cli::parse_from(argv);
     match cli.command {
         SshCommand::Add {
             name,
-            host,
-            port,
-            username,
-            password,
-            key,
-            passphrase,
+            fields,
+            replace,
         } => {
             let name = add_server(
                 context,
                 &AddRequest {
                     name,
-                    host,
-                    port,
-                    username,
-                    password,
-                    key,
-                    passphrase,
+                    host: fields.host,
+                    port: fields.port,
+                    username: fields.username,
+                    password: fields.password,
+                    key: fields.key,
+                    passphrase: fields.passphrase,
                 },
                 prompter,
+                replace,
+                fields.yes,
             )?;
-            println!("Saved SSH server {name}");
+            println!("已保存 SSH 连接 {name}。下一步：dm ssh test {name}");
         }
+        SshCommand::Edit { name, fields } => edit::edit(context, &name, fields, prompter)?,
+        SshCommand::Doctor { json } => return settings::doctor(context, json),
+        SshCommand::Config { command } => settings::config(context, command)?,
         SshCommand::List { json } => {
             let servers = load_servers(context)?;
             if json {
@@ -57,15 +65,22 @@ pub fn run_with_prompter(context: &PluginContext, prompter: Option<&dyn Prompter
             } else {
                 let table = render_table(&servers);
                 if table.is_empty() {
-                    println!("No saved SSH servers. Run `dm ssh add <name>` to add one.");
+                    println!("尚无 SSH 连接。运行 `dm ssh add <name>` 添加连接。");
                 } else {
                     println!("{table}");
                 }
             }
         }
-        SshCommand::Remove { name } => {
+        SshCommand::Remove { name, yes } => {
+            anyhow::ensure!(
+                load_servers(context)?
+                    .iter()
+                    .any(|entry| entry.name == name),
+                "SSH server '{name}' is not configured"
+            );
+            dm_plugin_support::interaction::confirm(prompter, yes, &format!("删除连接 {name}？"))?;
             remove_server(context, &name)?;
-            println!("Removed SSH server {name}");
+            println!("已删除 SSH 连接 {name}");
         }
         SshCommand::Export {
             file,
@@ -73,33 +88,26 @@ pub fn run_with_prompter(context: &PluginContext, prompter: Option<&dyn Prompter
         } => transfer::export(context, file, include_secrets, prompter)?,
         SshCommand::Import { file, replace } => transfer::import(context, file, replace, prompter)?,
         SshCommand::Test { name } => {
-            let mut command = ssh_command(context, &name, true)?;
-            let status = command
-                .status()
-                .context("Test SSH server; password authentication requires sshpass")?;
-            ensure!(status.success(), "SSH connection failed for '{name}'");
-            println!("SSH server {name} is reachable");
+            let name = dm_plugin_support::interaction::select_name(
+                name,
+                &load_servers(context)?
+                    .into_iter()
+                    .map(|entry| entry.name)
+                    .collect::<Vec<_>>(),
+                prompter,
+            )?;
+            session::test(context, &name)?;
         }
         SshCommand::Ssh { name } => {
-            let mut command = ssh_command(context, &name, false)?;
-            let status = command
-                .status()
-                .context("Start SSH session; password authentication requires sshpass")?;
-            let code = match status.code() {
-                Some(code) => code,
-                None => {
-                    #[cfg(unix)]
-                    {
-                        use std::os::unix::process::ExitStatusExt;
-                        status.signal().map(|signal| 128 + signal).unwrap_or(0)
-                    }
-                    #[cfg(not(unix))]
-                    {
-                        anyhow::bail!("SSH session terminated without an exit code")
-                    }
-                }
-            };
-            return Ok(code);
+            let name = dm_plugin_support::interaction::select_name(
+                name,
+                &load_servers(context)?
+                    .into_iter()
+                    .map(|entry| entry.name)
+                    .collect::<Vec<_>>(),
+                prompter,
+            )?;
+            return session::connect(context, &name);
         }
     }
     Ok(0)

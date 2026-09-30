@@ -2,7 +2,7 @@
 
 use crate::domain::auth::resolve_auth;
 use crate::storage::config::load_config;
-use crate::storage::servers::{Server, upsert_server, validate_name};
+use crate::storage::servers::{Server, save_server, validate_name};
 use crate::ui::prompts::{Prompter, resolve_port, resolve_required};
 use anyhow::{Result, ensure};
 use dm_plugin_sdk::Context as PluginContext;
@@ -24,20 +24,36 @@ pub(crate) fn add_server(
     context: &PluginContext,
     request: &AddRequest,
     prompter: Option<&dyn Prompter>,
+    replace: bool,
+    yes: bool,
 ) -> Result<String> {
     // Values omitted on the command line fall back to the plugin's own
     // configuration file before any prompt.
     let config = load_config(context)?;
-    let name = resolve_required(
-        request.name.clone(),
-        "Name: ",
-        "SSH server name is required",
-        prompter,
-    )?;
-    validate_name(&name)?;
+    let name = match request.name.clone() {
+        Some(name) => {
+            validate_name(&name)?;
+            name
+        }
+        None => dm_plugin_support::interaction::validated(
+            prompter.ok_or_else(|| anyhow::anyhow!("连接名称必填"))?,
+            "连接名称: ",
+            |name| {
+                validate_name(name)?;
+                Ok(name.to_owned())
+            },
+        )?,
+    };
+    let existing = crate::storage::servers::load_servers(context)?
+        .into_iter()
+        .any(|entry| entry.name == name);
+    ensure!(
+        !existing || replace,
+        "同名连接 '{name}' 已存在，请使用 edit 修改，或 add --replace 覆盖"
+    );
     let host = resolve_required(
         request.host.clone(),
-        "Host: ",
+        "地址: ",
         "SSH host is required",
         prompter,
     )?;
@@ -48,7 +64,7 @@ pub(crate) fn add_server(
             .username
             .clone()
             .or(config.defaults.username.clone()),
-        "Username: ",
+        "用户名: ",
         "SSH username is required",
         prompter,
     )?;
@@ -70,7 +86,14 @@ pub(crate) fn add_server(
         prompter,
         default_method,
     )?;
-    upsert_server(
+    if prompter.is_some() {
+        dm_plugin_support::interaction::confirm(
+            prompter,
+            yes,
+            &format!("保存连接 {name}：{username}@{host}:{port}（密码已隐藏）？"),
+        )?;
+    }
+    save_server(
         context,
         &Server {
             name: name.clone(),
@@ -81,6 +104,7 @@ pub(crate) fn add_server(
             key_path,
             secret,
         },
+        replace,
     )?;
     Ok(name)
 }

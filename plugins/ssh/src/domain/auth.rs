@@ -46,16 +46,26 @@ pub fn resolve_auth(
         None => anyhow::bail!(AUTH_REQUIRED),
     };
     // `[defaults] auth` from the plugin configuration preselects the method.
-    let method = prompter.line(&format!(
-        "Authentication method [password/key] ({}): ",
-        default_method.unwrap_or("password")
-    ))?;
-    let method = if method.is_empty() {
-        default_method.unwrap_or("password")
-    } else {
-        method.as_str()
-    };
-    match method {
+    let method = dm_plugin_support::interaction::validated(
+        prompter,
+        &format!(
+            "认证方式 [password/key] ({}): ",
+            default_method.unwrap_or("password")
+        ),
+        |answer| {
+            let method = if answer.is_empty() {
+                default_method.unwrap_or("password")
+            } else {
+                answer
+            };
+            ensure!(
+                matches!(method, "password" | "key"),
+                "Unknown authentication method '{method}'; choose 'password' or 'key'"
+            );
+            Ok(method.to_owned())
+        },
+    )?;
+    match method.as_str() {
         "password" => {
             let password = resolve_password(None, Some(prompter))?;
             Ok((
@@ -65,8 +75,12 @@ pub fn resolve_auth(
             ))
         }
         "key" => {
-            let key_path = prompter.line("Key path: ")?;
-            ensure!(!key_path.is_empty(), "SSH key path must not be empty");
+            let key_path = dm_plugin_support::interaction::resolve_required(
+                None,
+                "本机私钥路径: ",
+                "SSH key path must not be empty",
+                Some(prompter),
+            )?;
             let passphrase = resolve_passphrase(None, Some(prompter))?;
             Ok((
                 "key".to_owned(),

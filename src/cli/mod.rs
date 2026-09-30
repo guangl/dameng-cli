@@ -5,19 +5,22 @@
 //! `report`/`table` render the human-facing output.
 
 mod args;
+mod completions;
 mod doctor;
 mod plugins;
 pub mod report;
 mod self_update;
+mod settings;
 pub mod table;
 mod update;
 
 pub use args::{Cli, Command};
+pub use completions::Shell;
 pub use report::report;
 
 use crate::{Config, PluginStore};
 use anyhow::Result;
-use clap::{CommandFactory, Parser};
+use clap::Parser;
 
 /// Parse the process arguments and run the requested subcommand.
 ///
@@ -31,13 +34,39 @@ pub fn run(config: &Config) -> Result<i32> {
     match cli.command {
         Command::Install {
             source,
+            release_source,
+            release_tag,
+            release_target,
             rev,
             replace,
-        } => plugins::install(&store, &source, rev.as_deref(), replace)?,
+        } => {
+            if let Some(repository) = release_source {
+                let manifest = store.install_release_package(
+                    std::path::Path::new(&source),
+                    &repository,
+                    release_tag.as_deref().unwrap_or_default(),
+                    release_target.as_deref(),
+                    replace,
+                )?;
+                println!("已安装 {} {}", manifest.name, manifest.version);
+            } else {
+                plugins::install(&store, &source, rev.as_deref(), replace)?;
+            }
+        }
         Command::List { json } => plugins::list(&store, json)?,
         Command::Info { name, json } => plugins::info(&store, &name, json)?,
         Command::Update { name, all, json } => update::run(&store, name.as_deref(), all, json)?,
-        Command::Doctor { repair, json } => doctor::doctor(&store, repair, json)?,
+        Command::Doctor { name, repair, json } => {
+            if let Some(name) = name {
+                anyhow::ensure!(!repair, "插件环境检查不支持 --repair");
+                let mut args = vec![std::ffi::OsString::from("doctor")];
+                if json {
+                    args.push("--json".into());
+                }
+                return store.run(&name, &args);
+            }
+            doctor::doctor(&store, repair, json)?;
+        }
         Command::SelfUpdate {
             check,
             version,
@@ -52,10 +81,15 @@ pub fn run(config: &Config) -> Result<i32> {
             target.as_deref(),
             json,
         )?,
-        Command::Completions { shell } => {
-            clap_complete::generate(shell, &mut Cli::command(), "dm", &mut std::io::stdout());
+        Command::Completions { shell } => print!("{}", completions::script(shell)),
+        Command::Complete { mut words } => {
+            if words.first().is_some_and(|word| word == "--") {
+                words.remove(0);
+            }
+            completions::complete(&store, &words)?;
         }
-        Command::Uninstall { name } => plugins::uninstall(&store, &name)?,
+        Command::Config { command } => settings::run(config, command)?,
+        Command::Uninstall { name, purge, yes } => plugins::uninstall(&store, &name, purge, yes)?,
         Command::Plugin(args) => return plugins::run_plugin(&store, &args),
     }
     Ok(0)
@@ -63,5 +97,5 @@ pub fn run(config: &Config) -> Result<i32> {
 
 /// Tell the user that no plugin is installed yet.
 pub(crate) fn print_no_plugins() {
-    println!("No plugins installed. Run `dm install <source>` to add one.");
+    println!("尚无插件。运行 `dm install <包目录或仓库地址>` 安装；官方安装脚本会安装 db 和 ssh。");
 }

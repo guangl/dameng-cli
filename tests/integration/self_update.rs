@@ -123,7 +123,7 @@ fn self_update_check_non_json_reports_current_and_available() {
         String::from_utf8_lossy(&current.stderr)
     );
     assert!(
-        String::from_utf8_lossy(&current.stdout).contains(&format!("dm {version} is current")),
+        String::from_utf8_lossy(&current.stdout).contains(&format!("dm {version} 已是最新版本")),
         "{}",
         String::from_utf8_lossy(&current.stdout)
     );
@@ -138,9 +138,6 @@ fn self_update_check_non_json_reports_current_and_available() {
         String::from_utf8_lossy(&available.stderr)
     );
     let stdout = String::from_utf8_lossy(&available.stdout);
-    assert!(
-        stdout.contains(&format!("dm {version} is installed")),
-        "{stdout}"
-    );
-    assert!(stdout.contains("0.1.0 is available"), "{stdout}");
+    assert!(stdout.contains(&format!("当前 dm {version}")), "{stdout}");
+    assert!(stdout.contains("可升级至 0.1.0"), "{stdout}");
 }
