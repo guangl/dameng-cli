@@ -68,7 +68,9 @@ pub(super) fn doctor(context: &Context, json: bool) -> Result<i32> {
         }
     };
     report.tool("ssh");
-    if entries.iter().any(|server| server.auth_type == "password") {
+    if entries.iter().any(|server| {
+        server.auth_type == "password" || (server.auth_type == "key" && server.secret.is_some())
+    }) {
         report.tool("sshpass");
     }
     for server in &entries {

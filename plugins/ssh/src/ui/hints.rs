@@ -45,7 +45,7 @@ pub fn ssh_hint(error: &Error) -> String {
             .into();
     }
     if text.contains("sshpass") {
-        return "密码认证的测试/登录需要安装 `sshpass`；也可改用密钥认证。".into();
+        return "密码认证或使用已保存私钥口令的测试/登录需要安装 `sshpass`；未保存口令的密钥连接直接使用系统 ssh。".into();
     }
     if text.contains("password") || text.contains("key") {
         return "请通过 `--password` 或 `--key` 提供认证，或在终端下运行以交互输入。".into();

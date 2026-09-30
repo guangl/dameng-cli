@@ -17,6 +17,13 @@ fn add_with_key_reports_and_key_auth_runs_ssh() {
     let ssh_script = tools.join("ssh");
     fs::write(&ssh_script, "#!/bin/sh\nexit 0\n").unwrap();
     fs::set_permissions(&ssh_script, fs::Permissions::from_mode(0o755)).unwrap();
+    let sshpass = tools.join("sshpass");
+    fs::write(
+        &sshpass,
+        "#!/bin/sh\n[ \"$SSHPASS\" = secret ] || exit 2\n[ \"$1\" = -e ] || exit 3\n[ \"$2\" = -P ] || exit 4\n[ \"$3\" = 'Enter passphrase for key' ] || exit 5\nshift 3\nexec \"$@\"\n",
+    )
+    .unwrap();
+    fs::set_permissions(&sshpass, fs::Permissions::from_mode(0o755)).unwrap();
     let path = std::env::join_paths(
         std::iter::once(tools).chain(std::env::split_paths(&std::env::var_os("PATH").unwrap())),
     )

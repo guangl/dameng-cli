@@ -22,7 +22,7 @@ curl -fsSL https://raw.githubusercontent.com/guangl/dameng-cli/main/scripts/inst
 指定版本或安装目录：
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/guangl/dameng-cli/main/scripts/install.sh | DM_INSTALL_DIR="$HOME/bin" sh -s -- v0.2.0
+curl -fsSL https://raw.githubusercontent.com/guangl/dameng-cli/main/scripts/install.sh | DM_INSTALL_DIR="$HOME/bin" sh -s -- v0.3.0
 ```
 
 已下载源码时，使用本地安装脚本（需要当前稳定版 Rust / Cargo）：
@@ -66,7 +66,7 @@ dm uninstall hello
 | `dm update [--json]` | 并行检查插件是否有新版本 |
 | `dm doctor [--repair]` | 检查或修复 SQLite、插件目录、残留事务与孤立配置/数据/缓存目录 |
 | `dm uninstall <name> [--purge] [--yes]` | 默认保留配置、连接与缓存；`--purge` 清空数据，需确认或显式 `--yes` |
-| `dm ssh add/edit/list/remove/test/connect` | 由 `plugins/ssh` 插件提供的 SSH 服务器管理；配置写入插件自身的 `data/ssh/servers.sqlite3`，`add` 在终端下省略任意字段时逐项交互式输入，密码/口令隐藏回显；`list [--json]` 输出带边框表格或 JSON，从不回显秘密；插件自己的默认值写在 `config/ssh/config.toml`（`[defaults]`、`[test]`）。密码认证的 `test`/`ssh` 需要系统安装 `sshpass`，密钥认证只需本机 `ssh` 与本机上的私钥（远端只需对应公钥） |
+| `dm ssh add/edit/list/remove/test/connect` | 由 `plugins/ssh` 插件提供的 SSH 服务器管理；配置写入插件自身的 `data/ssh/servers.sqlite3`，`add` 在终端下省略任意字段时逐项交互式输入，密码/口令隐藏回显；`list [--json]` 输出带边框表格或 JSON，从不回显秘密；插件自己的默认值写在 `config/ssh/config.toml`（`[defaults]`、`[test]`）。密码认证或使用已保存私钥口令的 `test`/`connect` 需要系统安装 `sshpass`；未保存口令的密钥连接直接使用本机 `ssh` 与私钥（远端只需对应公钥） |
 | `dm ssh export/import` | 导出或迁移 SSH 服务器配置；普通导出不带密码与私钥口令，需要携带时使用口令加密导出 |
 | `dm db add/edit/list/remove/test/exec` | 由 `plugins/db` 插件提供的达梦数据库连接管理；连接写入插件自身的 `data/db/connections.sqlite3`，密码用本机 AES-GCM 密钥加密，`add` 在终端下省略任意字段时逐项交互式输入，`list [--json]` 输出带边框表格或 JSON；插件自己的默认值写在 `config/db/config.toml`（`[defaults]` 的 port/username/driver/schema 与 `[connect]` 的 timeout/probe）。`test`（探测语句）与 `exec`（输出制表符分隔的结果集）的命令与接口已就位，但驱动仍是占位实现，当前会明确报错 |
 | `dm db export/import` | 导出或迁移连接配置；普通导出不带密码，需要携带密码时使用口令加密导出 |

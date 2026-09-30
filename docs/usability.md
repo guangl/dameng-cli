@@ -29,7 +29,7 @@ dm ssh edit prod --passphrase ''      # 显式清除密钥口令
 
 `dm uninstall ssh` 默认仅移除插件程序并保留配置、连接、缓存和备份。重新安装后可继续使用，`dm doctor --repair` 不会清理这些主动保留的数据。
 
-`dm uninstall ssh --purge` 才同时清空数据。执行前列出路径并确认；非交互执行须显式加 `--yes`；已卸载但保留了数据的插件，也可用同一命令清空。库 API 的兼容方法 `PluginStore::uninstall` 仍表示彻底移除，新的 `uninstall_with_options(name, purge)` 用于明确选择保留或清空。
+`dm uninstall ssh --purge` 才同时清空数据。执行前列出路径并确认；非交互执行须显式加 `--yes`；已卸载但保留了数据的插件，也可用同一命令清空。清理失败或中断时，登记一直保留到所有目录（包括备份）清理成功；错误列出未清理路径，修复目录问题后重试 `dm uninstall <name> --purge --yes`。期间 `doctor --repair` 不会删除剩余数据。库 API 的兼容方法 `PluginStore::uninstall` 仍表示彻底移除，新的 `uninstall_with_options(name, purge)` 用于明确选择保留或清空。
 
 ## 配置与诊断
 
@@ -44,7 +44,7 @@ dm doctor ssh                     # 等价于 dm ssh doctor
 dm ssh doctor --json
 ```
 
-宿主 `doctor` 继续检查插件存储；指定插件名则转发插件环境检查，不支持 `--repair`。SSH 诊断检查配置、连接存储、`ssh`、密码连接所需 `sshpass` 及本机私钥路径，不发起网络连接。实际 `ssh test` 使用连接超时，错误保留 SSH 的诊断信息，提示区分 DNS/网络、认证、主机密钥和本机工具问题。数据库插件诊断会明确报告驱动尚未实现，`test/exec` 当前不可用。
+宿主 `doctor` 继续检查插件存储；指定插件名则转发插件环境检查，不支持 `--repair`。SSH 诊断检查配置、连接存储、`ssh`、密码连接和使用已保存私钥口令所需 `sshpass` 及本机私钥路径，不发起网络连接。已保存的私钥口令由 `sshpass` 应答 OpenSSH 提示，密码与口令通过子进程环境传递，不进入参数或日志；未保存口令的密钥连接直接使用系统 `ssh`。实际 `ssh test` 使用连接超时，错误保留 SSH 的诊断信息，提示区分 DNS/网络、认证、主机密钥和本机工具问题。数据库插件诊断会明确报告驱动尚未实现，`test/exec` 当前不可用。
 
 ## 启用自动补全
 

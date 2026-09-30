@@ -40,7 +40,7 @@ SSH 插件用同样的两种形式迁移：`dm ssh export [--file PATH] [--inclu
 
 | 插件 | 提供的命令 | 职责 |
 | --- | --- | --- |
-| `ssh` | `dm ssh add/edit/list/remove/test/connect`、`dm ssh export/import` | SSH 服务器连接管理，数据保存在插件自己的 `data/ssh/`；`list [--json]` 输出表格或 JSON。密码认证的 `test`/`ssh` 需要系统安装 `sshpass`，密钥认证只需本机 `ssh` 与本机上的私钥（远端只需对应公钥）。 |
+| `ssh` | `dm ssh add/edit/list/remove/test/connect`、`dm ssh export/import` | SSH 服务器连接管理，数据保存在插件自己的 `data/ssh/`；`list [--json]` 输出表格或 JSON。密码认证或使用已保存私钥口令需要 `sshpass`；未保存口令的密钥连接直接使用本机 `ssh` 与私钥（远端只需对应公钥）。 |
 | `db` | `dm db add/edit/list/remove/test/exec`、`dm db export/import` | 达梦数据库连接管理，连接保存在 `data/db/`；`list [--json]` 输出表格或 JSON；`test`/`exec` 的驱动仍是占位实现。 |
 
 内置插件与自己安装的插件完全等价：`dm list`、`dm info <name>`、`dm uninstall <name>` 一视同仁，不需要时用 `dm uninstall <name>` 删除（默认保留配置与连接数据）。远程安装脚本只对明确未发布的资产（HTTP 404）提示并跳过，其余网络、HTTP 或校验错误会让整次安装失败，不会静默少装插件。
@@ -120,7 +120,7 @@ dm info ssh
 # 配置文件： /home/me/.config/dm/config/ssh/config.toml (不存在)
 ```
 
-运行中的插件同时通过 `DM_PLUGIN_CONFIG_DIR`、`DM_PLUGIN_DATA_DIR`、`DM_PLUGIN_CACHE_DIR` 拿到这三个目录（见[运行时协议](plugin-development/runtime-contract.html)）。`dm uninstall <name>` 默认保留它们；`--purge` 才删除。`dm doctor --repair` 只清理未登记为主动保留的孤立目录。
+运行中的插件同时通过 `DM_PLUGIN_CONFIG_DIR`、`DM_PLUGIN_DATA_DIR`、`DM_PLUGIN_CACHE_DIR` 拿到这三个目录（见[运行时协议](plugin-development/runtime-contract.html)）。`dm uninstall <name>` 默认保留它们；`--purge` 才删除。清理失败时保留登记并显示具体路径；修复目录问题后重试 `dm uninstall <name> --purge --yes`，直到全部目录清理成功。`dm doctor --repair` 只清理未登记为主动保留的孤立目录。
 
 优先级为 命令行参数 > 环境变量 > 配置文件 > 内置默认值，因此临时覆盖不必修改文件。配置文件位于数据目录内，不能通过它迁移数据目录本身；需要更换目录请设置 `DM_PLUGIN_HOME`。插件自身的配置仍由插件管理（见 `config/<name>` 与 `data/<name>`）。
 
