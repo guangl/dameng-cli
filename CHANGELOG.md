@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 限制更新检查并发数与 Git/下载辅助进程输出和时长；流式校验 Release，限制配置、导入、SQL 输入大小，批量查询插件元数据并逐行输出数据库结果。
+
 - 宿主诊断日志按本机日期写入 `logs/dm-YYYY-MM-DD.log`，保留最近 30 天；跨日进程在下一次写入时切换文件并清理过期日志。每个每日文件默认不超过 5 MiB，满额时淘汰旧内容并保留新日志；新增 `[log] directory/max_size_mb` 和 `DM_LOG_DIR/DM_LOG_MAX_SIZE_MB` 配置。多进程写入通过文件锁协调，日志打开或写入失败时静默丢弃，诊断日志绝不回退到 stdout/stderr。旧版 `dm.log` / `dm.log.1` 保留原样。
 
 - 简化宿主命令：`dm update` 默认替代 `outdated` 检查可用版本（支持 `--json`），指定插件名或 `--all` 时执行升级。移除独立 `verify` 命令，安装时自动校验，安装后诊断使用 `doctor`。原 `outdated`、`verify` 名称不再是宿主保留名。

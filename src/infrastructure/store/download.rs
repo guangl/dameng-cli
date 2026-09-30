@@ -3,45 +3,60 @@ use log::debug;
 use std::{fs, path::Path, process::Command};
 
 use crate::Manifest;
+use dm_plugin_support::process::capture;
+use std::time::Duration;
 
 use super::{
     github_repository, prebuilt_target_label, progress_bar_for, release_tag_candidates, sha256_file,
 };
 
 fn download_prebuilt_asset(url: &str, destination: &Path) -> bool {
-    Command::new("curl")
-        .args([
-            "-fsSL",
-            "--retry",
-            "3",
-            "--connect-timeout",
-            "15",
-            "--output",
-        ])
-        .arg(destination)
-        .arg(url)
-        .output()
-        .is_ok_and(|output| output.status.success())
+    capture(
+        Command::new("curl")
+            .args([
+                "-q",
+                "-fsSL",
+                "--max-time",
+                "120",
+                "--retry-max-time",
+                "180",
+                "--retry",
+                "3",
+                "--connect-timeout",
+                "15",
+                "--output",
+            ])
+            .arg(destination)
+            .arg(url),
+        Duration::from_secs(180),
+    )
+    .is_ok_and(|output| output.status.success())
 }
 
 fn download_optional_prebuilt_checksum(url: &str, destination: &Path) -> Result<bool> {
-    let output = Command::new("curl")
-        .args([
-            // Keep curl's behavior deterministic even when the user's .curlrc
-            // enables --fail, which would turn an expected 404 into an error.
-            "-q",
-            "-sSL",
-            "--retry",
-            "3",
-            "--connect-timeout",
-            "15",
-            "--output",
-        ])
-        .arg(destination)
-        .args(["-w", "%{http_code}"])
-        .arg(url)
-        .output()
-        .context("Download prebuilt plugin SHA-256 sidecar")?;
+    let output = capture(
+        Command::new("curl")
+            .args([
+                // Keep curl's behavior deterministic even when the user's .curlrc
+                // enables --fail, which would turn an expected 404 into an error.
+                "-q",
+                "-sSL",
+                "--max-time",
+                "120",
+                "--retry-max-time",
+                "180",
+                "--retry",
+                "3",
+                "--connect-timeout",
+                "15",
+                "--output",
+            ])
+            .arg(destination)
+            .args(["-w", "%{http_code}"])
+            .arg(url),
+        Duration::from_secs(180),
+    )
+    .context("Download prebuilt plugin SHA-256 sidecar")?;
     ensure!(
         output.status.success(),
         "Could not download prebuilt plugin SHA-256 sidecar"
@@ -64,7 +79,7 @@ fn verify_optional_prebuilt_checksum(binary_url: &str, binary: &Path) -> Result<
         eprintln!("dm: prebuilt plugin has no SHA-256 sidecar; trusting HTTPS transport");
         return Ok(());
     }
-    let expected = fs::read_to_string(&checksum_path)?;
+    let expected = dm_plugin_support::bounded::text(&checksum_path, 4096)?;
     let _ = fs::remove_file(&checksum_path);
     let expected = expected
         .split_whitespace()

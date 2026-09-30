@@ -30,6 +30,7 @@ max_size_mb = 5
 # 必须是 owner/repository 形式；面向测试或自建分发时改成自己的仓库。
 repository = "guangl/dameng-cli"
 # 取消注释可固定取用的 Release 产物目标（等价于 DM_UPDATE_TARGET），默认跟随本机平台。
+# check_concurrency = 4     # 更新检查并发数，1..16；DM_UPDATE_CHECK_CONCURRENCY 覆盖
 # target = "aarch64-apple-darwin"
 # 可选值：x86_64-unknown-linux-gnu、aarch64-unknown-linux-gnu、x86_64-unknown-linux-musl、
 #         aarch64-apple-darwin、x86_64-apple-darwin、x86_64-pc-windows-msvc。

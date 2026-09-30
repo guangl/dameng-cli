@@ -26,3 +26,5 @@ mod update;
 mod usability;
 
 mod release_plugins;
+
+mod resources;

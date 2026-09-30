@@ -2,23 +2,19 @@
 
 use crate::domain::types::QueryResult;
 use anyhow::{Context, Result, ensure};
-use std::{fs, io::Read, path::PathBuf};
+use dm_plugin_support::bounded::{self, DOCUMENT_LIMIT};
+use std::path::PathBuf;
 
 /// Read the SQL of "dm db exec" from the argument, a file, or stdin.
 pub fn read_sql(sql: Option<String>, file: Option<PathBuf>) -> Result<String> {
     let text = match (sql, file) {
         (Some(sql), _) => sql,
-        (None, Some(path)) => {
-            fs::read_to_string(&path).with_context(|| format!("Read {}", path.display()))?
-        }
-        (None, None) => {
-            let mut text = String::new();
-            std::io::stdin()
-                .read_to_string(&mut text)
-                .context("Read SQL from stdin")?;
-            text
-        }
+        (None, Some(path)) => bounded::text(&path, DOCUMENT_LIMIT)
+            .with_context(|| format!("Read {}", path.display()))?,
+        (None, None) => String::from_utf8(bounded::read(std::io::stdin().lock(), DOCUMENT_LIMIT)?)
+            .context("Read SQL from stdin")?,
     };
+    ensure!(text.len() as u64 <= DOCUMENT_LIMIT, "SQL exceeds 16 MiB");
     let text = text.trim().to_owned();
     ensure!(
         !text.is_empty(),
@@ -29,16 +25,32 @@ pub fn read_sql(sql: Option<String>, file: Option<PathBuf>) -> Result<String> {
 
 /// Render a result set as tab-separated rows; SQL NULL becomes an empty field.
 pub fn format_result(result: &QueryResult) -> String {
-    let mut output = String::new();
-    output.push_str(&result.columns.join("\t"));
-    output.push('\n');
+    let mut output = Vec::new();
+    write_result(&mut output, result).expect("Writing to memory cannot fail");
+    String::from_utf8(output).expect("Results contain UTF-8 strings")
+}
+
+/// Write rows incrementally without allocating a second complete result string.
+pub fn write_result(output: &mut impl std::io::Write, result: &QueryResult) -> std::io::Result<()> {
+    write_fields(output, result.columns.iter().map(String::as_str))?;
     for row in &result.rows {
-        let values: Vec<&str> = row
-            .iter()
-            .map(|value| value.as_deref().unwrap_or(""))
-            .collect();
-        output.push_str(&values.join("\t"));
-        output.push('\n');
+        write_fields(
+            output,
+            row.iter().map(|value| value.as_deref().unwrap_or("")),
+        )?;
     }
-    output
+    Ok(())
+}
+
+fn write_fields<'a>(
+    output: &mut impl std::io::Write,
+    fields: impl Iterator<Item = &'a str>,
+) -> std::io::Result<()> {
+    for (index, value) in fields.enumerate() {
+        if index > 0 {
+            output.write_all(b"\t")?;
+        }
+        output.write_all(value.as_bytes())?;
+    }
+    output.write_all(b"\n")
 }

@@ -89,3 +89,7 @@ SDK 使用 Rust trait 统一开发接口；跨进程只约定参数、环境变�
 动态补全由 shell 适配脚本调用隐藏的 `dm complete` 入口；宿主以只读 SQLite 获取已安装插件名称，按清单 `completion = true` 查询插件的 `__complete` 接口，并设置响应期限。内置插件复用 `dm-plugin-support` 的 clap 候选生成器、交互输入、配置展示和环境诊断工具。默认卸载在 SQLite 的 `retained_plugin_data` 中登记数据保留状态，修复孤立目录时跳过这些记录。
 
 宿主诊断日志仅写文件，日志路径与每日上限由 `[log] directory/max_size_mb` 或 `DM_LOG_DIR/DM_LOG_MAX_SIZE_MB` 决定。文件写入锁协调多个宿主进程，日期改变时重新选择文件并清理 30 天前的每日日志；达到上限时以有界复制和原子替换淘汰旧内容。打开或写入失败时静默丢弃日志，stdout/stderr 继续只承担命令结果、插件输出、进度和用户可见的错误报告。
+
+宿主更新检查使用固定工作池（默认 4 个，最多 16 个），保留插件排序；Git 与下载辅助进程有输出及运行时间限制。共享的 `dm-plugin-support::bounded` 统一限制配置、SQL 与连接导入的在内存中读取大小，Release 校验逐块计算 SHA-256。插件列表通过一个数据库查询取回元数据；结果输出按行写入。第三方插件执行仍保留自身生命周期与交互行为，不提供进程树级 CPU/RSS 强制配额。
+
+`scripts/check_resource_memory.py` 用同一个校验探针比较整包读取和流式读取 128 MiB 文件，要求流式探针峰值 RSS 不超过 32 MiB，并至少比整包读取低 64 MiB；Linux CI 持续执行该检查。这是校验路径的回归门槛，不代表整个应用或插件进程树的总内存限制。

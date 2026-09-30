@@ -15,7 +15,8 @@ pub fn machine_key(context: &PluginContext) -> Result<[u8; 32]> {
     fs::create_dir_all(&context.data_dir).context("Create the database plugin data directory")?;
     let path = key_path(context);
     if path.is_file() {
-        let bytes = fs::read(&path).context("Read the connection encryption key")?;
+        let bytes = dm_plugin_support::bounded::file(&path, 32)
+            .context("Read the connection encryption key")?;
         ensure!(
             bytes.len() == 32,
             "The connection encryption key is invalid; remove {} and retry",

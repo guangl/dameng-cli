@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, ensure};
 use dm_plugin_sdk::Context as PluginContext;
 use serde::Deserialize;
-use std::{fs, path::PathBuf};
+use std::path::PathBuf;
 
 /// Default connection timeout in seconds for `dm ssh test`.
 pub(crate) const DEFAULT_CONNECT_TIMEOUT: u64 = 10;
@@ -56,13 +56,14 @@ pub fn config_path(context: &PluginContext) -> PathBuf {
 /// Load the plugin configuration. A missing file means "all defaults".
 pub fn load_config(context: &PluginContext) -> Result<SshConfig> {
     let path = config_path(context);
-    let text = match fs::read_to_string(&path) {
-        Ok(text) => text,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Ok(SshConfig::default());
-        }
-        Err(error) => return Err(error).with_context(|| format!("Read {}", path.display())),
-    };
+    let text =
+        match dm_plugin_support::bounded::text(&path, dm_plugin_support::bounded::CONFIG_LIMIT) {
+            Ok(text) => text,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(SshConfig::default());
+            }
+            Err(error) => return Err(error).with_context(|| format!("Read {}", path.display())),
+        };
     let config: SshConfig = toml::from_str(&text).with_context(|| {
         format!(
             "Invalid SSH plugin configuration {}; supported tables are [defaults] and [test]",

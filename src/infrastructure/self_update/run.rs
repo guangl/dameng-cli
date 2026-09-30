@@ -2,13 +2,13 @@ use anyhow::{Context, Result, ensure};
 use log::{debug, info};
 use semver::Version;
 use serde::Deserialize;
-use std::{env, fs, process::Command};
+use std::{env, process::Command};
 
 use super::{
     DEFAULT_REPOSITORY,
     archive::{extract_binary, replace_current_executable},
     options::{SUPPORTED_TARGETS, SelfUpdateOptions, SelfUpdateResult},
-    verify::{normalize_tag, validate_repository, verify_checksum},
+    verify::{normalize_tag, validate_repository, verify_checksum_file},
 };
 
 #[derive(Deserialize)]
@@ -48,7 +48,11 @@ pub fn self_update_with_options(options: SelfUpdateOptions<'_>) -> Result<SelfUp
         let url = format!("https://api.github.com/repos/{repository}/releases/latest");
         let metadata = temp.path().join("release.json");
         download(&url, &metadata)?;
-        serde_json::from_slice::<Release>(&fs::read(metadata)?)?.tag_name
+        serde_json::from_slice::<Release>(&dm_plugin_support::bounded::file(
+            &metadata,
+            1024 * 1024,
+        )?)?
+        .tag_name
     };
     let current = Version::parse(env!("CARGO_PKG_VERSION"))?;
     let available = Version::parse(tag.trim_start_matches('v'))
@@ -81,7 +85,7 @@ pub fn self_update_with_options(options: SelfUpdateOptions<'_>) -> Result<SelfUp
     let checksum = temp.path().join(format!("{archive_name}.sha256"));
     download(&format!("{base}/{archive_name}"), &archive)?;
     download(&format!("{base}/{archive_name}.sha256"), &checksum)?;
-    verify_checksum(&fs::read(&archive)?, &fs::read(&checksum)?)?;
+    verify_checksum_file(&archive, &checksum)?;
     let replacement = extract_binary(&archive, temp.path(), &tag, &target)?;
     info!("installing dm {available}");
     replace_current_executable(&replacement)?;
@@ -93,19 +97,30 @@ pub fn self_update_with_options(options: SelfUpdateOptions<'_>) -> Result<SelfUp
 
 fn download(url: &str, destination: &std::path::Path) -> Result<()> {
     info!("downloading {url}");
-    let status = Command::new("curl")
-        .args([
-            "-fsSL",
-            "--retry",
-            "3",
-            "--connect-timeout",
-            "15",
-            "--output",
-        ])
-        .arg(destination)
-        .arg(url)
-        .status()
-        .context("Self-update requires curl")?;
-    ensure!(status.success(), "Could not download {url}");
+    let output = dm_plugin_support::process::capture(
+        Command::new("curl")
+            .args([
+                "-q",
+                "-fsSL",
+                "--max-time",
+                "120",
+                "--retry-max-time",
+                "180",
+                "--retry",
+                "3",
+                "--connect-timeout",
+                "15",
+                "--output",
+            ])
+            .arg(destination)
+            .arg(url),
+        std::time::Duration::from_secs(180),
+    )
+    .context("Self-update requires curl")?;
+    ensure!(
+        output.status.success(),
+        "Could not download {url}: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     Ok(())
 }

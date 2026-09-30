@@ -1,8 +1,10 @@
 //! Persistent sources for plugin archives published alongside the host.
 use super::{InstallMode, PluginStore, github_repository};
 use crate::Manifest;
-use crate::infrastructure::self_update::{normalize_tag, verify_checksum};
+use crate::infrastructure::self_update::{normalize_tag, verify_checksum_file};
 use anyhow::{Context, Result, ensure};
+use dm_plugin_support::process::capture;
+use std::time::Duration;
 use std::{
     fs,
     path::Path,
@@ -25,22 +27,24 @@ fn validate(repository: &str) -> Result<()> {
 }
 pub(super) fn latest_tag(repository: &str) -> Result<String> {
     validate(repository)?;
-    let output = Command::new("curl")
-        .args([
-            "-q",
-            "-fsSIL",
-            "--connect-timeout",
-            "10",
-            "--max-time",
-            "30",
-            "-o",
-            if cfg!(windows) { "NUL" } else { "/dev/null" },
-            "-w",
-            "%{url_effective}",
-        ])
-        .arg(format!("https://github.com/{repository}/releases/latest"))
-        .output()
-        .context("查询最新 Release 需要 curl")?;
+    let output = capture(
+        Command::new("curl")
+            .args([
+                "-q",
+                "-fsSIL",
+                "--connect-timeout",
+                "10",
+                "--max-time",
+                "30",
+                "-o",
+                if cfg!(windows) { "NUL" } else { "/dev/null" },
+                "-w",
+                "%{url_effective}",
+            ])
+            .arg(format!("https://github.com/{repository}/releases/latest")),
+        Duration::from_secs(180),
+    )
+    .context("查询最新 Release 需要 curl")?;
     ensure!(
         output.status.success(),
         "无法查询最新 Release：{}",
@@ -55,20 +59,22 @@ pub(super) fn latest_tag(repository: &str) -> Result<String> {
     )
 }
 fn download(url: &str, destination: &Path) -> Result<()> {
-    let output = Command::new("curl")
-        .args([
-            "-q",
-            "-fsSL",
-            "--connect-timeout",
-            "10",
-            "--max-time",
-            "120",
-            "--output",
-        ])
-        .arg(destination)
-        .arg(url)
-        .output()
-        .context("下载 Release 需要 curl")?;
+    let output = capture(
+        Command::new("curl")
+            .args([
+                "-q",
+                "-fsSL",
+                "--connect-timeout",
+                "10",
+                "--max-time",
+                "120",
+                "--output",
+            ])
+            .arg(destination)
+            .arg(url),
+        Duration::from_secs(180),
+    )
+    .context("下载 Release 需要 curl")?;
     ensure!(
         output.status.success(),
         "Release 下载失败：{}：{}",
@@ -128,7 +134,7 @@ pub(super) fn package(
     let url = format!("https://github.com/{repository}/releases/download/{tag}/{asset}");
     download(&url, &archive)?;
     download(&format!("{url}.sha256"), &checksum)?;
-    verify_checksum(&fs::read(&archive)?, &fs::read(&checksum)?)?;
+    verify_checksum_file(&archive, &checksum)?;
     let root = temp.path().join("package");
     extract_file(
         &archive,

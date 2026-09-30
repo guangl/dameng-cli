@@ -9,3 +9,7 @@ pub mod interaction;
 pub mod private_file;
 pub mod secrets;
 mod suggestions;
+
+pub mod bounded;
+pub mod parallel;
+pub mod process;

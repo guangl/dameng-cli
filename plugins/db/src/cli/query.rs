@@ -1,7 +1,7 @@
 //! Database commands and their shared connection setup.
 
 use crate::domain::connection_string::connection_spec;
-use crate::domain::sql::{format_result, read_sql};
+use crate::domain::sql::{read_sql, write_result};
 use crate::domain::types::{ConnectionSpec, DEFAULT_PROBE, DatabaseFactory, Outcome};
 use crate::storage::config::{DbConfig, load_config};
 use crate::storage::connections::{connection_password, find_connection};
@@ -39,7 +39,13 @@ pub(super) fn exec(
     let database = factory.open()?;
     let mut session = database.connect(&spec)?;
     match session.run(&sql)? {
-        Outcome::Rows(result) => print!("{}", format_result(&result)),
+        Outcome::Rows(result) => {
+            use std::io::Write;
+            let stdout = std::io::stdout();
+            let mut output = std::io::BufWriter::new(stdout.lock());
+            write_result(&mut output, &result)?;
+            output.flush()?;
+        }
         Outcome::Affected(count) => println!("{count} rows affected"),
     }
     Ok(())

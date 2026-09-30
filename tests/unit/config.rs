@@ -121,3 +121,25 @@ fn daily_log_settings_validate_directory_and_size() {
         std::path::PathBuf::from("logs/custom")
     );
 }
+
+#[test]
+fn update_check_concurrency_is_validated() {
+    for workers in [0, 17] {
+        assert!(
+            dameng_cli::Config::from_toml(&format!("[update]\ncheck_concurrency = {workers}"))
+                .is_err()
+        );
+    }
+    let config = dameng_cli::Config::from_toml("[update]\ncheck_concurrency = 2").unwrap();
+    assert_eq!(config.update.check_concurrency, Some(2));
+    assert!(
+        dameng_cli::PluginStore::new("unused")
+            .with_update_check_concurrency(0)
+            .is_err()
+    );
+    assert!(
+        dameng_cli::PluginStore::new("unused")
+            .with_update_check_concurrency(2)
+            .is_ok()
+    );
+}

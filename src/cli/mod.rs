@@ -29,6 +29,7 @@ use clap::Parser;
 pub fn run(config: &Config) -> Result<i32> {
     let cli = Cli::parse();
     let store = PluginStore::from_env()?
+        .with_update_check_concurrency(config.update_check_concurrency()?)?
         .with_progress(config.progress()?)
         .with_plugin_environment(config.plugin_environment()?);
     match cli.command {

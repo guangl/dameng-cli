@@ -3,6 +3,8 @@ use log::info;
 use std::{path::PathBuf, process::Command};
 
 use super::progress_bar_for;
+use dm_plugin_support::process::capture;
+use std::time::Duration;
 
 pub(crate) fn checkout_git(
     source: &str,
@@ -39,13 +41,15 @@ pub(crate) fn checkout_git(
     if revision.is_none() {
         clone.args(["--depth", "1"]);
     }
-    let output = clone
-        .arg("--")
-        .arg(source)
-        .arg(&destination)
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .output()
-        .context("Fetch plugin; HTTPS installation requires Git")?;
+    let output = capture(
+        clone
+            .arg("--")
+            .arg(source)
+            .arg(&destination)
+            .env("GIT_TERMINAL_PROMPT", "0"),
+        Duration::from_secs(180),
+    )
+    .context("Fetch plugin; HTTPS installation requires Git")?;
     ensure!(
         output.status.success(),
         "Git could not fetch the plugin\n{}",
@@ -54,22 +58,26 @@ pub(crate) fn checkout_git(
     bar.inc(1);
     if let Some(revision) = revision {
         info!("checking out revision {revision}");
-        let output = Command::new("git")
-            .args(["-c", "core.hooksPath=/dev/null", "checkout", "--detach"])
-            .arg(revision)
-            .current_dir(&destination)
-            .env("GIT_TERMINAL_PROMPT", "0")
-            .output()?;
+        let output = capture(
+            Command::new("git")
+                .args(["-c", "core.hooksPath=/dev/null", "checkout", "--detach"])
+                .arg(revision)
+                .current_dir(&destination)
+                .env("GIT_TERMINAL_PROMPT", "0"),
+            Duration::from_secs(180),
+        )?;
         ensure!(
             output.status.success(),
             "Git revision '{revision}' could not be checked out\n{}",
             String::from_utf8_lossy(&output.stderr)
         );
     }
-    let output = Command::new("git")
-        .args(["rev-parse", "HEAD"])
-        .current_dir(&destination)
-        .output()?;
+    let output = capture(
+        Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(&destination),
+        Duration::from_secs(180),
+    )?;
     ensure!(
         output.status.success(),
         "Could not resolve plugin Git revision"

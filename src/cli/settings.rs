@@ -11,16 +11,25 @@ pub(super) fn run(config: &Config, command: ConfigCommand) -> Result<()> {
             Ok(())
         }
         ConfigCommand::Show { json } => {
-            let environment_configured = std::fs::read_to_string(&path)
-                .ok()
-                .and_then(|text| toml::from_str::<toml::Value>(&text).ok())
-                .is_some_and(|value| {
-                    value
-                        .get("plugin")
-                        .and_then(|table| table.get("environment"))
-                        .is_some()
-                });
+            let environment_configured =
+                dm_plugin_support::bounded::text(&path, dm_plugin_support::bounded::CONFIG_LIMIT)
+                    .ok()
+                    .and_then(|text| toml::from_str::<toml::Value>(&text).ok())
+                    .is_some_and(|value| {
+                        value
+                            .get("plugin")
+                            .and_then(|table| table.get("environment"))
+                            .is_some()
+                    });
             let settings = vec![
+                effective(
+                    setting(
+                        "update.check_concurrency",
+                        config.update_check_concurrency()?,
+                        config.update.check_concurrency.is_some(),
+                    ),
+                    &["DM_UPDATE_CHECK_CONCURRENCY"],
+                ),
                 effective(
                     setting("log.level", config.log_filter(), config.log.level.is_some()),
                     &["DM_LOG", "RUST_LOG"],

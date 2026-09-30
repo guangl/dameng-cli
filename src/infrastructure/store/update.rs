@@ -74,22 +74,11 @@ impl PluginStore {
 
     pub fn outdated(&self) -> Result<Vec<UpdateStatus>> {
         let infos = self.list_info()?;
-        let mut results = Vec::with_capacity(infos.len());
-        std::thread::scope(|scope| -> Result<()> {
-            let handles: Vec<_> = infos
-                .into_iter()
-                .map(|info| scope.spawn(move || self.outdated_one(info)))
-                .collect();
-            for handle in handles {
-                results.push(
-                    handle
-                        .join()
-                        .map_err(|_| anyhow::anyhow!("outdated worker panicked"))??,
-                );
-            }
-            Ok(())
-        })?;
-        Ok(results)
+        dm_plugin_support::parallel::map(infos, self.update_check_concurrency, |info| {
+            self.outdated_one(info)
+        })?
+        .into_iter()
+        .collect()
     }
 
     fn outdated_one(&self, info: PluginInfo) -> Result<UpdateStatus> {

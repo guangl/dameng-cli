@@ -24,12 +24,12 @@ impl PluginStore {
 
     pub fn list_info(&self) -> Result<Vec<PluginInfo>> {
         let connection = self.connect()?;
-        let mut statement =
-            connection.prepare("SELECT name FROM installed_plugins ORDER BY name")?;
-        let names = statement
-            .query_map([], |row| row.get::<_, String>(0))?
-            .collect::<rusqlite::Result<Vec<_>>>()?;
-        names.into_iter().map(|name| self.info(&name)).collect()
+        let mut statement = connection.prepare(
+            "SELECT manifest, source, revision, source_ref, checksum, installed_at
+             FROM installed_plugins ORDER BY name",
+        )?;
+        let rows = statement.query_map([], read_info)?;
+        rows.map(|row| decode_info(row?)).collect()
     }
 
     pub fn info(&self, name: &str) -> Result<PluginInfo> {
@@ -40,27 +40,11 @@ impl PluginStore {
                 "SELECT manifest, source, revision, source_ref, checksum, installed_at
                  FROM installed_plugins WHERE name = ?1",
                 [name],
-                |row| {
-                    Ok((
-                        row.get::<_, String>(0)?,
-                        row.get::<_, Option<String>>(1)?,
-                        row.get::<_, Option<String>>(2)?,
-                        row.get::<_, Option<String>>(3)?,
-                        row.get::<_, String>(4)?,
-                        row.get::<_, i64>(5)?,
-                    ))
-                },
+                read_info,
             )
             .optional()?
             .with_context(|| format!("Plugin '{name}' is not installed"))?;
-        Ok(PluginInfo {
-            manifest: Manifest::from_toml(&values.0).context("Invalid manifest in SQLite store")?,
-            source: values.1,
-            revision: values.2,
-            source_ref: values.3,
-            checksum: values.4,
-            installed_at: values.5,
-        })
+        decode_info(values)
     }
 
     pub fn verify(&self, name: Option<&str>) -> Result<Vec<String>> {
@@ -113,4 +97,35 @@ impl PluginStore {
         );
         Ok((root, manifest))
     }
+}
+
+type StoredInfo = (
+    String,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    String,
+    i64,
+);
+
+fn read_info(row: &rusqlite::Row<'_>) -> rusqlite::Result<StoredInfo> {
+    Ok((
+        row.get(0)?,
+        row.get(1)?,
+        row.get(2)?,
+        row.get(3)?,
+        row.get(4)?,
+        row.get(5)?,
+    ))
+}
+
+fn decode_info(values: StoredInfo) -> Result<PluginInfo> {
+    Ok(PluginInfo {
+        manifest: Manifest::from_toml(&values.0).context("Invalid manifest in SQLite store")?,
+        source: values.1,
+        revision: values.2,
+        source_ref: values.3,
+        checksum: values.4,
+        installed_at: values.5,
+    })
 }

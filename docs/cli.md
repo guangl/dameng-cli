@@ -93,6 +93,7 @@ max_size_mb = 5                        # 等价于 DM_LOG_MAX_SIZE_MB，正整�
 
 [update]
 repository = "guangl/dameng-cli"      # 等价于 DM_UPDATE_REPOSITORY
+check_concurrency = 4                  # DM_UPDATE_CHECK_CONCURRENCY，1..16
 target = "aarch64-apple-darwin"       # 等价于 DM_UPDATE_TARGET（默认跟随本机平台）
 
 [output]
@@ -106,8 +107,10 @@ environment = ["DM_DATABASE_URL"]     # 等价于 DM_PLUGIN_ENVIRONMENT
 | --- | --- | --- | --- | --- |
 | `[log]` | `level` | string | `DM_LOG` | 日志过滤表达式，例如 `info`、`debug`、`dm=debug`；按日写入 `<DM_PLUGIN_HOME>/logs/dm-YYYY-MM-DD.log`。 |
 | `[log]` | `directory` | string | `DM_LOG_DIR` | 日志目录，默认 `logs`；相对路径以 `DM_PLUGIN_HOME` 为基准，也可使用绝对路径。 |
-| `[log]` | `max_size_mb` | integer | `DM_LOG_MAX_SIZE_MB` | 每个每日文件的大小上限，默认 5 MiB，必须为正整数；满额时淘汰旧内容、保留新日志。 |
+| `[log]` | `max_size_mb` | integer | `DM_UPDATE_CHECK_CONCURRENCY` | 更新检查并发数，默认 `4`，允许 `1..16`。 |
+| `DM_LOG_MAX_SIZE_MB` | 每个每日文件的大小上限，默认 5 MiB，必须为正整数；满额时淘汰旧内容、保留新日志。 |
 | `[update]` | `repository` | string | `DM_UPDATE_REPOSITORY` | `dm self-update` 使用的 `owner/repository`。 |
+| `[update]` | `check_concurrency` | integer | `DM_UPDATE_CHECK_CONCURRENCY` | 同时进行的更新检查数量，默认 4，允许 1..16；设为 1 降低并发资源占用。 |
 | `[update]` | `target` | string | `DM_UPDATE_TARGET` | 自更新取用 Release 产物的 target triple，默认跟随本机平台；取值见 `dm self-update`。 |
 | `[output]` | `progress` | boolean | `DM_PROGRESS` | 默认 `true`。设为 `false` 彻底关闭进度条（CI、重定向日志时使用）；任何取值下，进度条都只在 stderr 是终端时绘制。 |
 | `[plugin]` | `environment` | string 数组 | `DM_PLUGIN_ENVIRONMENT` | 除插件清单的 `environment` 之外，额外允许继承给插件进程与 hook 的环境变量名。宿主设置的 `DM_PLUGIN_*` 与 `DM_HOME` 优先。 |
@@ -142,6 +145,7 @@ dm info ssh
 | `DM_PROGRESS` | `true`/`false` 开关进度条，默认 `true`；仅在 stderr 是终端时绘制。 |
 | `DM_PLUGIN_ENVIRONMENT` | 逗号分隔的额外环境变量名，会**替换**配置文件中的 `plugin_environment` 列表。 |
 | `DM_LOG_DIR` | 日志目录；默认 `<DM_PLUGIN_HOME>/logs`，支持绝对路径和相对宿主数据目录的路径。 |
+| `DM_UPDATE_CHECK_CONCURRENCY` | 更新检查并发数，默认 `4`，允许 `1..16`。 |
 | `DM_LOG_MAX_SIZE_MB` | 每个每日文件的大小上限（正整数 MiB），默认 `5`。 |
 | `DM_LOG` | 日志过滤级别（默认 `info`，也可用 `off`、`error`、`warn`、`debug`、`trace`）；日志按日写入 `<DM_PLUGIN_HOME>/logs/dm-YYYY-MM-DD.log`，`off` 时不创建该文件；stdout 保持机器可读。 |
 
@@ -164,3 +168,11 @@ dm info ssh
 `dm ssh connect [name]` 登录 SSH，`dm ssh ssh [name]` 保留为别名；省略名称时仅一个连接直接使用，多个连接在终端下搜索选择，脚本须指定名称。`dm ssh test [name]` 和 `dm db test [name]` 也支持选择。数据库驱动仍未接入，`db test/exec` 会明确报错；`dm db doctor` 同样报告这个限制。
 
 补全安装方式与开发协议见 [使用体验与自动补全](usability.html)。
+
+## 内存与运行开销
+
+更新检查使用固定数量的工作线程，默认最多 4 个，可用 `[update] check_concurrency` 或 `DM_UPDATE_CHECK_CONCURRENCY` 在 1..16 内调整。插件列表一次读取安装元数据，避免每个插件重复打开数据库。
+
+宿主和内置插件的配置文件最多 1 MiB，连接导入文档及 SQL 输入最多 16 MiB；超出限制会直接报错，不截断输入。Release 元数据最多 1 MiB，SHA-256 文件最多 4 KiB。压缩包校验使用固定 64 KiB 缓冲，不把整个包读入内存；数据库结果逐行写入，避免再次拼接完整输出文本。
+
+Git 和下载辅助进程的 stdout、stderr 分别最多保留 64 KiB，单个进程最多运行 180 秒；下载单次传输最多 120 秒，重试时间预算最多 180 秒。超时或辅助输出超限会终止该辅助进程并报错。交互式 SSH、普通插件执行、生命周期 hook 和插件源码编译不受这些辅助进程限制；第三方插件及其子进程的 CPU、内存由插件和操作系统管理。这些限制控制宿主的主要缓冲及并发开销，并非整个进程树的硬性内存额度或 CPU 限速。
