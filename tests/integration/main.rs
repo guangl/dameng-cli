@@ -16,6 +16,7 @@ mod install;
 mod install_source;
 mod installer;
 mod logging;
+mod logging_options;
 mod prebuilt;
 mod prebuilt_release;
 mod self_update;

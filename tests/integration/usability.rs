@@ -43,7 +43,7 @@ fn completion_does_not_create_home_or_log_and_ignores_invalid_configuration() {
     fs::create_dir_all(&home).unwrap();
     fs::write(home.join("config.toml"), "invalid").unwrap();
     assert!(ok(dm(&home).args(["complete", "--", "co"]).output().unwrap()).contains("config"));
-    assert!(!home.join("dm.log").exists());
+    assert!(!home.join("logs").exists());
     assert!(!home.join("store.sqlite3").exists());
 }
 #[test]

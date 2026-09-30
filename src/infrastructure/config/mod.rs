@@ -39,7 +39,7 @@ pub fn log_filter_from_env() -> Option<String> {
 #[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
-    /// `[log]`: diagnostics written to stderr.
+    /// `[log]`: file-only diagnostic settings.
     #[serde(default)]
     pub log: LogSettings,
     /// `[update]`: where `dm self-update` takes its releases from.
@@ -53,14 +53,8 @@ pub struct Config {
     pub plugin: PluginSettings,
 }
 
-/// `[log]` table.
-#[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct LogSettings {
-    /// Log filter with the same syntax as `DM_LOG`, for example `debug` or `dm=debug`.
-    #[serde(default)]
-    pub level: Option<String>,
-}
+mod logging;
+pub use logging::LogSettings;
 
 /// `[update]` table.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize)]
@@ -115,6 +109,7 @@ impl Config {
                 *value = Some(trimmed);
             }
         }
+        config.log.validate()?;
         config.plugin.environment = valid_environment_names(&config.plugin.environment)?;
         Ok(config)
     }

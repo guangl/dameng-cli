@@ -27,6 +27,22 @@ pub(super) fn run(config: &Config, command: ConfigCommand) -> Result<()> {
                 ),
                 effective(
                     setting(
+                        "log.directory",
+                        config.log_directory(&home_from_env()?),
+                        config.log.directory.is_some(),
+                    ),
+                    &["DM_LOG_DIR"],
+                ),
+                effective(
+                    setting(
+                        "log.max_size_mb",
+                        config.log_max_bytes()? / (1024 * 1024),
+                        config.log.max_size_mb.is_some(),
+                    ),
+                    &["DM_LOG_MAX_SIZE_MB"],
+                ),
+                effective(
+                    setting(
                         "update.repository",
                         config
                             .update_repository()

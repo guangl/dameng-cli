@@ -11,12 +11,18 @@
 #   - 未知表、未知键、空值、类型错误或非法 TOML 都会让命令直接失败并打印该文件路径。
 #   - 文件位于数据目录内，因此不能在这里修改数据目录本身；请用 DM_PLUGIN_HOME 改变它。
 
-# 诊断日志：写入 <DM_PLUGIN_HOME>/dm.log（超过 5 MiB 时轮转为 dm.log.1）；
+# 诊断日志：按本机日期写入 <DM_PLUGIN_HOME>/logs/dm-YYYY-MM-DD.log，保留最近 30 天；
 # stdout 只保留命令结果与 JSON，stderr 只保留用户可见的错误报告。
 [log]
 # 过滤级别，等价于环境变量 DM_LOG，默认 "info"。
 # 取值：off / error / warn / info / debug / trace，或过滤表达式，例如 "dm=debug"；off 时不创建日志文件。
 level = "info"
+# 日志目录，等价于 DM_LOG_DIR。相对路径以 DM_PLUGIN_HOME 为基准，也可填绝对路径。
+directory = "logs"
+# 每个每日文件的上限（MiB），等价于 DM_LOG_MAX_SIZE_MB；必须为正整数。
+# 达到上限时淘汰旧内容，保留新日志；只保留一个当日文件。
+max_size_mb = 5
+# 过期文件在下一次写日志时清理；写入失败或级别为 off 时不向 stdout/stderr 回退。
 
 # dm self-update 的发布来源。
 [update]
