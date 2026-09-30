@@ -19,7 +19,7 @@ description: dm 命令、环境变量、JSON 输出和常见工作流参考。
 
 两个内置插件都支持配置迁移。数据库插件：`dm db export [--file PATH] [--include-passwords]` 默认省略密码，未指定文件时输出 JSON 到 stdout；加 `--include-passwords` 后会在终端输入并确认加密口令。`dm db import <file> [--replace]` 默认拒绝覆盖同名连接；使用 `--replace` 覆盖配置时，若导入文件没有密码则保留本机原密码。密码导入后由本机密钥重新加密。
 
-SSH 插件用同样的两种形式迁移：`dm ssh export [--file PATH] [--include-secrets]` 默认省略密码与私钥口令，`--include-secrets` 同样要求终端输入并确认加密口令；`dm ssh import <file> [--replace]` 默认拒绝覆盖同名服务器，`--replace` 覆盖时若导入文件没有密码/口令，则只在认证方式一致（密钥认证还要求密钥路径一致）时保留本机原有秘密，避免把密码当成口令复用。导入的密码与口令由本机密钥重新加密，密钥路径按原样导入，需目标机器上存在对应私钥。
+SSH 插件用同样的两种形式迁移：`dm ssh export [--file PATH] [--include-secrets]` 默认省略密码与私钥口令，`--include-secrets` 同样要求终端输入并确认加密口令；`dm ssh import <file> [--replace]` 默认拒绝覆盖同名服务器，`--replace` 覆盖时若导入文件没有密码/口令，则只在认证方式一致（密钥认证还要求密钥路径一致）时保留本机原有秘密，避免把密码当成口令复用。导入的密码与口令由本机密钥重新加密，密钥路径按原样导入，需在运行 `dm` 的机器上存在对应私钥（远端只需对应公钥）。
 
 两者的导出文件都不会覆盖已有文件，Unix 文件权限为 `0600`；加密导入导出需要终端，非交互环境会直接报错而不是留下空文件。
 
@@ -40,8 +40,8 @@ SSH 插件用同样的两种形式迁移：`dm ssh export [--file PATH] [--inclu
 
 | 插件 | 提供的命令 | 职责 |
 | --- | --- | --- |
-| `ssh` | `dm ssh add/list/remove/test/ssh`、`dm ssh export/import` | SSH 服务器连接管理，数据保存在插件自己的 `data/ssh/`。 |
-| `db` | `dm db add/list/remove/test/exec`、`dm db export/import` | 达梦数据库连接管理，连接保存在 `data/db/`；`test`/`exec` 的驱动仍是占位实现。 |
+| `ssh` | `dm ssh add/list/remove/test/ssh`、`dm ssh export/import` | SSH 服务器连接管理，数据保存在插件自己的 `data/ssh/`；`list [--json]` 输出表格或 JSON。密码认证的 `test`/`ssh` 需要系统安装 `sshpass`，密钥认证只需本机 `ssh` 与本机上的私钥（远端只需对应公钥）。 |
+| `db` | `dm db add/list/remove/test/exec`、`dm db export/import` | 达梦数据库连接管理，连接保存在 `data/db/`；`list [--json]` 输出表格或 JSON；`test`/`exec` 的驱动仍是占位实现。 |
 
 内置插件与自己安装的插件完全等价：`dm list`、`dm info <name>`、`dm verify`、`dm uninstall <name>` 一视同仁，不需要时用 `dm uninstall <name>` 删除（会一并删除它的 config/data/cache）。远程安装脚本只对明确未发布的资产（HTTP 404）提示并跳过，其余网络、HTTP 或校验错误会让整次安装失败，不会静默少装插件。
 
@@ -77,7 +77,7 @@ SSH 插件用同样的两种形式迁移：`dm ssh export [--file PATH] [--inclu
 - `--force` 允许重装当前版本或降级。
 - `--target` 选择已发布的目标产物，主要用于交叉环境。
 
-支持的产物目标为 `x86_64-unknown-linux-gnu`、`aarch64-unknown-linux-gnu`、`x86_64-unknown-linux-musl`、`aarch64-apple-darwin` 和 `x86_64-pc-windows-msvc`。Unix 需要 `curl` 与 `tar`，Windows 解压使用 PowerShell。
+支持的产物目标为 `x86_64-unknown-linux-gnu`、`aarch64-unknown-linux-gnu`、`x86_64-unknown-linux-musl`、`aarch64-apple-darwin`、`x86_64-apple-darwin` 和 `x86_64-pc-windows-msvc`。Unix 需要 `curl` 与 `tar`，Windows 解压使用 PowerShell。
 
 ## 配置文件
 
@@ -101,7 +101,7 @@ environment = ["DM_DATABASE_URL"]     # 等价于 DM_PLUGIN_ENVIRONMENT
 
 | 表 | 键 | 类型 | 等价环境变量 | 说明 |
 | --- | --- | --- | --- | --- |
-| `[log]` | `level` | string | `DM_LOG` | 日志过滤表达式，例如 `info`、`debug`、`dm=debug`；写入 stderr。 |
+| `[log]` | `level` | string | `DM_LOG` | 日志过滤表达式，例如 `info`、`debug`、`dm=debug`；写入 `<DM_PLUGIN_HOME>/dm.log`。 |
 | `[update]` | `repository` | string | `DM_UPDATE_REPOSITORY` | `dm self-update` 使用的 `owner/repository`。 |
 | `[update]` | `target` | string | `DM_UPDATE_TARGET` | 自更新取用 Release 产物的 target triple，默认跟随本机平台；取值见 `dm self-update`。 |
 | `[output]` | `progress` | boolean | `DM_PROGRESS` | 默认 `true`。设为 `false` 彻底关闭进度条（CI、重定向日志时使用）；任何取值下，进度条都只在 stderr 是终端时绘制。 |
@@ -136,12 +136,12 @@ dm info ssh
 | `DM_UPDATE_TARGET` | 自更新取用 Release 产物的 target triple；覆盖本机默认平台。 |
 | `DM_PROGRESS` | `true`/`false` 开关进度条，默认 `true`；仅在 stderr 是终端时绘制。 |
 | `DM_PLUGIN_ENVIRONMENT` | 逗号分隔的额外环境变量名，会**替换**配置文件中的 `plugin_environment` 列表。 |
-| `DM_LOG` | 日志过滤级别（默认 `info`，也可用 `off`、`error`、`warn`、`debug`、`trace`）；日志写入 stderr，stdout 保持机器可读。 |
+| `DM_LOG` | 日志过滤级别（默认 `info`，也可用 `off`、`error`、`warn`、`debug`、`trace`）；日志写入 `<DM_PLUGIN_HOME>/dm.log`，`off` 时不创建该文件；stdout 保持机器可读。 |
 
 上表中的 `DM_LOG` 与 `DM_UPDATE_REPOSITORY` 也可以写进配置文件，见上一节。插件进程使用的 `DM_PLUGIN_*` 和 hook 使用的 `DM_HOOK_PHASE` 由宿主设置，详见[运行时协议](plugin-development/runtime-contract.html)和[项目结构与清单](plugin-development/manifest.html)。为兼容基于已发布 `dm-plugin-sdk` 0.2.0 构建的旧插件，宿主执行插件时还会注入与 `DM_PLUGIN_HOME` 同值的 `DM_HOME`。
 
 ## JSON 与退出状态
 
-`list`、`info`、`outdated`、`doctor` 和 `self-update` 支持 `--json`。JSON 适合自动化消费，但字段会随同一主版本新增；调用方应忽略未知字段。
+`list`、`info`、`outdated`、`doctor` 和 `self-update` 支持 `--json`；两个内置插件的 `dm ssh list --json` 与 `dm db list --json` 同样输出机器可读 JSON（空列表为 `[]`，且从不包含密码或口令）。JSON 适合自动化消费，但字段会随同一主版本新增；调用方应忽略未知字段。
 
-内置命令成功返回 `0`，错误返回非零并将诊断写入 stderr。失败输出包含 `错误`、`详情` 和 `提示` 三行：`错误` 为一行摘要，`详情` 保留完整错误链，`提示` 给出可操作的下一步。宿主同时通过 `DM_LOG` 控制的日志后端记录同一错误，便于排查。插件退出码由宿主保留；Unix 信号终止按 `128 + signal` 返回。
+内置命令成功返回 `0`，错误返回非零并把用户可见的 `错误`、`详情` 和 `提示` 三行写入 stderr：`错误` 为一行摘要，`详情` 保留完整错误链，`提示` 给出可操作的下一步。宿主同时把同一错误和其余运行日志写入 `<DM_PLUGIN_HOME>/dm.log`，便于事后排查；日志文件满 5 MiB 时在下次启动轮转为 `dm.log.1`，`DM_LOG=off` 时不创建它。插件退出码由宿主保留；Unix 信号终止按 `128 + signal` 返回。

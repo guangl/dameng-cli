@@ -13,6 +13,7 @@ use crate::connections::{
 use crate::driver::PendingFactory;
 use crate::export::{ExportDocument, export_document};
 use crate::import::import_document;
+use crate::list::{render_json, render_table};
 use crate::private_file::write_private_file;
 use crate::prompts::{Prompter, terminal_prompter};
 use crate::sql::{format_result, read_sql};
@@ -66,17 +67,17 @@ pub fn run_with_prompter(
             )?;
             println!("Saved database connection {name}");
         }
-        DbCommand::List => {
-            for connection in load_connections(context)? {
-                println!(
-                    "{}\t{}@{}:{}\t{}\t{}",
-                    connection.name,
-                    connection.username,
-                    connection.host,
-                    connection.port,
-                    connection.schema.as_deref().unwrap_or("-"),
-                    connection.driver
-                );
+        DbCommand::List { json } => {
+            let connections = load_connections(context)?;
+            if json {
+                println!("{}", render_json(&connections)?);
+            } else {
+                let table = render_table(&connections);
+                // An empty store renders nothing at all, so "--json" is the
+                // only form that reports an empty list explicitly.
+                if !table.is_empty() {
+                    println!("{table}");
+                }
             }
         }
         DbCommand::Remove { name } => {

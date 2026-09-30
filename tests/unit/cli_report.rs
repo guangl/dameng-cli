@@ -36,6 +36,13 @@ fn known_failures_get_specific_hints() {
     assert!(hint_for_message("stale transaction directory: .install-x").contains("dm doctor"));
     assert!(hint_for_message("Unsupported plugin API version 2").contains("API 版本"));
     assert!(hint_for_message("Invalid manifest /x/dm-plugin.toml").contains("dm-plugin.toml"));
+    // A manifest written by an older host is repaired by reinstalling the plugin.
+    assert!(
+        hint_for_message(
+            "Invalid manifest in SQLite store: TOML parse error: unknown field `permissions`"
+        )
+        .contains("--replace")
+    );
     assert!(hint_for_message("Self-update release asset is missing").contains("自更新失败"));
     assert!(hint_for_message("Invalid plugin name").contains("插件名"));
     assert!(

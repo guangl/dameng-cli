@@ -40,7 +40,11 @@ pub(crate) enum SshCommand {
         passphrase: Option<String>,
     },
     /// List saved SSH servers.
-    List,
+    List {
+        /// Print the same fields as machine-readable JSON instead of a table.
+        #[arg(long)]
+        json: bool,
+    },
     /// Remove a saved SSH server.
     Remove { name: String },
     /// Export server settings. Passwords and key passphrases are omitted unless encrypted export is requested.

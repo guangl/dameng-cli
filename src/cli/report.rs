@@ -50,6 +50,9 @@ pub fn hint_for(error: &Error) -> String {
     if text.contains("has no dm-") {
         return "本地包目录必须同时包含 `dm-plugin.toml` 和构建好的 `dm-<name>`：先 `cargo build --release --locked`，再把 `target/release/dm-<name>` 复制到清单同级后重试。".into();
     }
+    if text.contains("invalid manifest in sqlite store") {
+        return "存储中的插件清单来自更早的 `dm` 版本（例如已移除的 `permissions` 字段），当前宿主不再解析：请用 `dm install <包目录> --replace` 重装该插件刷新元数据，配置与数据会保留。".into();
+    }
     if text.contains("already exists on disk") || text.contains("stale transaction") {
         return "磁盘上存在残留或未完成的事务；运行 `dm doctor --repair` 可自动修复。".into();
     }

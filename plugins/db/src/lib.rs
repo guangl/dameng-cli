@@ -22,6 +22,7 @@ mod crypto;
 mod export;
 mod hints;
 mod import;
+mod list;
 mod private_file;
 mod prompts;
 mod sql;
@@ -44,6 +45,7 @@ pub use export::{EXPORT_VERSION, ExportDocument, PortableConnection, export_docu
 pub use hints::db_hint;
 #[doc(hidden)]
 pub use import::import_document;
+pub use list::{ConnectionSummary, render_json, render_table};
 #[doc(hidden)]
 pub use private_file::{write_private_file, write_private_file_with};
 pub use prompts::{

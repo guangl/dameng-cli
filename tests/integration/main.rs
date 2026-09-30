@@ -15,6 +15,7 @@ mod hooks;
 mod install;
 mod install_source;
 mod installer;
+mod logging;
 mod prebuilt;
 mod prebuilt_release;
 mod self_update;

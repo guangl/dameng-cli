@@ -6,8 +6,10 @@ use std::{env, fs, path::PathBuf};
 /// Resolve the host data directory from the environment.
 ///
 /// `DM_PLUGIN_HOME` wins; otherwise the platform default is used and relative
-/// paths are resolved against the current working directory.
-pub(crate) fn home_from_env() -> Result<PathBuf> {
+/// paths are resolved against the current working directory. The host log file
+/// and the configuration file live here as well, so the entry point resolves the
+/// directory before the logging backend starts.
+pub fn home_from_env() -> Result<PathBuf> {
     let home = if let Some(home) = env::var_os("DM_PLUGIN_HOME") {
         ensure!(!home.is_empty(), "DM_PLUGIN_HOME must not be empty");
         PathBuf::from(home)

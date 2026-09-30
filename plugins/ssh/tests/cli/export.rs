@@ -68,9 +68,16 @@ fn export_and_import_round_trip_servers() {
     let import = ok(ssh(&target).args(["import"]).arg(&file).output().unwrap());
     assert!(import.contains("Imported 2 SSH servers"), "{import}");
     let list = ok(ssh(&target).args(["list"]).output().unwrap());
-    assert!(list.contains("root@10.0.0.8:2222"), "{list}");
-    assert!(list.contains("ubuntu@10.0.0.9:22"), "{list}");
-    assert!(list.contains("/tmp/id_ed25519"), "{list}");
+    for needle in [
+        "root",
+        "10.0.0.8",
+        "2222",
+        "ubuntu",
+        "10.0.0.9",
+        "/tmp/id_ed25519",
+    ] {
+        assert!(list.contains(needle), "missing {needle:?} in:\n{list}");
+    }
 
     let duplicate = failure(ssh(&target).args(["import"]).arg(&file).output().unwrap());
     assert!(duplicate.contains("--replace"), "{duplicate}");

@@ -28,13 +28,79 @@ fn add_list_and_remove_servers() {
     assert!(add.contains("Saved SSH server prod"), "{add}");
 
     let list = ok(ssh(&home).args(["list"]).output().unwrap());
-    assert!(list.contains("prod"), "{list}");
-    assert!(list.contains("10.0.0.8"), "{list}");
-    assert!(list.contains("2222"), "{list}");
+    for needle in [
+        "Name", "Host", "Port", "User", "Auth", "Key", "prod", "10.0.0.8", "2222", "root",
+        "password",
+    ] {
+        assert!(list.contains(needle), "missing {needle:?} in:\n{list}");
+    }
+    assert!(!list.contains("p@ssw0rd"), "{list}");
+    assert!(list.ends_with('\n'), "the table must end with a newline");
 
     let remove = ok(ssh(&home).args(["remove", "prod"]).output().unwrap());
     assert!(remove.contains("Removed SSH server prod"), "{remove}");
     assert!(ok(ssh(&home).args(["list"]).output().unwrap()).is_empty());
+}
+
+#[test]
+fn list_json_reports_servers_without_secrets() {
+    let temp = TempDir::new().unwrap();
+    let home = temp.path().join("home");
+    fs::create_dir_all(&home).unwrap();
+
+    let empty = ok(ssh(&home).args(["list", "--json"]).output().unwrap());
+    assert_eq!(empty.trim(), "[]");
+
+    ok(ssh(&home)
+        .args([
+            "add",
+            "prod",
+            "--host",
+            "10.0.0.8",
+            "--port",
+            "2222",
+            "--username",
+            "root",
+            "--password",
+            "p@ssw0rd",
+        ])
+        .output()
+        .unwrap());
+    ok(ssh(&home)
+        .args([
+            "add",
+            "keyed",
+            "--host",
+            "10.0.0.9",
+            "--username",
+            "ubuntu",
+            "--key",
+            "/tmp/id_ed25519",
+            "--passphrase",
+            "",
+        ])
+        .output()
+        .unwrap());
+
+    let output = ok(ssh(&home).args(["list", "--json"]).output().unwrap());
+    let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();
+    let entries = parsed.as_array().unwrap();
+    assert_eq!(entries.len(), 2);
+
+    let keyed = &entries[0];
+    assert_eq!(keyed["name"], "keyed");
+    assert_eq!(keyed["host"], "10.0.0.9");
+    assert_eq!(keyed["port"], 22);
+    assert_eq!(keyed["username"], "ubuntu");
+    assert_eq!(keyed["auth_type"], "key");
+    assert_eq!(keyed["key_path"], "/tmp/id_ed25519");
+
+    let prod = &entries[1];
+    assert_eq!(prod["name"], "prod");
+    assert_eq!(prod["port"], 2222);
+    assert_eq!(prod["auth_type"], "password");
+    assert!(prod["key_path"].is_null());
+    assert!(!output.contains("p@ssw0rd"), "{output}");
 }
 
 #[test]
