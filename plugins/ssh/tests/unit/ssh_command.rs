@@ -27,10 +27,52 @@ fn ssh_command_password_uses_sshpass() {
         .get_args()
         .map(|arg| arg.to_string_lossy().into_owned())
         .collect();
-    assert!(args.contains(&"-p".to_owned()));
-    assert!(args.contains(&"p@ssw0rd".to_owned()));
+    assert_eq!(&args[..2], ["-e", "ssh"]);
+    assert!(!args.iter().any(|arg| arg.contains("p@ssw0rd")));
+    assert!(command.get_envs().any(|(key, value)| {
+        key == "SSHPASS" && value.is_some_and(|value| value == "p@ssw0rd")
+    }));
     assert!(args.contains(&"root@10.0.0.8".to_owned()));
     assert!(args.contains(&"true".to_owned()));
+}
+
+#[test]
+fn saved_key_passphrase_is_used_for_tests_and_login_without_entering_arguments() {
+    let temp = TempDir::new().unwrap();
+    let context = context(&temp);
+    upsert_server(
+        &context,
+        &Server {
+            name: "encrypted".into(),
+            host: "example.invalid".into(),
+            port: 2222,
+            username: "user".into(),
+            auth_type: "key".into(),
+            key_path: Some("/tmp/private key".into()),
+            secret: Some(encrypt(&context, b"hidden-passphrase").unwrap()),
+        },
+    )
+    .unwrap();
+    for test in [true, false] {
+        let command = ssh_command(&context, "encrypted", test).unwrap();
+        assert_eq!(command.get_program(), "sshpass");
+        let args: Vec<_> = command
+            .get_args()
+            .map(|arg| arg.to_str().unwrap())
+            .collect();
+        assert_eq!(&args[..4], ["-e", "-P", "Enter passphrase for key", "ssh"]);
+        assert!(args.contains(&"/tmp/private key"));
+        assert!(!args.iter().any(|arg| arg.contains("hidden-passphrase")));
+        if test {
+            assert!(args.contains(&"BatchMode=no"));
+            assert!(args.contains(&"ConnectTimeout=10"));
+        }
+        for (key, expected) in [("SSHPASS", "hidden-passphrase"), ("LC_ALL", "C")] {
+            assert!(command.get_envs().any(|(name, value)| {
+                name == key && value.is_some_and(|value| value == expected)
+            }));
+        }
+    }
 }
 
 #[test]

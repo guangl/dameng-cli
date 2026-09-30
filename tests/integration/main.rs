@@ -18,6 +18,7 @@ mod installer;
 mod logging;
 mod prebuilt;
 mod prebuilt_release;
+mod purge_retry;
 mod self_update;
 mod store;
 mod update;

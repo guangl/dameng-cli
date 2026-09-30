@@ -55,12 +55,12 @@ impl PluginStore {
         }
         let result = (|| -> Result<()> {
             let transaction = connection.unchecked_transaction()?;
-            if !purge {
-                transaction.execute(
-                    "INSERT OR IGNORE INTO retained_plugin_data (name) VALUES (?1)",
-                    [name],
-                )?;
-            }
+            // Keep the data discoverable until every purge path has been removed.
+            // This also makes interrupted or failed purges safe to retry.
+            transaction.execute(
+                "INSERT OR IGNORE INTO retained_plugin_data (name) VALUES (?1)",
+                [name],
+            )?;
             transaction.execute("DELETE FROM installed_plugins WHERE name = ?1", [name])?;
             transaction.commit()?;
             Ok(())
@@ -75,7 +75,7 @@ impl PluginStore {
         self.purge_directories(name)
     }
 
-    /// True when an earlier uninstall explicitly kept this plugin's data.
+    /// True when uninstall kept data or a purge still needs to finish.
     pub fn has_retained_data(&self, name: &str) -> Result<bool> {
         validate_name(name)?;
         Ok(self.connect()?.query_row(
@@ -92,8 +92,6 @@ impl PluginStore {
             .collect()
     }
     fn purge_directories(&self, name: &str) -> Result<()> {
-        self.connect()?
-            .execute("DELETE FROM retained_plugin_data WHERE name = ?1", [name])?;
         let mut cleanup_failures = Vec::new();
         for directory in self.removal_paths(name) {
             if let Err(error) = fs::remove_dir_all(&directory) {
@@ -104,9 +102,11 @@ impl PluginStore {
         }
         ensure!(
             cleanup_failures.is_empty(),
-            "Plugin '{name}' was uninstalled, but cleanup failed for: {}. Review the reported paths; `dm doctor --repair` can clean orphaned config/data/cache directories",
+            "Plugin '{name}' was uninstalled, but cleanup failed for: {}. Fix the reported paths, then retry `dm uninstall {name} --purge --yes`; remaining data is protected from `dm doctor --repair`",
             cleanup_failures.join("; ")
         );
+        self.connect()?
+            .execute("DELETE FROM retained_plugin_data WHERE name = ?1", [name])?;
         Ok(())
     }
 }
