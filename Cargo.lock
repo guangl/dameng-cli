@@ -287,13 +287,14 @@ dependencies = [
 
 [[package]]
 name = "dameng-cli"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "clap",
  "clap_complete",
  "comfy-table",
  "dm-plugin-sdk",
+ "dm-plugin-support",
  "env_logger",
  "indicatif",
  "log",
@@ -350,7 +351,7 @@ dependencies = [
 
 [[package]]
 name = "dm-plugin-db"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -378,11 +379,11 @@ dependencies = [
 
 [[package]]
 name = "dm-plugin-sdk"
-version = "0.3.0"
+version = "0.4.0"
 
 [[package]]
 name = "dm-plugin-ssh"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -407,7 +408,12 @@ version = "0.1.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
+ "clap",
  "rand",
+ "rpassword",
+ "serde",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]

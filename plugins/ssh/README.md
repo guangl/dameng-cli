@@ -7,13 +7,13 @@
 
 | 命令 | 说明 |
 | --- | --- |
-| `dm ssh add <name> --host H [--port 22] [--username U]` | 新增或覆盖服务器；密码认证用 `--password P`，密钥认证用 `--key PATH`（可加 `--passphrase S`）；终端下省略任意字段时逐项提示，密码与口令隐藏回显，空口令表示密钥未加密 |
+| `dm ssh add <name> --host H [--port 22] [--username U]` | 新增服务器，同名时必须加 `--replace`；密码认证用 `--password P`，密钥认证用 `--key PATH`（可加 `--passphrase S`）；终端下省略任意字段时逐项提示，密码与口令隐藏回显，空口令表示密钥未加密 |
 | `dm ssh list [--json]` | 以带边框表格列出名称、主机、端口、用户、认证方式与私钥路径；`--json` 输出同样字段的机器可读 JSON（`auth_type`、`key_path`），空列表为 `[]`，从不包含密码或口令 |
-| `dm ssh remove <name>` | 删除服务器 |
+| `dm ssh remove <name>` | 删除服务器，终端下确认，脚本需 `--yes` |
 | `dm ssh export [--file PATH] [--include-secrets]` | 导出服务器配置；默认不带密码与私钥口令，省略 `--file` 时输出到 stdout；`--include-secrets` 会要求输入并确认导出加密口令 |
 | `dm ssh import <file> [--replace]` | 从 JSON 文件导入；默认遇到同名服务器报错，`--replace` 覆盖；未包含秘密的导入会按认证方式保留同名服务器原有秘密 |
-| `dm ssh test <name>` | 非交互探测：密钥认证执行 `ssh -i <key> -p <port> -o BatchMode=yes -o ConnectTimeout=<n> user@host true`，密码认证用 `sshpass` 包裹同一条命令 |
-| `dm ssh ssh <name>` | 启动交互式 SSH 会话，终端交给系统的 `ssh`，其退出码原样返回（被信号终止时为 `128+signal`） |
+| `dm ssh test <name>` | 非交互探测：密钥认证执行 `ssh -i <key> -p <port> -o BatchMode=yes -o ConnectTimeout=<n> user@host true`，密码认证用 `sshpass` 包裹，并使用 `BatchMode=no` 允许密码应答 |
+| `dm ssh connect [name]`（别名 `ssh`） | 启动交互式 SSH 会话，终端交给系统的 `ssh`，其退出码原样返回（被信号终止时为 `128+signal`） |
 
 失败时 stderr 会给出 `错误`、`详情` 与中文 `提示`；缺少必填项、服务器不存在、认证信息缺失或存储异常都会给出可操作建议。
 
@@ -36,7 +36,7 @@
 - 密码与私钥口令用本机随机密钥 `.ssh-key`（权限 `0600`）做 AES-GCM 加密后存储，`dm ssh list` 不会回显它们。
 - 普通导出不包含秘密；包含秘密的导出以口令派生密钥加密，导入时再用目标机器的本地密钥加密保存。请妥善保管加密导出文件和口令。
 - 指定 `--file` 的导出文件默认拒绝覆盖，并在 Unix 上以 `0600` 权限创建。
-- `dm uninstall ssh` 会连同这些目录一起删除。
+- `dm uninstall ssh` 默认保留配置、连接与缓存，`doctor --repair` 不会清理主动保留的数据。`dm uninstall ssh --purge` 才清空，需确认或显式 `--yes`。
 
 ## 源码导航
 
@@ -47,3 +47,14 @@
 - `src/ui/`：交互输入、列表与错误提示。
 
 通用加密字节、编码和安全文件写入使用 workspace 内部的 `dm-plugin-support`；从仓库根目录构建此插件。公开 Rust 导入路径与原有保存数据保持兼容。空列表会给出新增记录提示，自动化可继续使用 `list --json`。
+
+## 编辑、诊断和补全
+
+- `dm ssh edit <name> [--host H] [--port P] [--username U]`：省略的字段与认证秘密默认保留；终端下回车保留原值，保存前确认摘要，`--yes` 跳过确认。
+- `dm ssh config init/show/path`：安全创建示例、查看有效配置与来源、定位文件；`show --json` 用于自动化。
+- `dm ssh doctor [--json]`：检查配置与连接存储，发现问题返回非零。
+- 动态补全包含插件子命令、参数、文件路径和保存的连接名称；按宿主的 `dm completions <shell>` 安装即可，不需另装插件补全脚本。
+
+完整安装方式见 [补全说明](../../docs/usability.md)。
+
+SSH 诊断还检查 `ssh`、密码认证所需的 `sshpass` 与保存的本机私钥路径，不会连接远端。`connect` 省略名称时，一个连接直接使用，多个连接在终端下可搜索选择。

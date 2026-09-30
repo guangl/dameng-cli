@@ -11,11 +11,9 @@ fn rust_plugin_lifecycle_and_process_contract() {
     let temp = TempDir::new().unwrap();
     let home = temp.path().join("dm home");
     let source = fixture(temp.path());
-    assert!(ok(dm(&home).arg("list").output().unwrap()).contains("No plugins installed"));
+    assert!(ok(dm(&home).arg("list").output().unwrap()).contains("尚无插件"));
     assert!(home.join("store.sqlite3").is_file());
-    assert!(
-        ok(dm(&home).arg("install").arg(&source).output().unwrap()).contains("Installed probe")
-    );
+    assert!(ok(dm(&home).arg("install").arg(&source).output().unwrap()).contains("已安装 probe"));
     let listed = ok(dm(&home).arg("list").output().unwrap());
     assert!(listed.contains("probe") && listed.contains("0.1.0"));
     assert_eq!(
@@ -88,8 +86,11 @@ fn rust_plugin_lifecycle_and_process_contract() {
     assert!(String::from_utf8_lossy(&output.stderr).contains("plugin stderr"));
     // A broken plugin must remain removable.
     fs::write(home.join("plugins/probe/dm-plugin.toml"), "broken").unwrap();
-    ok(dm(&home).args(["uninstall", "probe"]).output().unwrap());
-    assert!(ok(dm(&home).arg("list").output().unwrap()).contains("No plugins installed"));
+    ok(dm(&home)
+        .args(["uninstall", "probe", "--purge", "--yes"])
+        .output()
+        .unwrap());
+    assert!(ok(dm(&home).arg("list").output().unwrap()).contains("尚无插件"));
     for directory in ["config", "data", "cache"] {
         assert!(!home.join(directory).join("probe").exists());
     }
@@ -138,7 +139,7 @@ fn install_replace_upgrades_in_place_and_keeps_plugin_data() {
         .args(["install", newer.to_str().unwrap(), "--replace"])
         .output()
         .unwrap());
-    assert!(replaced.contains("Installed probe 0.2.0"), "{replaced}");
+    assert!(replaced.contains("已安装 probe 0.2.0"), "{replaced}");
     assert!(ok(dm(&home).arg("list").output().unwrap()).contains("0.2.0"));
     assert_eq!(fs::read_to_string(data.join("state.txt")).unwrap(), "kept");
     assert_eq!(
@@ -149,7 +150,10 @@ fn install_replace_upgrades_in_place_and_keeps_plugin_data() {
     );
 
     // Replacing also covers the first installation of a plugin.
-    ok(dm(&home).args(["uninstall", "probe"]).output().unwrap());
+    ok(dm(&home)
+        .args(["uninstall", "probe", "--purge", "--yes"])
+        .output()
+        .unwrap());
     ok(dm(&home)
         .args(["install", newer.to_str().unwrap(), "--replace"])
         .output()

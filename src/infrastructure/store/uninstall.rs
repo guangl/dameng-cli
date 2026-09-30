@@ -7,18 +7,25 @@ use crate::{Manifest, plugin::manifest::validate_name};
 use super::PluginStore;
 
 impl PluginStore {
+    /// Compatibility API: remove the package and its data.
     pub fn uninstall(&self, name: &str) -> Result<()> {
+        self.uninstall_with_options(name, true)
+    }
+
+    /// Remove a package, retaining its data unless purge was explicitly chosen.
+    pub fn uninstall_with_options(&self, name: &str, purge: bool) -> Result<()> {
         info!("uninstalling plugin {name}");
         validate_name(name)?;
         let connection = self.connect()?;
-        ensure!(
-            connection.query_row(
-                "SELECT EXISTS(SELECT 1 FROM installed_plugins WHERE name = ?1)",
-                [name],
-                |row| row.get::<_, bool>(0),
-            )?,
-            "Plugin '{name}' is not installed"
-        );
+        let installed: bool = connection.query_row(
+            "SELECT EXISTS(SELECT 1 FROM installed_plugins WHERE name = ?1)",
+            [name],
+            |row| row.get(0),
+        )?;
+        if !installed && purge && self.has_retained_data(name)? {
+            return self.purge_directories(name);
+        }
+        ensure!(installed, "Plugin '{name}' is not installed");
         let path = self.plugins().join(name);
         let metadata = fs::symlink_metadata(&path)
             .with_context(|| format!("Plugin '{name}' is not installed"))?;
@@ -46,18 +53,49 @@ impl PluginStore {
                 }
             }
         }
-        if let Err(error) =
-            connection.execute("DELETE FROM installed_plugins WHERE name = ?1", [name])
-        {
+        let result = (|| -> Result<()> {
+            let transaction = connection.unchecked_transaction()?;
+            if !purge {
+                transaction.execute(
+                    "INSERT OR IGNORE INTO retained_plugin_data (name) VALUES (?1)",
+                    [name],
+                )?;
+            }
+            transaction.execute("DELETE FROM installed_plugins WHERE name = ?1", [name])?;
+            transaction.commit()?;
+            Ok(())
+        })();
+        if let Err(error) = result {
             let _ = fs::rename(&removed, &path);
             return Err(error).context("Remove plugin metadata");
         }
-        let mut cleanup_failures = Vec::new();
-        for directory in self
-            .per_plugin_directories(name)
+        if !purge {
+            return Ok(());
+        }
+        self.purge_directories(name)
+    }
+
+    /// True when an earlier uninstall explicitly kept this plugin's data.
+    pub fn has_retained_data(&self, name: &str) -> Result<bool> {
+        validate_name(name)?;
+        Ok(self.connect()?.query_row(
+            "SELECT EXISTS(SELECT 1 FROM retained_plugin_data WHERE name = ?1)",
+            [name],
+            |row| row.get(0),
+        )?)
+    }
+    /// Paths affected by a purge, including package backups.
+    pub fn removal_paths(&self, name: &str) -> Vec<std::path::PathBuf> {
+        self.per_plugin_directories(name)
             .into_iter()
             .chain(std::iter::once(self.backups().join(name)))
-        {
+            .collect()
+    }
+    fn purge_directories(&self, name: &str) -> Result<()> {
+        self.connect()?
+            .execute("DELETE FROM retained_plugin_data WHERE name = ?1", [name])?;
+        let mut cleanup_failures = Vec::new();
+        for directory in self.removal_paths(name) {
             if let Err(error) = fs::remove_dir_all(&directory) {
                 if error.kind() != std::io::ErrorKind::NotFound {
                     cleanup_failures.push(format!("{}: {error}", directory.display()));

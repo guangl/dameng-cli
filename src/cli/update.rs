@@ -22,7 +22,7 @@ fn update(store: &PluginStore, name: Option<&str>, all: bool) -> Result<()> {
         for (name, result) in results {
             match result {
                 Ok(manifest) => {
-                    println!("Updated {name} to {}", manifest.version);
+                    println!("已升级 {name} 至 {}", manifest.version);
                     updated.push(name);
                 }
                 Err(error) => failures.push(format!("{name}: {error:#}")),
@@ -37,7 +37,7 @@ fn update(store: &PluginStore, name: Option<&str>, all: bool) -> Result<()> {
     } else {
         let name = name.context("Provide a plugin name or use --all")?;
         let manifest = store.update(name)?;
-        println!("Updated {} to {}", manifest.name, manifest.version);
+        println!("已升级 {} 至 {}", manifest.name, manifest.version);
     }
     Ok(())
 }
@@ -52,8 +52,8 @@ fn check(store: &PluginStore, json: bool) -> Result<()> {
     } else {
         for status in statuses {
             let state = match status.available_version.as_deref() {
-                Some(_) if status.update_available => "update available",
-                Some(_) => "current",
+                Some(_) if status.update_available => "可升级",
+                Some(_) => "已是最新",
                 // No comparable source, for example an installer package that
                 // was unpacked from a temporary directory.
                 None => "unknown",

@@ -18,14 +18,7 @@ pub fn render(plugins: &[PluginInfo]) -> String {
         .load_preset(UTF8_FULL)
         .set_content_arrangement(ContentArrangement::Dynamic)
         .set_truncation_indicator("…")
-        .set_header([
-            "Name",
-            "Version",
-            "Description",
-            "Source",
-            "Revision",
-            "Installed At",
-        ]);
+        .set_header(["名称", "版本", "说明", "来源", "修订", "安装时间 (UTC)"]);
 
     // comfy-table auto-detects the terminal width only when stdout is a TTY.
     // Keep piped output deterministic and reasonably narrow as well.

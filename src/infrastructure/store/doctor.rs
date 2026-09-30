@@ -117,7 +117,9 @@ impl PluginStore {
             }
         }
         let installed_names = {
-            let mut statement = connection.prepare("SELECT name FROM installed_plugins")?;
+            let mut statement = connection.prepare(
+                "SELECT name FROM installed_plugins UNION SELECT name FROM retained_plugin_data",
+            )?;
             statement
                 .query_map([], |row| row.get::<_, String>(0))?
                 .collect::<rusqlite::Result<BTreeSet<_>>>()?

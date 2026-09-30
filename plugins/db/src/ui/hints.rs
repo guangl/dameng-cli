@@ -12,7 +12,8 @@ pub fn db_hint(error: &Error) -> String {
         .join("\n")
         .to_lowercase();
 
-    if text.contains("is not configured") {
+    if text.contains("is not configured") || text.contains("不存在") || text.contains("尚无连接")
+    {
         return "请先运行 dm db add <name> 配置连接，或用 dm db list 查看已保存的连接。".into();
     }
     if text.contains("driver is not implemented") {

@@ -46,7 +46,7 @@ fn add_list_and_remove_run_without_any_driver() {
     with_args(&mut context, &["list"]);
     assert_eq!(run_with(&context, &driver).unwrap(), 0);
 
-    with_args(&mut context, &["remove", "prod"]);
+    with_args(&mut context, &["remove", "prod", "--yes"]);
     assert_eq!(run_with(&context, &driver).unwrap(), 0);
     assert!(load_connections(&context).unwrap().is_empty());
     assert_eq!(driver.opened(), 0, "these commands never open a driver");
@@ -118,7 +118,7 @@ fn interactive_add_fills_in_every_missing_value() {
     // Name, host, port (Enter keeps 5236), username, driver and schema.
     let script = Script::new(&["prod", "10.0.0.8", "", "DMHR", "", ""], &["SYSDBA@123"]);
 
-    with_args(&mut context, &["add"]);
+    with_args(&mut context, &["add", "--yes"]);
     assert_eq!(
         run_with_prompter(&context, &FakeDriver::default(), Some(&script)).unwrap(),
         0
@@ -152,7 +152,7 @@ fn interactive_add_reports_a_closed_terminal() {
         &["prod", "10.0.0.8", "", "", ""][..],
     ] {
         let script = Script::new(answers, &[]);
-        with_args(&mut context, &["add"]);
+        with_args(&mut context, &["add", "--yes"]);
         let error = run_with_prompter(&context, &FakeDriver::default(), Some(&script)).unwrap_err();
         assert!(
             format!("{error:#}").contains("terminal closed"),

@@ -51,7 +51,7 @@ fn test_command_reports_missing_connections_and_driver_failures() {
 
     with_args(&mut context, &["test", "missing"]);
     let error = run_with(&context, &FakeDriver::default()).unwrap_err();
-    assert!(format!("{error:#}").contains("not configured"), "{error:#}");
+    assert!(format!("{error:#}").contains("不存在"), "{error:#}");
     assert!(db_hint(&error).contains("dm db add"));
 
     // A stored connection without a password cannot connect.

@@ -8,7 +8,7 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
 
 ```text
 用户 -> dm (CLI)
-          ├─ install/update -> 本地包目录 / HTTPS Git revision
+          ├─ install/update -> 本地包目录 / HTTPS Git revision / GitHub Release 归档
           │             -> 清单校验 + 预编译 dm-<name>（本地复制或 Release 资产）
           │             -> 生命周期 hook
           │             -> 暂存目录校验 -> 原子重命名 -> 旧版本备份
@@ -85,3 +85,5 @@ SDK 使用 Rust trait 统一开发接口；跨进程只约定参数、环境变�
 
 源解析集中在 `PluginStore` 的安装事务中：插件只能从本地目录或 HTTPS Git URL 安装，并把清单、来源、revision 和 SHA-256 存入 SQLite。当前没有发布者身份、签名、撤回或安全公告；若未来接入中央市场，这些能力需要服务端协议支持。
 业务能力始终在独立 Rust 插件仓库实现，不向宿主添加数据库业务子命令。
+
+动态补全由 shell 适配脚本调用隐藏的 `dm complete` 入口；宿主以只读 SQLite 获取已安装插件名称，按清单 `completion = true` 查询插件的 `__complete` 接口，并设置响应期限。内置插件复用 `dm-plugin-support` 的 clap 候选生成器、交互输入、配置展示和环境诊断工具。默认卸载在 SQLite 的 `retained_plugin_data` 中登记数据保留状态，修复孤立目录时跳过这些记录。

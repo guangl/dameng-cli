@@ -1,6 +1,7 @@
 name = "db"
-version = "0.1.0"
-description = "Manage saved Dameng database connections"
+version = "0.2.0"
+description = "管理保存的达梦数据库连接"
 api_version = 1
-min_host_version = "0.2.0"
+completion = true
+min_host_version = "0.4.0"
 environment = []

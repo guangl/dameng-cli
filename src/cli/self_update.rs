@@ -25,14 +25,14 @@ pub(super) fn run(
         println!("{}", serde_json::to_string_pretty(&result)?);
     } else if result.updated {
         println!(
-            "Updated dm from {} to {}",
+            "已升级 dm：{} → {}",
             result.current_version, result.available_version
         );
     } else if result.current_version == result.available_version {
-        println!("dm {} is current", result.current_version);
+        println!("dm {} 已是最新版本", result.current_version);
     } else {
         println!(
-            "dm {} is installed; {} is available",
+            "当前 dm {}，可升级至 {}",
             result.current_version, result.available_version
         );
     }

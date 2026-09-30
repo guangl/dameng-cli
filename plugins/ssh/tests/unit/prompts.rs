@@ -43,10 +43,10 @@ fn resolve_passphrase_handles_explicit_and_missing_values() {
 #[test]
 fn resolve_required_uses_value_or_reports_missing() {
     assert_eq!(
-        resolve_required(Some("prod".to_owned()), "Name: ", "missing", None).unwrap(),
+        resolve_required(Some("prod".to_owned()), "名称： ", "missing", None).unwrap(),
         "prod"
     );
-    let error = resolve_required(None, "Name: ", "name is required", None).unwrap_err();
+    let error = resolve_required(None, "名称： ", "name is required", None).unwrap_err();
     assert!(error.to_string().contains("name is required"), "{error}");
 }
 
@@ -61,7 +61,7 @@ fn interactive_prompts_fill_in_missing_fields() {
     let script = Script::new(&["prod", "", "2222"], &[]);
     let prompter = Some(&script as &dyn dm_plugin_ssh::Prompter);
     assert_eq!(
-        resolve_required(None, "Name: ", "name is required", prompter).unwrap(),
+        resolve_required(None, "名称： ", "name is required", prompter).unwrap(),
         "prod"
     );
     // An empty answer to the port prompt keeps the documented default.
@@ -72,18 +72,16 @@ fn interactive_prompts_fill_in_missing_fields() {
 
 #[test]
 fn interactive_port_rejects_non_numbers() {
-    let script = Script::new(&["not-a-port"], &[]);
-    let error = resolve_port(None, Some(&script)).unwrap_err();
-    assert!(error.to_string().contains("must be a number"), "{error:#}");
+    let script = Script::new(&["not-a-port", "2222"], &[]);
+    assert_eq!(resolve_port(None, Some(&script)).unwrap(), 2222);
 }
 
 #[test]
 fn interactive_password_and_passphrase_read_secrets() {
-    let script = Script::new(&[], &["p@ssw0rd", "", "secret", ""]);
+    let script = Script::new(&[], &["p@ssw0rd", "", "retry", "secret", ""]);
     let prompter = Some(&script as &dyn dm_plugin_ssh::Prompter);
     assert_eq!(resolve_password(None, prompter).unwrap(), "p@ssw0rd");
-    let error = resolve_password(None, prompter).unwrap_err();
-    assert!(error.to_string().contains("must not be empty"), "{error:#}");
+    assert_eq!(resolve_password(None, prompter).unwrap(), "retry");
     assert_eq!(
         resolve_passphrase(None, prompter).unwrap().as_deref(),
         Some("secret")

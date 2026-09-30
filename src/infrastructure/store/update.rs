@@ -14,6 +14,18 @@ impl PluginStore {
             .source
             .as_deref()
             .with_context(|| format!("Plugin '{name}' has no recorded source"))?;
+        if let Some(repository) = super::release::repository(source) {
+            let tag = super::release::latest_tag(repository)?;
+            let target = info.source_ref.as_deref().unwrap_or(env!("DM_HOST_TARGET"));
+            let (_temporary, package) = super::release::package(repository, name, target, &tag)?;
+            return self.install_directory(
+                &package,
+                Some(source.into()),
+                Some(tag),
+                Some(target.into()),
+                InstallMode::Update,
+            );
+        }
         if Path::new(source).is_dir() {
             return self.install_directory(
                 Path::new(source),
@@ -90,7 +102,13 @@ impl PluginStore {
                 update_available: false,
             });
         };
-        let available = if source.starts_with("https://") {
+        let available = if let Some(repository) = super::release::repository(source) {
+            let tag = super::release::latest_tag(repository)?;
+            let target = info.source_ref.as_deref().unwrap_or(env!("DM_HOST_TARGET"));
+            let (_temporary, package) =
+                super::release::package(repository, &info.manifest.name, target, &tag)?;
+            Some(Manifest::read(&package)?.version)
+        } else if source.starts_with("https://") {
             let (_checkout, root, _revision) =
                 checkout_git(source, info.source_ref.as_deref(), self.progress_enabled())?;
             Some(Manifest::read(&root)?.version)

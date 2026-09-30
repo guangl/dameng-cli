@@ -10,7 +10,26 @@ pub fn ssh_hint(error: &Error) -> String {
         .join("\n")
         .to_lowercase();
 
-    if text.contains("not configured") {
+    if text.contains("permission denied") || text.contains("authentication failed") {
+        return "认证失败；请检查用户名、密码或私钥，可运行 `dm ssh edit <name>` 修改认证。".into();
+    }
+    if text.contains("host key verification") || text.contains("remote host identification") {
+        return "主机密钥校验失败；请核对远端指纹及本机 known_hosts 记录后重试。".into();
+    }
+    if text.contains("could not resolve") || text.contains("name or service not known") {
+        return "主机名无法解析；请检查保存的地址和本机 DNS 配置。".into();
+    }
+    if text.contains("connection refused")
+        || text.contains("timed out")
+        || text.contains("no route")
+    {
+        return "网络连接失败；请检查地址、端口、防火墙和网络连通性。".into();
+    }
+    if text.contains("运行 dm ssh doctor") {
+        return "运行 `dm ssh doctor` 检查本机 ssh/sshpass、配置与私钥路径。".into();
+    }
+    if text.contains("not configured") || text.contains("不存在") || text.contains("尚无连接")
+    {
         return "请先运行 `dm ssh add <name>` 配置服务器，或用 `dm ssh list` 查看已保存的连接。"
             .into();
     }

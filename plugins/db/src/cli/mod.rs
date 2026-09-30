@@ -2,7 +2,11 @@
 
 mod add;
 mod args;
+mod completion;
+mod edit;
+mod fields;
 mod query;
+mod settings;
 mod transfer;
 
 use crate::cli::add::{AddRequest, add_connection};
@@ -33,34 +37,39 @@ pub fn run_with_prompter(
     factory: &dyn DatabaseFactory,
     prompter: Option<&dyn Prompter>,
 ) -> Result<i32> {
+    if completion::handle(context)? {
+        return Ok(0);
+    }
     let mut argv = vec![OsString::from("dm db")];
     argv.extend(context.args.iter().cloned());
     let cli = Cli::parse_from(argv);
     match cli.command {
         DbCommand::Add {
             name,
-            host,
-            port,
-            username,
-            password,
-            schema,
-            driver,
+            fields,
+            replace,
         } => {
+            anyhow::ensure!(!fields.clear_schema, "--clear-schema 仅用于 edit");
             let name = add_connection(
                 context,
                 &AddRequest {
                     name,
-                    host,
-                    port,
-                    username,
-                    password,
-                    schema,
-                    driver,
+                    host: fields.host,
+                    port: fields.port,
+                    username: fields.username,
+                    password: fields.password,
+                    schema: fields.schema,
+                    driver: fields.driver,
                 },
                 prompter,
+                replace,
+                fields.yes,
             )?;
-            println!("Saved database connection {name}");
+            println!("已保存数据库连接 {name}。运行 dm db list 查看连接。");
         }
+        DbCommand::Edit { name, fields } => edit::edit(context, &name, fields, prompter)?,
+        DbCommand::Doctor { json } => return settings::doctor(context, json),
+        DbCommand::Config { command } => settings::config(context, command)?,
         DbCommand::List { json } => {
             let connections = load_connections(context)?;
             if json {
@@ -68,22 +77,34 @@ pub fn run_with_prompter(
             } else {
                 let table = render_table(&connections);
                 if table.is_empty() {
-                    println!("No saved database connections. Run `dm db add <name>` to add one.");
+                    println!("尚无数据库连接。运行 `dm db add <name>` 添加连接。");
                 } else {
                     println!("{table}");
                 }
             }
         }
-        DbCommand::Remove { name } => {
+        DbCommand::Remove { name, yes } => {
+            crate::find_connection(context, &name)?;
+            dm_plugin_support::interaction::confirm(prompter, yes, &format!("删除连接 {name}？"))?;
             remove_connection(context, &name)?;
-            println!("Removed database connection {name}");
+            println!("已删除数据库连接 {name}");
         }
         DbCommand::Export {
             file,
             include_passwords,
         } => transfer::export(context, file, include_passwords, prompter)?,
         DbCommand::Import { file, replace } => transfer::import(context, file, replace, prompter)?,
-        DbCommand::Test { name } => query::test(context, factory, &name)?,
+        DbCommand::Test { name } => {
+            let name = dm_plugin_support::interaction::select_name(
+                name,
+                &load_connections(context)?
+                    .into_iter()
+                    .map(|entry| entry.name)
+                    .collect::<Vec<_>>(),
+                prompter,
+            )?;
+            query::test(context, factory, &name)?;
+        }
         DbCommand::Exec { name, sql, file } => query::exec(context, factory, &name, sql, file)?,
     }
     Ok(0)

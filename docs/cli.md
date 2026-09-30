@@ -15,7 +15,7 @@ description: dm 命令、环境变量、JSON 输出和常见工作流参考。
 | `dm install <source> [--rev REF] [--replace]` | 从本地预编译目录或 HTTPS Git URL 安装。Git 来源可固定 tag、branch 或 commit；只安装预编译插件，不执行源码编译。`--replace` 允许替换同名已安装插件，保留其 config/data/cache。 |
 | `dm update <name>` | 从已记录来源原子升级一个插件。 |
 | `dm update --all` | 逐个升级全部插件，最后汇总失败项。 |
-| `dm uninstall <name>` | 运行卸载 hook 后删除插件、备份及其 config/data/cache 目录。 |
+| `dm uninstall <name> [--purge] [--yes]` | 默认仅卸载程序并保留配置、连接、缓存和备份；`--purge` 清除数据，终端确认或脚本显式 `--yes`。 |
 
 两个内置插件都支持配置迁移。数据库插件：`dm db export [--file PATH] [--include-passwords]` 默认省略密码，未指定文件时输出 JSON 到 stdout；加 `--include-passwords` 后会在终端输入并确认加密口令。`dm db import <file> [--replace]` 默认拒绝覆盖同名连接；使用 `--replace` 覆盖配置时，若导入文件没有密码则保留本机原密码。密码导入后由本机密钥重新加密。
 
@@ -33,21 +33,21 @@ SSH 插件用同样的两种形式迁移：`dm ssh export [--file PATH] [--inclu
 
 | 脚本 | 安装哪些插件 | 记录的来源 |
 | --- | --- | --- |
-| `scripts/install.sh`（远程） | 按 Release 资产 `dm-plugins-<tag>-<target>.txt` 逐行安装本次发布的插件；该资产缺失时回退到脚本内置名单 `ssh db` | Release 解包出的临时目录 |
+| `scripts/install.sh`（远程） | 按 Release 资产 `dm-plugins-<tag>-<target>.txt` 逐行安装插件；清单缺失时回退到 `ssh db` | `github-release:<owner>/<repository>`；另记录 Release tag 与目标平台 |
 | `scripts/install-local.sh`（本地检出） | 固定构建并安装 `ssh` 与 `db` | 检出中的 `plugins/ssh`、`plugins/db` |
 
 当前内置插件是两个：
 
 | 插件 | 提供的命令 | 职责 |
 | --- | --- | --- |
-| `ssh` | `dm ssh add/list/remove/test/ssh`、`dm ssh export/import` | SSH 服务器连接管理，数据保存在插件自己的 `data/ssh/`；`list [--json]` 输出表格或 JSON。密码认证的 `test`/`ssh` 需要系统安装 `sshpass`，密钥认证只需本机 `ssh` 与本机上的私钥（远端只需对应公钥）。 |
-| `db` | `dm db add/list/remove/test/exec`、`dm db export/import` | 达梦数据库连接管理，连接保存在 `data/db/`；`list [--json]` 输出表格或 JSON；`test`/`exec` 的驱动仍是占位实现。 |
+| `ssh` | `dm ssh add/edit/list/remove/test/connect`、`dm ssh export/import` | SSH 服务器连接管理，数据保存在插件自己的 `data/ssh/`；`list [--json]` 输出表格或 JSON。密码认证的 `test`/`ssh` 需要系统安装 `sshpass`，密钥认证只需本机 `ssh` 与本机上的私钥（远端只需对应公钥）。 |
+| `db` | `dm db add/edit/list/remove/test/exec`、`dm db export/import` | 达梦数据库连接管理，连接保存在 `data/db/`；`list [--json]` 输出表格或 JSON；`test`/`exec` 的驱动仍是占位实现。 |
 
-内置插件与自己安装的插件完全等价：`dm list`、`dm info <name>`、`dm uninstall <name>` 一视同仁，不需要时用 `dm uninstall <name>` 删除（会一并删除它的 config/data/cache）。远程安装脚本只对明确未发布的资产（HTTP 404）提示并跳过，其余网络、HTTP 或校验错误会让整次安装失败，不会静默少装插件。
+内置插件与自己安装的插件完全等价：`dm list`、`dm info <name>`、`dm uninstall <name>` 一视同仁，不需要时用 `dm uninstall <name>` 删除（默认保留配置与连接数据）。远程安装脚本只对明确未发布的资产（HTTP 404）提示并跳过，其余网络、HTTP 或校验错误会让整次安装失败，不会静默少装插件。
 
 升级方式取决于安装来源：
 
-- `scripts/install.sh` 从临时目录安装，安装结束后该目录已被删除，记录的来源不可用：`dm update <name>` 会报 `Plugin source is not updateable`；`dm update` 会把它们报告成 `unknown`（来源已不存在，无从比较版本，命令本身仍成功）；`dm update --all` 对它们只会报同一条错误。升级内置插件请重新运行安装脚本，或执行 `dm install <新的包目录> --replace`，两者都保留插件的 config/data/cache。
+- 新版 `scripts/install.sh` 为插件记录持久的 Release 来源：`dm update` 从最新正式 Release 的平台归档读取插件清单，`dm update <name>`/`--all` 校验归档 SHA-256 后原子升级，保留配置与数据。更新来源不依赖安装时的临时目录，也不需要 Git。旧版本脚本已留下的临时来源不会自动猜测仓库，需重新运行新版脚本一次。
 - `scripts/install-local.sh` 从检出目录安装，只要检出仍在原位置，`dm update ssh`、`dm update db` 就能按来源直接升级。
 
 `dm self-update` 只替换宿主程序本身，不安装也不更新任何插件。
@@ -61,7 +61,9 @@ SSH 插件用同样的两种形式迁移：`dm ssh export [--file PATH] [--inclu
 | `dm <name> [args...]` | 执行启用的插件并原样转发参数。 |
 | `dm update [--json]` | 并行读取各来源的清单版本；固定 ref 仍按原 ref 检查。来源是已被删除的本地目录（例如安装脚本的临时目录）时该项报告 `unknown`、`update_available` 为 `false`，不会让整条命令失败。 |
 | `dm doctor [--repair] [--json]` | 检查 SQLite、插件目录、残留事务及孤立目录；`--repair` 只处理可恢复问题。 |
-| `dm completions <shell>` | 向 stdout 输出 Bash、Elvish、Fish、PowerShell 或 Zsh completion。 |
+| `dm completions <shell>` | 输出 Bash、Elvish、Fish、PowerShell 或 Zsh 动态补全脚本，支持已安装插件、插件子命令/选项/文件路径及连接名称。 |
+| `dm config init/show/path` | 创建配置示例、显示有效值与来源、显示配置路径；`show` 支持 `--json`。 |
+| `dm doctor <plugin> [--json]` | 转发到插件的环境检查；插件检查不支持宿主 `--repair`。 |
 
 `dm update` 不带参数时只检查可用版本；`dm update --json` 输出相同检查结果的 JSON。执行升级使用 `dm update <name>` 或 `dm update --all`。`--json` 不能与插件名或 `--all` 合用。原 `outdated`、`verify` 宿主命令已移除；安装时自动校验清单、入口文件和下载内容，之后可用 `dm doctor` 诊断安装状态。
 
@@ -114,11 +116,11 @@ environment = ["DM_DATABASE_URL"]     # 等价于 DM_PLUGIN_ENVIRONMENT
 
 ```sh
 dm info ssh
-# Config dir: /home/me/.config/dm/config/ssh
-# Config file: /home/me/.config/dm/config/ssh/config.toml (absent)
+# 配置目录： /home/me/.config/dm/config/ssh
+# 配置文件： /home/me/.config/dm/config/ssh/config.toml (不存在)
 ```
 
-运行中的插件同时通过 `DM_PLUGIN_CONFIG_DIR`、`DM_PLUGIN_DATA_DIR`、`DM_PLUGIN_CACHE_DIR` 拿到这三个目录（见[运行时协议](plugin-development/runtime-contract.html)）。`dm uninstall <name>` 会删除它们，`dm doctor --repair` 会清理已卸载插件的残留。
+运行中的插件同时通过 `DM_PLUGIN_CONFIG_DIR`、`DM_PLUGIN_DATA_DIR`、`DM_PLUGIN_CACHE_DIR` 拿到这三个目录（见[运行时协议](plugin-development/runtime-contract.html)）。`dm uninstall <name>` 默认保留它们；`--purge` 才删除。`dm doctor --repair` 只清理未登记为主动保留的孤立目录。
 
 优先级为 命令行参数 > 环境变量 > 配置文件 > 内置默认值，因此临时覆盖不必修改文件。配置文件位于数据目录内，不能通过它迁移数据目录本身；需要更换目录请设置 `DM_PLUGIN_HOME`。插件自身的配置仍由插件管理（见 `config/<name>` 与 `data/<name>`）。
 
@@ -144,3 +146,13 @@ dm info ssh
 `list`、`info`、`update`、`doctor` 和 `self-update` 支持 `--json`；两个内置插件的 `dm ssh list --json` 与 `dm db list --json` 同样输出机器可读 JSON（空列表为 `[]`，且从不包含密码或口令）。不带 `--json` 时，空的数据库或 SSH 列表会提示使用 `dm db add <name>` 或 `dm ssh add <name>` 添加记录。宿主和插件的 `--help` 也提供常用操作示例。JSON 适合自动化消费，但字段会随同一主版本新增；调用方应忽略未知字段。
 
 内置命令成功返回 `0`，错误返回非零并把用户可见的 `错误`、`详情` 和 `提示` 三行写入 stderr：`错误` 为一行摘要，`详情` 保留完整错误链，`提示` 给出可操作的下一步。宿主同时把同一错误和其余运行日志写入 `<DM_PLUGIN_HOME>/dm.log`，便于事后排查；日志文件满 5 MiB 时在下次启动轮转为 `dm.log.1`，`DM_LOG=off` 时不创建它。插件退出码由宿主保留；Unix 信号终止按 `128 + signal` 返回。
+
+## 连接编辑、交互与补全
+
+内置插件的 `add` 默认拒绝覆盖同名连接，重新录入须加 `--replace`；`edit <name>` 仅修改指定字段，终端下省略字段会显示原值，直接回车保留。密码/口令在编辑时默认保留，只有显式 `--password`/`--passphrase` 才更改；`dm db edit <name> --clear-schema` 清除 schema，SSH 的 `--passphrase ''` 清除口令。切换认证方式或私钥时不会把原密码/口令复用到新认证，重新选择同一私钥且不提供新口令时保留原口令。
+
+交互添加/编辑保存前展示隐藏密码的摘要并确认，`--yes` 跳过确认；脚本显式传参时无需保存确认。`remove` 在终端下确认，非交互必须显式 `--yes`。端口、必填项和连接名称的无效交互输入原地重试，EOF/取消则退出。
+
+`dm ssh connect [name]` 登录 SSH，`dm ssh ssh [name]` 保留为别名；省略名称时仅一个连接直接使用，多个连接在终端下搜索选择，脚本须指定名称。`dm ssh test [name]` 和 `dm db test [name]` 也支持选择。数据库驱动仍未接入，`db test/exec` 会明确报错；`dm db doctor` 同样报告这个限制。
+
+补全安装方式与开发协议见 [使用体验与自动补全](usability.html)。

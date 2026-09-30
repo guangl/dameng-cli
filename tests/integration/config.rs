@@ -105,7 +105,7 @@ fn shipped_example_config_is_accepted_by_the_host() {
     write_config(temp.path(), &text);
     let output = dm(temp.path()).arg("list").output().unwrap();
     assert!(output.status.success(), "{}", stderr(&output));
-    assert!(String::from_utf8_lossy(&output.stdout).contains("No plugins installed"));
+    assert!(String::from_utf8_lossy(&output.stdout).contains("尚无插件"));
 }
 #[test]
 fn invalid_plugin_environment_entry_names_the_key() {

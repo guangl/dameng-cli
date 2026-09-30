@@ -45,6 +45,7 @@ post_uninstall = "hooks/post-uninstall.sh"
 | `min_host_version` | 可选 SemVer；宿主低于此版本时拒绝安装。 |
 | `license` / `homepage` | 可选的许可证标识和项目主页。 |
 | `environment` | 允许运行时继承的环境变量白名单，名称必须为大写 ASCII。 |
+| `completion` | 可选布尔值，默认 `false`；声明 `true` 表示支持只读 `__complete` 接口，见[补全协议](../usability.html)。 |
 | `[hooks]` | 可选生命周期命令；键为 `pre_install`、`post_install`、`pre_uninstall`、`post_uninstall`。 |
 
 清单拒绝未知字段。所有宿主命令（包括 `doctor`、`self-update`）都是保留名；Windows 设备名也会被拒绝。插件始终是当前用户权限的原生进程，宿主不提供权限沙箱，也不会因清单变更为此要求额外确认。

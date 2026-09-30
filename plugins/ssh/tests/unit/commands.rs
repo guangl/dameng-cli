@@ -26,7 +26,7 @@ fn add_prompts_for_every_omitted_value() {
         &["prod", "10.0.0.8", "2222", "root", "password"],
         &["p@ssw0rd"],
     );
-    let context = store(&temp, "source", &["add"]);
+    let context = store(&temp, "source", &["add", "--yes"]);
     assert_eq!(run_with_prompter(&context, Some(&script)).unwrap(), 0);
     let saved = load_servers(&context).unwrap();
     assert_eq!(saved[0].name, "prod");
@@ -66,7 +66,7 @@ fn export_import_and_remove_dispatch_through_the_cli() {
             "root",
         ],
     );
-    let script = Script::new(&["password"], &["p@ssw0rd"]);
+    let script = Script::new(&["password", "y"], &["p@ssw0rd"]);
     assert_eq!(run_with_prompter(&source, Some(&script)).unwrap(), 0);
 
     let file = temp.path().join("servers.json");
@@ -89,7 +89,7 @@ fn export_import_and_remove_dispatch_through_the_cli() {
         b"p@ssw0rd"
     );
 
-    let remove = store(&temp, "target", &["remove", "prod"]);
+    let remove = store(&temp, "target", &["remove", "prod", "--yes"]);
     assert_eq!(run_with_prompter(&remove, None).unwrap(), 0);
     assert!(load_servers(&remove).unwrap().is_empty());
 }
@@ -97,7 +97,7 @@ fn export_import_and_remove_dispatch_through_the_cli() {
 #[test]
 fn commands_report_failures_without_a_terminal() {
     let temp = TempDir::new().unwrap();
-    let add = store(&temp, "store", &["add"]);
+    let add = store(&temp, "store", &["add", "--yes"]);
     assert!(run_with_prompter(&add, None).is_err());
     let remove = store(&temp, "store", &["remove", "missing"]);
     assert!(run_with_prompter(&remove, None).is_err());

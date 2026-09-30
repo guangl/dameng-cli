@@ -1,3 +1,4 @@
+mod completion;
 mod doctor;
 mod download;
 mod git;
@@ -7,6 +8,7 @@ mod install;
 mod package;
 mod prebuilt;
 mod query;
+mod release;
 mod run;
 mod types;
 mod uninstall;

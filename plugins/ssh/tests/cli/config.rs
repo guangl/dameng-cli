@@ -22,7 +22,7 @@ fn plugin_config_supplies_add_defaults() {
         ])
         .output()
         .unwrap());
-    assert!(add.contains("Saved SSH server prod"), "{add}");
+    assert!(add.contains("已保存 SSH 连接 prod"), "{add}");
 
     let list = ok(ssh(&home).args(["list"]).output().unwrap());
     for needle in ["ubuntu", "10.0.0.8", "2200"] {

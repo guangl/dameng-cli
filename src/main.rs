@@ -5,13 +5,28 @@ use dameng_cli::{
 use std::path::Path;
 
 fn main() {
+    // Tab completion is quiet, read-only, and works even with invalid settings.
+    if std::env::args_os()
+        .nth(1)
+        .is_some_and(|arg| arg == "complete")
+    {
+        let config = Config::from_env().unwrap_or_default();
+        let _ = cli::run(&config);
+        return;
+    }
     // Diagnostics are written next to the plugin store, so the data directory is
     // resolved before anything can be logged.
     let home = home_from_env().ok();
     // The configuration file also selects the log filter, so it is loaded before
     // the logging backend starts.
+    let raw_args: Vec<_> = std::env::args_os().collect();
+    let config_discovery = raw_args.get(1).is_some_and(|arg| arg == "config")
+        && raw_args
+            .get(2)
+            .is_some_and(|arg| arg == "path" || arg == "init");
     let config = match Config::from_env() {
         Ok(config) => config,
+        Err(_) if config_discovery => Config::default(),
         Err(error) => {
             // Only the environment can decide now that the file is unusable;
             // honouring it keeps `DM_LOG=off` from creating a log file.

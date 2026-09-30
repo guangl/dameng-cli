@@ -24,11 +24,17 @@ fn missing_arguments_and_connections_fail_with_hints() {
     assert!(empty.contains("dm db add <name>"), "{empty}");
 
     let stderr = failure(db(&home).args(["test", "missing"]).output().unwrap());
-    assert!(stderr.contains("not configured"), "{stderr}");
+    assert!(
+        stderr.contains("不存在") || stderr.contains("not configured"),
+        "{stderr}"
+    );
     assert!(stderr.contains("dm db add"), "{stderr}");
 
     let stderr = failure(db(&home).args(["remove", "missing"]).output().unwrap());
-    assert!(stderr.contains("not configured"), "{stderr}");
+    assert!(
+        stderr.contains("不存在") || stderr.contains("not configured"),
+        "{stderr}"
+    );
 }
 
 #[test]

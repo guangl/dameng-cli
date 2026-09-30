@@ -11,9 +11,9 @@
 
 | 命令 | 说明 |
 | --- | --- |
-| `dm db add <name> --host H [--port 5236] [--username SYSDBA] [--password P] [--schema S] [--driver NAME]` | 新增或覆盖连接；终端下省略的参数会逐项提示，密码隐藏回显 |
+| `dm db add <name> --host H [--port 5236] [--username SYSDBA] [--password P] [--schema S] [--driver NAME]` | 新增连接，同名时必须加 `--replace`；终端下省略的参数会逐项提示，密码隐藏回显 |
 | `dm db list [--json]` | 以带边框表格列出名称、主机、端口、用户、模式与驱动名；`--json` 输出同样字段的机器可读 JSON（未选模式时 `schema` 为 `null`），空列表为 `[]`，从不包含密码 |
-| `dm db remove <name>` | 删除连接 |
+| `dm db remove <name>` | 删除连接，终端下确认，脚本需 `--yes` |
 | `dm db export [--file PATH] [--include-passwords]` | 导出连接配置；默认不包含密码，省略 `--file` 时输出到 stdout；`--include-passwords` 会要求输入并确认导出加密口令 |
 | `dm db import <file> [--replace]` | 从 JSON 文件导入；默认遇到同名连接报错，`--replace` 覆盖；未包含密码的导入会保留同名连接原有密码 |
 | `dm db test <name>` | 通过驱动连接并执行探测语句（默认 `SELECT 1`）；驱动接入后可用 |
@@ -35,7 +35,7 @@
 - 普通导出不包含密码；包含密码的导出以口令派生密钥加密，导入时再用目标机器的本地密钥加密保存。请妥善保管加密导出文件和口令。
 - 指定 `--file` 的导出文件默认拒绝覆盖，并在 Unix 上以 `0600` 权限创建。
 - 组装连接串时会拒绝主机、用户名与模式中的 `;`、`{`、`}`，密码按连接串语法加引号，避免注入。
-- `dm uninstall db` 会连同这些目录一起删除。
+- `dm uninstall db` 默认保留配置、连接与缓存，`doctor --repair` 不会清理主动保留的数据。`dm uninstall db --purge` 才清空，需确认或显式 `--yes`。
 
 ## 驱动接入
 
@@ -52,3 +52,14 @@
 - `src/ui/`：交互输入、列表与错误提示。
 
 通用加密字节、编码和安全文件写入使用 workspace 内部的 `dm-plugin-support`；从仓库根目录构建此插件。公开 Rust 导入路径与原有保存数据保持兼容。空列表会给出新增记录提示，自动化可继续使用 `list --json`。
+
+## 编辑、诊断和补全
+
+- `dm db edit <name> [--host H] [--port P] [--username U]`：省略的字段与认证秘密默认保留；终端下回车保留原值，保存前确认摘要，`--yes` 跳过确认。
+- `dm db config init/show/path`：安全创建示例、查看有效配置与来源、定位文件；`show --json` 用于自动化。
+- `dm db doctor [--json]`：检查配置与连接存储，发现问题返回非零。
+- 动态补全包含插件子命令、参数、文件路径和保存的连接名称；按宿主的 `dm completions <shell>` 安装即可，不需另装插件补全脚本。
+
+完整安装方式见 [补全说明](../../docs/usability.md)。
+
+`--clear-schema` 显式清除 schema。数据库驱动仍是占位实现，`doctor` 会报告 `test/exec` 暂不可用。

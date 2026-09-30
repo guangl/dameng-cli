@@ -2,6 +2,8 @@
 use std::{env, error::Error, ffi::OsString, path::PathBuf};
 
 pub const API_VERSION: u32 = 1;
+/// Host supports opt-in, read-only plugin completion queries.
+pub const CAPABILITY_COMPLETION: &str = "completion-v1";
 pub const CAPABILITY_CONFIG_DIRS: &str = "config-dirs-v1";
 
 /// Conventional name of a plugin's own configuration file inside its config directory.

@@ -16,3 +16,5 @@ mod prompts;
 mod sql;
 mod store;
 mod test_command;
+
+mod usability;
