@@ -11,3 +11,5 @@ mod logging;
 mod manifest;
 mod self_update;
 mod store;
+
+mod cli_args;

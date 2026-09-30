@@ -42,7 +42,7 @@ dm install https://github.com/your-org/dm-plugin-backup.git
 dm install https://github.com/your-org/dm-plugin-backup.git --rev v1.2.0
 ```
 
-宿主会记录解析后的 commit 和已安装二进制 SHA-256。`dm verify` 可检测安装后的文件变化。
+`dm install` 自动检查清单和预编译文件，记录解析后的 commit 与已安装二进制 SHA-256。
 
 ### GitHub Release 预编译产物
 
@@ -69,9 +69,9 @@ dm install https://github.com/your-org/dm-plugin-backup.git --rev v1.0.0
 - 插件业务版本由插件仓库独立维护。
 - 破坏性命令行或配置变更应提升主版本并写迁移说明。
 - 宿主 API 仍为 v1 时保持 `api_version = 1`。
-- `dm update` 在临时目录完成下载和校验，再原子切换安装目录；下载或元数据写入失败会保留旧版本。
+- `dm update <name>` 在临时目录完成下载和校验，再原子切换安装目录；下载或元数据写入失败会保留旧版本。
 - 升级通过原子替换完成；需要保留历史版本时请使用 Git tag 与固定 revision。
 - `environment` 随清单记录，升级时直接更新，不再要求交互确认。
-- 使用固定 `--rev` 的插件不会被 `dm outdated` 误报为跟踪默认分支；变更固定版本时重新安装或明确选择新 revision。
+- 使用固定 `--rev` 的插件不会被 `dm update` 误报为跟踪默认分支；变更固定版本时重新安装或明确选择新 revision。
 
 出现问题时查看[故障排查](troubleshooting.html)。

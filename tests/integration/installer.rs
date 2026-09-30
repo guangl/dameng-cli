@@ -112,3 +112,47 @@ fn installer_scripts_have_valid_shell_syntax() {
         assert!(output.status.success(), "{script} has invalid shell syntax");
     }
 }
+
+/// Installers share build outputs and source packages even with isolated homes.
+#[cfg(unix)]
+#[test]
+fn concurrent_local_installers_publish_complete_plugin_packages() {
+    let temp = TempDir::new().unwrap();
+    let outputs = std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..2)
+            .map(|index| {
+                let root = temp.path().join(index.to_string());
+                scope.spawn(move || run_local_installer(&root.join("bin"), &root.join("home")))
+            })
+            .collect();
+        handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap())
+            .collect::<Vec<_>>()
+    });
+    for (index, output) in outputs.iter().enumerate() {
+        assert_installer_succeeded(output);
+        let root = temp.path().join(index.to_string());
+        let verified = Command::new(root.join("bin/dm"))
+            .env("DM_PLUGIN_HOME", root.join("home"))
+            .args(["list", "--json"])
+            .output()
+            .unwrap();
+        assert_installer_succeeded(&verified);
+        let stdout = String::from_utf8_lossy(&verified.stdout);
+        let plugins: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+        let names: Vec<_> = plugins
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|plugin| plugin["manifest"]["name"].as_str().unwrap())
+            .collect();
+        assert_eq!(names, ["db", "ssh"]);
+        assert_eq!(
+            dameng_cli::PluginStore::new(root.join("home"))
+                .verify(None)
+                .unwrap(),
+            ["db", "ssh"]
+        );
+    }
+}

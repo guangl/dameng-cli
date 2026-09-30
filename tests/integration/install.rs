@@ -141,7 +141,12 @@ fn install_replace_upgrades_in_place_and_keeps_plugin_data() {
     assert!(replaced.contains("Installed probe 0.2.0"), "{replaced}");
     assert!(ok(dm(&home).arg("list").output().unwrap()).contains("0.2.0"));
     assert_eq!(fs::read_to_string(data.join("state.txt")).unwrap(), "kept");
-    assert!(ok(dm(&home).args(["verify", "probe"]).output().unwrap()).contains("probe"));
+    assert_eq!(
+        dameng_cli::PluginStore::new(&home)
+            .verify(Some("probe"))
+            .unwrap(),
+        ["probe"]
+    );
 
     // Replacing also covers the first installation of a plugin.
     ok(dm(&home).args(["uninstall", "probe"]).output().unwrap());

@@ -12,7 +12,7 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
           │             -> 清单校验 + 预编译 dm-<name>（本地复制或 Release 资产）
           │             -> 生命周期 hook
           │             -> 暂存目录校验 -> 原子重命名 -> 旧版本备份
-          ├─ list/info/outdated/verify/doctor -> 本地插件状态与恢复
+          ├─ list/info/doctor + update（版本检查） -> 本地插件状态与恢复
           ├─ self-update -> GitHub Release + SHA-256 -> 原子替换宿主
           └─ <plugin> [args] -> Rust 插件独立进程 -> 数据库工具逻辑
                                   └─ dm-plugin-sdk

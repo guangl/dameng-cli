@@ -1,4 +1,4 @@
-//! Plugin subcommands: install, list, info, verify, uninstall and run.
+//! Plugin subcommands: install, list, info, uninstall and run.
 
 use super::print_no_plugins;
 use super::table;
@@ -72,19 +72,6 @@ pub(super) fn info(store: &PluginStore, name: &str, json: bool) -> Result<()> {
                 "absent"
             }
         );
-    }
-    Ok(())
-}
-
-/// Verify installed plugin manifests and binary checksums.
-pub(super) fn verify(store: &PluginStore, name: Option<&str>) -> Result<()> {
-    let names = store.verify(name)?;
-    if names.is_empty() {
-        print_no_plugins();
-    } else {
-        for name in names {
-            println!("Verified {name}");
-        }
     }
     Ok(())
 }

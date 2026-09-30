@@ -1,11 +1,20 @@
-//! Update subcommands: update, update --all and outdated.
+//! Version checks by default; explicit plugin names or --all apply updates.
 
 use super::print_no_plugins;
 use crate::PluginStore;
 use anyhow::{Context, Result};
 
+/// Check versions by default; update only when a plugin or --all is supplied.
+pub(super) fn run(store: &PluginStore, name: Option<&str>, all: bool, json: bool) -> Result<()> {
+    if name.is_none() && !all {
+        check(store, json)
+    } else {
+        update(store, name, all)
+    }
+}
+
 /// Atomically update one plugin, or every installed plugin with `all`.
-pub(super) fn update(store: &PluginStore, name: Option<&str>, all: bool) -> Result<()> {
+fn update(store: &PluginStore, name: Option<&str>, all: bool) -> Result<()> {
     if all {
         let results = store.update_all();
         let mut failures = Vec::new();
@@ -34,7 +43,7 @@ pub(super) fn update(store: &PluginStore, name: Option<&str>, all: bool) -> Resu
 }
 
 /// Report installed plugins that have a newer version available.
-pub(super) fn outdated(store: &PluginStore, json: bool) -> Result<()> {
+fn check(store: &PluginStore, json: bool) -> Result<()> {
     let statuses = store.outdated()?;
     if json {
         println!("{}", serde_json::to_string_pretty(&statuses)?);

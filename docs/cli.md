@@ -43,11 +43,11 @@ SSH 插件用同样的两种形式迁移：`dm ssh export [--file PATH] [--inclu
 | `ssh` | `dm ssh add/list/remove/test/ssh`、`dm ssh export/import` | SSH 服务器连接管理，数据保存在插件自己的 `data/ssh/`；`list [--json]` 输出表格或 JSON。密码认证的 `test`/`ssh` 需要系统安装 `sshpass`，密钥认证只需本机 `ssh` 与本机上的私钥（远端只需对应公钥）。 |
 | `db` | `dm db add/list/remove/test/exec`、`dm db export/import` | 达梦数据库连接管理，连接保存在 `data/db/`；`list [--json]` 输出表格或 JSON；`test`/`exec` 的驱动仍是占位实现。 |
 
-内置插件与自己安装的插件完全等价：`dm list`、`dm info <name>`、`dm verify`、`dm uninstall <name>` 一视同仁，不需要时用 `dm uninstall <name>` 删除（会一并删除它的 config/data/cache）。远程安装脚本只对明确未发布的资产（HTTP 404）提示并跳过，其余网络、HTTP 或校验错误会让整次安装失败，不会静默少装插件。
+内置插件与自己安装的插件完全等价：`dm list`、`dm info <name>`、`dm uninstall <name>` 一视同仁，不需要时用 `dm uninstall <name>` 删除（会一并删除它的 config/data/cache）。远程安装脚本只对明确未发布的资产（HTTP 404）提示并跳过，其余网络、HTTP 或校验错误会让整次安装失败，不会静默少装插件。
 
 升级方式取决于安装来源：
 
-- `scripts/install.sh` 从临时目录安装，安装结束后该目录已被删除，记录的来源不可用：`dm update <name>` 会报 `Plugin source is not updateable`；`dm outdated` 会把它们报告成 `unknown`（来源已不存在，无从比较版本，命令本身仍成功）；`dm update --all` 对它们只会报同一条错误。升级内置插件请重新运行安装脚本，或执行 `dm install <新的包目录> --replace`，两者都保留插件的 config/data/cache。
+- `scripts/install.sh` 从临时目录安装，安装结束后该目录已被删除，记录的来源不可用：`dm update <name>` 会报 `Plugin source is not updateable`；`dm update` 会把它们报告成 `unknown`（来源已不存在，无从比较版本，命令本身仍成功）；`dm update --all` 对它们只会报同一条错误。升级内置插件请重新运行安装脚本，或执行 `dm install <新的包目录> --replace`，两者都保留插件的 config/data/cache。
 - `scripts/install-local.sh` 从检出目录安装，只要检出仍在原位置，`dm update ssh`、`dm update db` 就能按来源直接升级。
 
 `dm self-update` 只替换宿主程序本身，不安装也不更新任何插件。
@@ -59,14 +59,13 @@ SSH 插件用同样的两种形式迁移：`dm ssh export [--file PATH] [--inclu
 | `dm list [--json]` | 以带边框表格列出 Name、Version、Description、Source、Revision 与 Installed At（UTC）；`--json` 输出机器可读 JSON。 |
 | `dm info <name> [--json]` | 显示来源、revision、SHA-256、环境变量，以及该插件的 config/data/cache 目录与配置文件是否存在（`--json` 中为 `paths`）。 |
 | `dm <name> [args...]` | 执行启用的插件并原样转发参数。 |
-| `dm outdated [--json]` | 并行读取各来源的清单版本；固定 ref 仍按原 ref 检查。来源是已被删除的本地目录（例如安装脚本的临时目录）时该项报告 `unknown`、`update_available` 为 `false`，不会让整条命令失败。 |
-| `dm verify [name]` | 校验磁盘清单与记录的 binary SHA-256。 |
+| `dm update [--json]` | 并行读取各来源的清单版本；固定 ref 仍按原 ref 检查。来源是已被删除的本地目录（例如安装脚本的临时目录）时该项报告 `unknown`、`update_available` 为 `false`，不会让整条命令失败。 |
 | `dm doctor [--repair] [--json]` | 检查 SQLite、插件目录、残留事务及孤立目录；`--repair` 只处理可恢复问题。 |
 | `dm completions <shell>` | 向 stdout 输出 Bash、Elvish、Fish、PowerShell 或 Zsh completion。 |
 
-`dm verify` 的校验和用于检测本地变化，不证明发布者身份。checksum mismatch 不会被 `doctor --repair` 自动信任或覆盖。
+`dm update` 不带参数时只检查可用版本；`dm update --json` 输出相同检查结果的 JSON。执行升级使用 `dm update <name>` 或 `dm update --all`。`--json` 不能与插件名或 `--all` 合用。原 `outdated`、`verify` 宿主命令已移除；安装时自动校验清单、入口文件和下载内容，之后可用 `dm doctor` 诊断安装状态。
 
-
+安装记录的校验和用于检测本地变化，不证明发布者身份。checksum mismatch 不会被 `doctor --repair` 自动信任或覆盖。
 
 ## 宿主更新
 
@@ -142,6 +141,6 @@ dm info ssh
 
 ## JSON 与退出状态
 
-`list`、`info`、`outdated`、`doctor` 和 `self-update` 支持 `--json`；两个内置插件的 `dm ssh list --json` 与 `dm db list --json` 同样输出机器可读 JSON（空列表为 `[]`，且从不包含密码或口令）。不带 `--json` 时，空的数据库或 SSH 列表会提示使用 `dm db add <name>` 或 `dm ssh add <name>` 添加记录。宿主和插件的 `--help` 也提供常用操作示例。JSON 适合自动化消费，但字段会随同一主版本新增；调用方应忽略未知字段。
+`list`、`info`、`update`、`doctor` 和 `self-update` 支持 `--json`；两个内置插件的 `dm ssh list --json` 与 `dm db list --json` 同样输出机器可读 JSON（空列表为 `[]`，且从不包含密码或口令）。不带 `--json` 时，空的数据库或 SSH 列表会提示使用 `dm db add <name>` 或 `dm ssh add <name>` 添加记录。宿主和插件的 `--help` 也提供常用操作示例。JSON 适合自动化消费，但字段会随同一主版本新增；调用方应忽略未知字段。
 
 内置命令成功返回 `0`，错误返回非零并把用户可见的 `错误`、`详情` 和 `提示` 三行写入 stderr：`错误` 为一行摘要，`详情` 保留完整错误链，`提示` 给出可操作的下一步。宿主同时把同一错误和其余运行日志写入 `<DM_PLUGIN_HOME>/dm.log`，便于事后排查；日志文件满 5 MiB 时在下次启动轮转为 `dm.log.1`，`DM_LOG=off` 时不创建它。插件退出码由宿主保留；Unix 信号终止按 `128 + signal` 返回。

@@ -33,7 +33,7 @@ curl -fsSL https://raw.githubusercontent.com/guangl/dameng-cli/main/scripts/inst
 
 两个脚本默认安装到 `$HOME/.local/bin/dm`，可通过 `DM_INSTALL_DIR` 修改。远程脚本会下载与 Release 一起发布的 SHA-256 文件并在安装前校验。Windows 请下载 Release 中的 zip，或执行 `cargo install --path . --locked`。
 
-官方安装脚本还会一并安装**内置插件**（默认插件）：远程脚本按 Release 资产 `dm-plugins-<tag>-<target>.txt` 安装本次发布的插件，该资产缺失时回退到脚本内置名单 `ssh db`；`install-local.sh` 固定构建并安装 `ssh` 与 `db`。它们与自己 `dm install` 的插件完全等价，`dm list` 可见、`dm uninstall <name>` 可删除。远程脚本的安装来源是解包用的临时目录，因此 `dm update` 无法升级它们（报 `Plugin source is not updateable`，`dm outdated` 会把它们报告成 `unknown`），升级请重新运行安装脚本；本地脚本从检出目录安装，可直接 `dm update ssh`、`dm update db`。`dm self-update` 只替换宿主程序，不安装也不更新插件；用 `cargo install --path .` 或 Windows zip 安装的宿主不带任何插件。详见 [CLI 参考](docs/cli.md)的「默认插件」。
+官方安装脚本还会一并安装**内置插件**（默认插件）：远程脚本按 Release 资产 `dm-plugins-<tag>-<target>.txt` 安装本次发布的插件，该资产缺失时回退到脚本内置名单 `ssh db`；`install-local.sh` 固定构建并安装 `ssh` 与 `db`。它们与自己 `dm install` 的插件完全等价，`dm list` 可见、`dm uninstall <name>` 可删除。远程脚本的安装来源是解包用的临时目录，因此 `dm update <name>` 无法升级它们（报 `Plugin source is not updateable`，`dm update` 会把它们报告成 `unknown`），升级请重新运行安装脚本；本地脚本从检出目录安装，可直接 `dm update ssh`、`dm update db`。`dm self-update` 只替换宿主程序，不安装也不更新插件；用 `cargo install --path .` 或 Windows zip 安装的宿主不带任何插件。详见 [CLI 参考](docs/cli.md)的「默认插件」。
 
 ### 安装插件
 
@@ -47,7 +47,7 @@ dm install "$package"
 dm list
 dm hello --help
 dm hello "hello dameng"
-dm verify hello
+dm doctor
 dm uninstall hello
 ```
 
@@ -63,8 +63,7 @@ dm uninstall hello
 | `dm info <name> [--json]` | 查看来源、revision、校验和，以及该插件自己的 config/data/cache 目录 |
 | `dm <name> [args...]` | 执行插件，原样转发后续参数，包括 `--help` |
 | `dm update <name>` / `dm update --all` | 下载、校验并原子替换插件，失败时保留旧版本 |
-| `dm outdated [--json]` | 并行检查插件是否有新版本 |
-| `dm verify [name]` | 校验已安装清单与二进制 SHA-256 |
+| `dm update [--json]` | 并行检查插件是否有新版本 |
 | `dm doctor [--repair]` | 检查或修复 SQLite、插件目录、残留事务与孤立配置/数据/缓存目录 |
 | `dm uninstall <name>` | 删除插件及其 config/data/cache 隔离目录 |
 | `dm ssh add/list/remove/test/ssh` | 由 `plugins/ssh` 插件提供的 SSH 服务器管理；配置写入插件自身的 `data/ssh/servers.sqlite3`，`add` 在终端下省略任意字段时逐项交互式输入，密码/口令隐藏回显；`list [--json]` 输出带边框表格或 JSON，从不回显秘密；插件自己的默认值写在 `config/ssh/config.toml`（`[defaults]`、`[test]`）。密码认证的 `test`/`ssh` 需要系统安装 `sshpass`，密钥认证只需本机 `ssh` 与本机上的私钥（远端只需对应公钥） |
@@ -74,6 +73,8 @@ dm uninstall hello
 | `dm self-update [--check] [--version X.Y.Z] [--force] [--target TARGET]` | 校验 GitHub Release SHA-256 后原子升级宿主；`--force` 允许重装或降级，`--target` 覆盖产物目标 |
 | `dm completions <shell>` | 生成 shell completion |
 | `dm --help` / `dm --version` | 宿主帮助和版本 |
+
+`dm update` 默认只检查可用版本，`dm update --json` 输出机器可读结果；指定插件名或 `--all` 才执行升级。安装时自动完成清单、可执行文件和下载校验，无需单独运行校验命令。
 
 完整参数、JSON 输出、环境变量和退出行为见 [CLI 参考](docs/cli.md)。
 

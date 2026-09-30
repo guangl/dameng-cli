@@ -9,7 +9,7 @@ use std::ffi::OsString;
     name = "dm",
     version,
     about = "Install and run plugins for Dameng database tools",
-    after_help = "Getting started:\n  dm list                 Show installed plugins\n  dm info <name>          Find a plugin's settings and data\n  dm <name> --help         Explore a plugin's commands\n  dm doctor               Diagnose installation problems"
+    after_help = "Getting started:\n  dm list                 Show installed plugins\n  dm update               Check available plugin updates\n  dm info <name>          Find a plugin's settings and data\n  dm <name> --help         Explore a plugin's commands\n  dm doctor               Diagnose installation problems"
 )]
 pub struct Cli {
     /// Subcommand to run.
@@ -42,19 +42,17 @@ pub enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Atomically update one plugin or every installed plugin.
+    /// Check for newer plugins; specify a name or --all to install updates.
     Update {
+        /// Install the update for this plugin; omit to only check versions.
         name: Option<String>,
+        /// Install updates for every plugin.
         #[arg(long, conflicts_with = "name")]
         all: bool,
-    },
-    /// Check installed plugins for newer versions.
-    Outdated {
-        #[arg(long)]
+        /// Print version checks as JSON (only when no name or --all is given).
+        #[arg(long, conflicts_with_all = ["name", "all"])]
         json: bool,
     },
-    /// Verify installed plugin manifests and binary checksums.
-    Verify { name: Option<String> },
     /// Diagnose and optionally repair plugin-store inconsistencies.
     Doctor {
         #[arg(long)]
