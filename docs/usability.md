@@ -70,26 +70,6 @@ source <(dm completions zsh)
 
 也可将 `dm completions zsh` 的输出保存为 `$fpath` 中的 `_dm` 文件，让 `compinit` 加载。
 
-### Fish
-
-```fish
-dm completions fish > ~/.config/fish/completions/dm.fish
-```
-
-当前会话可以直接运行 `dm completions fish | source`。
-
-### PowerShell
-
-```powershell
-dm completions powershell | Out-String | Invoke-Expression
-```
-
-可将此行写入 `$PROFILE`。适配脚本保留带空格的路径，并兼容不能向本机程序传递空参数的 PowerShell 版本。
-
-### Elvish
-
-将 `dm completions elvish` 输出的脚本保存到文件，在 `rc.elv` 中加载该文件。
-
 ### 体验示例
 
 ```text

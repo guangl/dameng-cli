@@ -20,31 +20,20 @@ def run(args, env, cwd):
 def shell_candidates(shell, script, words, env, cwd):
     source = shlex.quote(str(script))
     joined = " ".join(shlex.quote(word) for word in words)
-    line = "dm " + " ".join(shlex.quote(word) for word in words[:-1])
-    line += (" " if len(words) > 1 else "") + words[-1]
     if shell == "bash":
         code = f"source {source}; COMP_WORDS=(dm {joined}); COMP_CWORD={len(words)}; _dm; printf '%s\\n' \"${{COMPREPLY[@]}}\""
         output = run(["bash", "--noprofile", "--norc", "-c", code], env, cwd)
     elif shell == "zsh":
         code = f"autoload -Uz compinit; compinit -D -u; source {source}; compadd() {{ shift; print -rl -- \"$@\"; }}; words=(dm {joined}); CURRENT={len(words)+1}; _dm"
         output = run(["zsh", "-f", "-c", code], env, cwd)
-    elif shell == "fish":
-        output = run(["fish", "--no-config", "-c", f"source {source}; complete -C {shlex.quote(line)}"], env, cwd)
-    elif shell == "powershell":
-        environment = dict(env, DM_COMPLETION_LINE=line, DM_COMPLETION_SCRIPT=str(script))
-        code = ". $env:DM_COMPLETION_SCRIPT; (TabExpansion2 $env:DM_COMPLETION_LINE $env:DM_COMPLETION_LINE.Length).CompletionMatches | ForEach-Object { $_.ListItemText }"
-        output = run([shutil.which("pwsh") or "powershell", "-NoProfile", "-Command", code], environment, cwd)
-    else:
-        code = script.read_text() + "\n$edit:completion:arg-completer[dm] dm " + joined
-        output = run(["elvish", "-c", "use edit\n" + code], env, cwd)
     return {entry.split("\t")[0] for entry in output.splitlines() if entry}
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--require", default="bash,zsh" if os.name != "nt" else "powershell")
+    parser.add_argument("--require", default="bash,zsh")
     options = parser.parse_args()
-    executables = {"bash": "bash", "zsh": "zsh", "fish": "fish", "elvish": "elvish", "powershell": "pwsh"}
+    executables = {"bash": "bash", "zsh": "zsh"}
     available = [shell for shell, executable in executables.items() if shutil.which(executable)]
     required = set(filter(None, options.require.split(",")))
     assert required.issubset(available), f"Missing shells: {required - set(available)}"

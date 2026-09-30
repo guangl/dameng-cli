@@ -86,7 +86,7 @@ pub enum Command {
         json: bool,
     },
     /// 生成包含插件和连接名称的动态 shell 补全脚本。
-    Completions { shell: clap_complete::Shell },
+    Completions { shell: super::Shell },
     /// 卸载插件，默认保留配置和连接数据。
     Uninstall {
         name: String,
@@ -104,9 +104,6 @@ pub enum Command {
     },
     #[command(hide = true)]
     Complete {
-        /// PowerShell 旧版本无法传递空参数时使用。
-        #[arg(long)]
-        empty_word: bool,
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         words: Vec<String>,
     },

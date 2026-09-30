@@ -2,7 +2,13 @@
 use crate::{PluginStore, cli::Cli};
 use anyhow::Result;
 use clap::CommandFactory;
-use clap_complete::Shell;
+use clap::ValueEnum;
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum Shell {
+    Bash,
+    Zsh,
+}
 
 pub fn complete(store: &PluginStore, words: &[String]) -> Result<()> {
     let names = store.completion_names().unwrap_or_default();
@@ -31,9 +37,5 @@ pub fn script(shell: Shell) -> &'static str {
     match shell {
         Shell::Bash => include_str!("../../completions/dm.bash"),
         Shell::Zsh => include_str!("../../completions/_dm"),
-        Shell::Fish => include_str!("../../completions/dm.fish"),
-        Shell::PowerShell => include_str!("../../completions/dm.ps1"),
-        Shell::Elvish => include_str!("../../completions/dm.elv"),
-        _ => "",
     }
 }

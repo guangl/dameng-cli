@@ -79,12 +79,20 @@ fn host_config_reports_environment_precedence_without_secrets() {
 #[test]
 fn all_shell_scripts_use_the_runtime_protocol() {
     let temp = TempDir::new().unwrap();
-    for shell in ["bash", "zsh", "fish", "powershell", "elvish"] {
+    for shell in ["bash", "zsh"] {
         let script = ok(dm(temp.path())
             .args(["completions", shell])
             .output()
             .unwrap());
         assert!(script.contains("dm complete --"), "{shell}");
+    }
+    for removed in ["fish", "elvish", "powershell"] {
+        let output = dm(temp.path())
+            .args(["completions", removed])
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("bash, zsh"));
     }
 }
 #[cfg(unix)]

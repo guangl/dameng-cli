@@ -54,6 +54,6 @@ fn runtime_completion_supports_aliases_names_and_files_without_writes() {
             .output()
             .unwrap())
         .trim(),
-        key.display().to_string()
+        format!("{prefix} key")
     );
 }

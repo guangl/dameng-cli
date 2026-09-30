@@ -172,4 +172,4 @@ dm db config init                   # 创建插件配置示例，不覆盖已有
 dm config show --json               # 有效设置及 config/default/env 来源
 ```
 
-Bash：`source <(dm completions bash)`；Zsh：先运行 `autoload -Uz compinit; compinit`，再 `source <(dm completions zsh)`；Fish：`dm completions fish | source`。PowerShell 和 Elvish 的安装方式、第三方插件补全协议见 [使用体验与自动补全](docs/usability.md)。补全查询不创建日志、连接存储或机器密钥，不访问网络；旧插件未启用补全时不会被执行。
+Bash：`source <(dm completions bash)`；Zsh：先运行 `autoload -Uz compinit; compinit`，再 `source <(dm completions zsh)`。第三方插件补全协议见 [使用体验与自动补全](docs/usability.md)。补全查询不创建日志、连接存储或机器密钥，不访问网络；旧插件未启用补全时不会被执行。

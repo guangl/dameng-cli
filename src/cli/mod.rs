@@ -15,6 +15,7 @@ pub mod table;
 mod update;
 
 pub use args::{Cli, Command};
+pub use completions::Shell;
 pub use report::report;
 
 use crate::{Config, PluginStore};
@@ -81,15 +82,9 @@ pub fn run(config: &Config) -> Result<i32> {
             json,
         )?,
         Command::Completions { shell } => print!("{}", completions::script(shell)),
-        Command::Complete {
-            mut words,
-            empty_word,
-        } => {
+        Command::Complete { mut words } => {
             if words.first().is_some_and(|word| word == "--") {
                 words.remove(0);
-            }
-            if empty_word {
-                words.push(String::new());
             }
             completions::complete(&store, &words)?;
         }
