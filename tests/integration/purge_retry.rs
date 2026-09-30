@@ -17,7 +17,7 @@ fn failed_purge_remains_retryable_for_installed_and_retained_plugins() {
             ok(dm(&home).args(["uninstall", "probe"]).output().unwrap());
         }
         // A regular file at a directory path fails consistently, even as root.
-        let blocked = home.join("backups/probe");
+        let blocked = store.removal_paths("probe").pop().unwrap();
         fs::create_dir_all(blocked.parent().unwrap()).unwrap();
         fs::write(&blocked, "do not delete an unexpected file").unwrap();
         let failure = dm(&home)
@@ -26,7 +26,11 @@ fn failed_purge_remains_retryable_for_installed_and_retained_plugins() {
             .unwrap();
         assert!(!failure.status.success());
         assert!(stderr(&failure).contains("dm uninstall probe --purge --yes"));
-        assert!(stderr(&failure).contains(blocked.to_str().unwrap()));
+        assert!(
+            stderr(&failure).contains(blocked.to_str().unwrap()),
+            "{}",
+            stderr(&failure)
+        );
         assert!(store.info("probe").is_err());
         assert!(store.has_retained_data("probe").unwrap());
         // Repair must not reinterpret pending cleanup as abandoned data.
