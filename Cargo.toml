@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/dm-plugin-sdk",
+    "crates/dm-plugin-support",
     "examples/hello",
     "plugins/db",
     "plugins/ssh",

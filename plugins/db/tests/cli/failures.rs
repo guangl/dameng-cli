@@ -20,7 +20,8 @@ fn missing_arguments_and_connections_fail_with_hints() {
     assert!(stderr.contains("--password"), "{stderr}");
     assert!(stderr.contains("提示"), "{stderr}");
 
-    assert!(ok(db(&home).args(["list"]).output().unwrap()).is_empty());
+    let empty = ok(db(&home).args(["list"]).output().unwrap());
+    assert!(empty.contains("dm db add <name>"), "{empty}");
 
     let stderr = failure(db(&home).args(["test", "missing"]).output().unwrap());
     assert!(stderr.contains("not configured"), "{stderr}");

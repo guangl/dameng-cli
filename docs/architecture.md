@@ -12,7 +12,7 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
           │             -> 清单校验 + 预编译 dm-<name>（本地复制或 Release 资产）
           │             -> 生命周期 hook
           │             -> 暂存目录校验 -> 原子重命名 -> 旧版本备份
-          ├─ list/info/outdated/verify/doctor -> 本地插件状态与恢复
+          ├─ list/info/doctor + update（版本检查） -> 本地插件状态与恢复
           ├─ self-update -> GitHub Release + SHA-256 -> 原子替换宿主
           └─ <plugin> [args] -> Rust 插件独立进程 -> 数据库工具逻辑
                                   └─ dm-plugin-sdk
@@ -26,9 +26,15 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
 | `src/cli/`（属于库） | 命令解析、内置命令、外部子命令路由、错误展示与表格渲染；放在库里，测试可以直接调用 |
 | `src/plugin/` | 严格清单解析、名称限制、API 版本和固定入口命名 |
 | `src/infrastructure/store/` | SQLite 元数据、来源与 revision、预编译安装、原子更新、校验修复、卸载、进程调用 |
-| `src/infrastructure/config.rs` | `<DM_PLUGIN_HOME>/config.toml` 的 `[log]`/`[update]`/`[output]`/`[plugin]` 四张表的解析与校验、默认值与「环境变量优先」的取值规则 |
+| `src/infrastructure/config/` | `<DM_PLUGIN_HOME>/config.toml` 的 `[log]`/`[update]`/`[output]`/`[plugin]` 四张表的解析与校验、默认值与「环境变量优先」的取值规则 |
 | `src/infrastructure/self_update/` | 宿主 Release 查询、下载、SHA-256 校验、解包和原子自替换 |
 | `crates/dm-plugin-sdk` | `Plugin` / `Context` / `PluginResult` 和协议版本 |
+| `crates/dm-plugin-support` | 内置插件共用的十六进制编码、AES-GCM 字节格式、安全文件写入；内部 crate，不属于公开协议 SDK |
+| `plugins/{db,ssh}/src/cli/` | 参数定义与命令处理；导入导出命令处理单独集中在 `transfer.rs` |
+| `plugins/{db,ssh}/src/domain/` | 数据库驱动接口、SQL 与连接串，或 SSH 认证与进程构建 |
+| `plugins/{db,ssh}/src/storage/` | 插件配置、SQLite 记录、插件自己的机器密钥与错误上下文 |
+| `plugins/{db,ssh}/src/transfer/` | 导出文档、加密迁移、记录校验与事务导入 |
+| `plugins/{db,ssh}/src/ui/` | 交互提示、列表渲染、错误处理建议 |
 | `examples/hello` | 唯一演示插件，验证 SDK 使用方法 |
 | `tests/unit/` | 清单、配置、存储辅助函数与 CLI 渲染的库级测试 |
 | `tests/integration/` | 真实 Rust crate 安装、生命周期、恢复和自更新回归测试 |
@@ -36,6 +42,14 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
 ## 文件组织
 
 每个 `.rs` 文件不超过 200 行，`sh scripts/check_file_lines.sh` 在 CI 中校验，超出时继续按职责拆模块。测试只放在 `tests/` 下，实现文件里不保留 `#[cfg(test)]` 模块；每个测试目标由 `main.rs` 汇总同级模块，共享夹具放在该目标的 `common` 模块里。插件遵循同样的规则：`plugins/<name>/src/` 按职责拆模块，测试放在 `plugins/<name>/tests/` 下。
+
+## 修改代码时的边界
+
+命令入口负责解析和调度，业务校验放在对应业务模块；终端呈现放在 `ui/`，持久化放在 `storage/`。导入先验证整份文档，再在 SQLite 立即事务里检查冲突并写入，失败不留下部分记录。数据库执行先读 SQL，再加载连接和驱动，空 SQL 不触发连接。
+
+共用工具只处理字节与文件，不依赖宿主、SDK Context、数据库或终端提示。机器密钥的路径、插件错误信息和导出文档字段仍由各插件决定。共享 AES-GCM 实现保留「12 字节 nonce + 密文」格式，导出仍使用 16 字节 salt 与 600,000 轮 PBKDF2；现有数据无需迁移。插件 crate 根重新导出原有公开名称，调用方不用修改导入路径。
+
+内置插件从仓库 workspace 构建，共用工具由相对路径解析；发布时打包成独立二进制，安装与运行不依赖该源码目录。外部插件继续只使用公开的 `dm-plugin-sdk`。
 
 ## 安装事务
 

@@ -1,4 +1,4 @@
-//! `dm update` and `dm outdated` against local and Git sources.
+//! `dm update` and `dm update` against local and Git sources.
 
 use crate::common::*;
 use dameng_cli::PluginStore;
@@ -6,7 +6,7 @@ use std::fs;
 use tempfile::TempDir;
 
 #[test]
-fn outdated_command_reports_newer_local_version() {
+fn update_checks_report_newer_local_version() {
     let temp = TempDir::new().unwrap();
     let source = fixture(temp.path());
     let home = temp.path().join("home");
@@ -14,19 +14,22 @@ fn outdated_command_reports_newer_local_version() {
         .args(["install", source.to_str().unwrap()])
         .output()
         .unwrap());
-    assert!(ok(dm(&home).args(["outdated"]).output().unwrap()).contains("current"));
+    assert!(ok(dm(&home).args(["update"]).output().unwrap()).contains("current"));
 
     fs::write(
         source.join("dm-plugin.toml"),
         manifest("probe").replace("0.1.0", "0.2.0"),
     )
     .unwrap();
-    let output = ok(dm(&home).args(["outdated"]).output().unwrap());
+    let output = ok(dm(&home).args(["update"]).output().unwrap());
     assert!(output.contains("0.2.0"));
     assert!(output.contains("update available"));
-    let json = ok(dm(&home).args(["outdated", "--json"]).output().unwrap());
+    let json = ok(dm(&home).args(["update", "--json"]).output().unwrap());
     let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
     assert_eq!(parsed[0]["update_available"], true);
+    let store = PluginStore::new(&home);
+    assert_eq!(store.info("probe").unwrap().manifest.version, "0.1.0");
+    assert_eq!(store.verify(None).unwrap(), ["probe"]);
 }
 #[test]
 fn update_all_command_updates_installed_plugins() {
@@ -129,7 +132,7 @@ fn outdated_with_removed_local_source_is_unknown() {
     assert_eq!(statuses[0].available_version, None);
     assert!(!statuses[0].update_available);
 
-    let output = ok(dm(&home).args(["outdated"]).output().unwrap());
+    let output = ok(dm(&home).args(["update"]).output().unwrap());
     assert!(output.contains("unknown"), "{output}");
 }
 #[cfg(unix)]
@@ -174,7 +177,7 @@ esac
     let output = dm(&home)
         .env("PATH", &path)
         .env("FAKE_GIT_SOURCE", &source)
-        .args(["outdated"])
+        .args(["update"])
         .output()
         .unwrap();
     assert!(

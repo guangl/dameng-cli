@@ -7,11 +7,9 @@ const RESERVED_NAMES: &[&str] = &[
     "info",
     "install",
     "list",
-    "outdated",
     "self-update",
     "uninstall",
     "update",
-    "verify",
     "version",
 ];
 

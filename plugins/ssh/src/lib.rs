@@ -5,41 +5,33 @@
 
 use dm_plugin_sdk::{Context as PluginContext, Plugin, PluginResult};
 
-mod auth;
-mod commands;
-mod config;
-mod crypto;
-mod export;
-mod hints;
-mod import;
-mod list;
-mod private_file;
-mod prompts;
-mod servers;
-mod ssh_command;
+mod cli;
+mod domain;
+mod storage;
+mod transfer;
+mod ui;
+use dm_plugin_support::private_file;
 
-pub use auth::resolve_auth;
-pub use commands::{run_cli, run_with_prompter};
-pub use config::{SshConfig, SshDefaults, SshTestSettings, config_path, load_config};
-pub use crypto::{decrypt, encrypt, hex, key_path, machine_key, unhex};
-// The export tests reach these internals through the public API; they stay
-// doc(hidden) so the documented surface does not grow.
-#[doc(hidden)]
-pub use export::{EXPORT_VERSION, ExportDocument, PortableServer, export_document};
-pub use hints::ssh_hint;
-#[doc(hidden)]
-pub use import::import_document;
-pub use list::{ServerSummary, render_json, render_table};
+pub use cli::{run_cli, run_with_prompter};
+pub use domain::auth::resolve_auth;
+pub use domain::ssh_command::ssh_command;
 #[doc(hidden)]
 pub use private_file::{write_private_file, write_private_file_with};
-pub use prompts::{
+pub use storage::config::{SshConfig, SshDefaults, SshTestSettings, config_path, load_config};
+pub use storage::crypto::{decrypt, encrypt, hex, key_path, machine_key, unhex};
+pub use storage::servers::{
+    Server, database_path, load_servers, open_database, remove_server, upsert_server, validate_name,
+};
+#[doc(hidden)]
+pub use transfer::export::{EXPORT_VERSION, ExportDocument, PortableServer, export_document};
+#[doc(hidden)]
+pub use transfer::import::import_document;
+pub use ui::hints::ssh_hint;
+pub use ui::list::{ServerSummary, render_json, render_table};
+pub use ui::prompts::{
     Prompter, TerminalPrompter, resolve_passphrase, resolve_password, resolve_port,
     resolve_required,
 };
-pub use servers::{
-    Server, database_path, load_servers, open_database, remove_server, upsert_server, validate_name,
-};
-pub use ssh_command::ssh_command;
 
 pub struct SshPlugin;
 

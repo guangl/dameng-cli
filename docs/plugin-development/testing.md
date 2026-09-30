@@ -37,8 +37,8 @@ cp target/release/dm-backup .          # 宿主只安装预编译产物，包目
 plugin_test_home=$(mktemp -d)
 DM_PLUGIN_HOME="$plugin_test_home" dm install .
 DM_PLUGIN_HOME="$plugin_test_home" dm list
-DM_PLUGIN_HOME="$plugin_test_home" dm verify
 DM_PLUGIN_HOME="$plugin_test_home" dm doctor
+DM_PLUGIN_HOME="$plugin_test_home" dm update
 DM_PLUGIN_HOME="$plugin_test_home" dm backup --help
 DM_PLUGIN_HOME="$plugin_test_home" dm update backup
 DM_PLUGIN_HOME="$plugin_test_home" dm uninstall backup
@@ -53,10 +53,10 @@ DM_PLUGIN_HOME="$plugin_test_home" dm uninstall backup
 - stdin、stdout、stderr 和非零退出码符合文档。
 - 未在清单白名单中的环境变量不会传入插件。
 - 配置、数据和缓存分别写入三个 Context 目录。
-- 更新失败时（缺少可执行文件、hook 失败或元数据写入出错），已安装版本仍能运行且通过 `dm verify`。
+- 更新失败时（缺少可执行文件、hook 失败或元数据写入出错），已安装版本仍能运行且通过完整性检查。
 - `environment` 声明只影响环境变量继承与审查；宿主不会因新增声明要求确认，也不提供权限沙箱。
 - 每个生命周期 hook 的工作目录、`DM_HOOK_PHASE` 和失败回滚符合约定。
-- `dm outdated --json`、`dm list --json` 等机器输出能被测试代码解析；`dm list` 的表格输出仅供人读，不保证列宽或边框稳定。
+- `dm update --json`、`dm list --json` 等机器输出能被测试代码解析；`dm list` 的表格输出仅供人读，不保证列宽或边框稳定。
 - 错误信息不泄漏密码或连接串。
 
 ## 调试建议

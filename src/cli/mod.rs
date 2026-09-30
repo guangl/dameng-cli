@@ -36,9 +36,7 @@ pub fn run(config: &Config) -> Result<i32> {
         } => plugins::install(&store, &source, rev.as_deref(), replace)?,
         Command::List { json } => plugins::list(&store, json)?,
         Command::Info { name, json } => plugins::info(&store, &name, json)?,
-        Command::Update { name, all } => update::update(&store, name.as_deref(), all)?,
-        Command::Outdated { json } => update::outdated(&store, json)?,
-        Command::Verify { name } => plugins::verify(&store, name.as_deref())?,
+        Command::Update { name, all, json } => update::run(&store, name.as_deref(), all, json)?,
         Command::Doctor { repair, json } => doctor::doctor(&store, repair, json)?,
         Command::SelfUpdate {
             check,

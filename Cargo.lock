@@ -357,6 +357,7 @@ dependencies = [
  "clap",
  "comfy-table",
  "dm-plugin-sdk",
+ "dm-plugin-support",
  "pbkdf2",
  "rand",
  "rpassword",
@@ -388,6 +389,7 @@ dependencies = [
  "clap",
  "comfy-table",
  "dm-plugin-sdk",
+ "dm-plugin-support",
  "pbkdf2",
  "rand",
  "rpassword",
@@ -397,6 +399,15 @@ dependencies = [
  "sha2",
  "tempfile",
  "toml",
+]
+
+[[package]]
+name = "dm-plugin-support"
+version = "0.1.0"
+dependencies = [
+ "aes-gcm",
+ "anyhow",
+ "rand",
 ]
 
 [[package]]

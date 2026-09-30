@@ -22,7 +22,7 @@ fn json_cli_reports_manifest_name() {
     assert!(ok(dm(&home).args(["completions", "bash"]).output().unwrap()).contains("_dm"));
 }
 #[test]
-fn cli_reporting_branches_cover_info_verify_update_doctor() {
+fn cli_reporting_branches_cover_info_update_doctor() {
     let temp = TempDir::new().unwrap();
     let source = fixture(temp.path());
     fs::write(
@@ -51,8 +51,10 @@ fn cli_reporting_branches_cover_info_verify_update_doctor() {
     let parsed: serde_json::Value = serde_json::from_str(&info_json).unwrap();
     assert_eq!(parsed["manifest"]["name"], "probe");
 
-    let verify = ok(dm(&home).args(["verify", "probe"]).output().unwrap());
-    assert!(verify.contains("Verified probe"), "{verify}");
+    assert_eq!(
+        PluginStore::new(&home).verify(Some("probe")).unwrap(),
+        ["probe"]
+    );
 
     ok(dm(&home).args(["update", "probe"]).output().unwrap());
 
@@ -116,27 +118,26 @@ fn relative_dm_home_is_resolved_against_current_dir() {
     assert!(temp.path().join("relhome/store.sqlite3").is_file());
 }
 #[test]
-fn empty_state_messages_cover_update_outdated_and_verify() {
+fn empty_state_messages_cover_update_and_version_checks() {
     let temp = TempDir::new().unwrap();
     let home = temp.path().join("home");
 
     let update = ok(dm(&home).args(["update", "--all"]).output().unwrap());
     assert!(update.contains("No plugins installed"), "{update}");
-    let outdated = ok(dm(&home).args(["outdated"]).output().unwrap());
+    let outdated = ok(dm(&home).args(["update"]).output().unwrap());
     assert!(outdated.contains("No plugins installed"), "{outdated}");
-    let verify = ok(dm(&home).args(["verify"]).output().unwrap());
-    assert!(verify.contains("No plugins installed"), "{verify}");
+    let json = ok(dm(&home).args(["update", "--json"]).output().unwrap());
+    assert_eq!(json.trim(), "[]");
 }
 #[test]
-fn verify_without_name_checks_every_installed_plugin() {
+fn install_checks_the_published_plugin_integrity() {
     let temp = TempDir::new().unwrap();
     let source = fixture(temp.path());
     let home = temp.path().join("home");
     let store = PluginStore::new(&home);
     store.install(source.to_str().unwrap()).unwrap();
 
-    let output = ok(dm(&home).args(["verify"]).output().unwrap());
-    assert!(output.contains("Verified probe"), "{output}");
+    assert_eq!(store.verify(None).unwrap(), ["probe"]);
 }
 #[test]
 fn info_points_at_the_plugin_owned_configuration() {

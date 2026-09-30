@@ -58,7 +58,8 @@ fn add_list_and_remove_connections() {
         remove.contains("Removed database connection prod"),
         "{remove}"
     );
-    assert!(ok(db(&home).args(["list"]).output().unwrap()).is_empty());
+    let empty = ok(db(&home).args(["list"]).output().unwrap());
+    assert!(empty.contains("dm db add <name>"), "{empty}");
 }
 
 #[test]

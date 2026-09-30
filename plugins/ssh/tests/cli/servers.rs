@@ -39,7 +39,8 @@ fn add_list_and_remove_servers() {
 
     let remove = ok(ssh(&home).args(["remove", "prod"]).output().unwrap());
     assert!(remove.contains("Removed SSH server prod"), "{remove}");
-    assert!(ok(ssh(&home).args(["list"]).output().unwrap()).is_empty());
+    let empty = ok(ssh(&home).args(["list"]).output().unwrap());
+    assert!(empty.contains("dm ssh add <name>"), "{empty}");
 }
 
 #[test]

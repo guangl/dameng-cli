@@ -40,5 +40,15 @@
 ## 驱动接入
 
 驱动只需实现 `DatabaseFactory`（返回 `Database`）与 `Session`（执行 SQL 并返回
-`Outcome`），命令层无需改动：`src/driver.rs` 中的 `PendingFactory` 即占位实现，
+`Outcome`），命令层无需改动：`src/domain/driver.rs` 中的 `PendingFactory` 即占位实现，
 单元测试用同样的接口注入脚本化驱动，覆盖 `test`/`exec` 的全部命令分支。
+
+## 源码导航
+
+- `src/cli/`：参数与命令处理。
+- `src/domain/`：连接行为与业务接口。
+- `src/storage/`：配置、保存记录和机器密钥。
+- `src/transfer/`：导出格式、校验和事务导入。
+- `src/ui/`：交互输入、列表与错误提示。
+
+通用加密字节、编码和安全文件写入使用 workspace 内部的 `dm-plugin-support`；从仓库根目录构建此插件。公开 Rust 导入路径与原有保存数据保持兼容。空列表会给出新增记录提示，自动化可继续使用 `list --json`。

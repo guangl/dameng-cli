@@ -1,0 +1,46 @@
+//! The host command surface stays small and checking versions never applies updates.
+
+use clap::{CommandFactory, Parser};
+use dameng_cli::cli::{Cli, Command};
+
+#[test]
+fn default_update_is_a_version_check() {
+    for args in [vec!["dm", "update"], vec!["dm", "update", "--json"]] {
+        let cli = Cli::try_parse_from(args).unwrap();
+        assert!(matches!(
+            cli.command,
+            Command::Update {
+                name: None,
+                all: false,
+                ..
+            }
+        ));
+    }
+}
+
+#[test]
+fn update_json_cannot_be_combined_with_installing_updates() {
+    for args in [
+        ["dm", "update", "probe", "--json"],
+        ["dm", "update", "--all", "--json"],
+    ] {
+        assert!(Cli::try_parse_from(args).is_err());
+    }
+}
+
+#[test]
+fn removed_commands_are_absent_from_help_and_no_longer_reserved() {
+    let command = Cli::command();
+    let names: Vec<_> = command
+        .get_subcommands()
+        .map(|subcommand| subcommand.get_name())
+        .collect();
+    assert!(!names.contains(&"outdated"));
+    assert!(!names.contains(&"verify"));
+    for name in ["outdated", "verify"] {
+        let text = format!(
+            "name = '{name}'\nversion = '1.0.0'\ndescription = 'test plugin'\napi_version = 1\n"
+        );
+        assert!(dameng_cli::Manifest::from_toml(&text).is_ok());
+    }
+}
