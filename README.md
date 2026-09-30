@@ -123,7 +123,18 @@ fn main() {
 
 ## 开发与仓库维护
 
-源码按职责组织：`src/plugin/` 保存插件清单，`src/infrastructure/` 保存 SQLite 存储和宿主自更新，`src/cli/` 只负责命令解析与调度（属于库，便于测试直接调用）。每个 `.rs` 文件不超过 200 行，测试全部位于 `tests/` 下：`tests/unit/` 放库级用例，`tests/integration/` 放端到端场景，各自按主题拆成多个模块，避免实现模块与端到端场景混在一起。
+从要修改的功能找到代码：
+
+| 任务 | 位置 |
+| --- | --- |
+| 宿主命令与提示 | `src/cli/` |
+| 插件安装、更新、恢复 | `src/infrastructure/store/` |
+| 宿主设置、自更新 | `src/infrastructure/config/`、`self_update/` |
+| 插件协议与清单 | `crates/dm-plugin-sdk/`、`src/plugin/` |
+| 数据库、SSH 功能 | `plugins/db/`、`plugins/ssh/` |
+| 内置插件共用工具 | `crates/dm-plugin-support/` |
+
+两个插件使用相同的源码目录：`cli/` 处理命令，`domain/` 放业务行为，`storage/` 保存设置与记录，`transfer/` 处理导入导出，`ui/` 管理提示和渲染。现有公开 Rust 接口、配置文件和数据格式保持兼容。详细边界见[架构说明](docs/architecture.md)。每个 `.rs` 文件不超过 200 行，测试全部放在各 crate 的 `tests/` 下。
 
 ```sh
 cargo fmt --all -- --check

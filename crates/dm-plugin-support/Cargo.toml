@@ -1,0 +1,13 @@
+[package]
+name = "dm-plugin-support"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+license = "MIT"
+description = "Shared implementation utilities for the built-in dm plugins"
+
+[dependencies]
+anyhow = "1.0"
+aes-gcm = "0.10"
+rand = "0.8"

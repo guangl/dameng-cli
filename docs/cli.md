@@ -142,6 +142,6 @@ dm info ssh
 
 ## JSON 与退出状态
 
-`list`、`info`、`outdated`、`doctor` 和 `self-update` 支持 `--json`；两个内置插件的 `dm ssh list --json` 与 `dm db list --json` 同样输出机器可读 JSON（空列表为 `[]`，且从不包含密码或口令）。JSON 适合自动化消费，但字段会随同一主版本新增；调用方应忽略未知字段。
+`list`、`info`、`outdated`、`doctor` 和 `self-update` 支持 `--json`；两个内置插件的 `dm ssh list --json` 与 `dm db list --json` 同样输出机器可读 JSON（空列表为 `[]`，且从不包含密码或口令）。不带 `--json` 时，空的数据库或 SSH 列表会提示使用 `dm db add <name>` 或 `dm ssh add <name>` 添加记录。宿主和插件的 `--help` 也提供常用操作示例。JSON 适合自动化消费，但字段会随同一主版本新增；调用方应忽略未知字段。
 
 内置命令成功返回 `0`，错误返回非零并把用户可见的 `错误`、`详情` 和 `提示` 三行写入 stderr：`错误` 为一行摘要，`详情` 保留完整错误链，`提示` 给出可操作的下一步。宿主同时把同一错误和其余运行日志写入 `<DM_PLUGIN_HOME>/dm.log`，便于事后排查；日志文件满 5 MiB 时在下次启动轮转为 `dm.log.1`，`DM_LOG=off` 时不创建它。插件退出码由宿主保留；Unix 信号终止按 `128 + signal` 返回。

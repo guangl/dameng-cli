@@ -5,7 +5,12 @@ use std::ffi::OsString;
 
 /// The `dm` command line.
 #[derive(Parser)]
-#[command(name = "dm", version, about = "Plugin host for Dameng database tools")]
+#[command(
+    name = "dm",
+    version,
+    about = "Install and run plugins for Dameng database tools",
+    after_help = "Getting started:\n  dm list                 Show installed plugins\n  dm info <name>          Find a plugin's settings and data\n  dm <name> --help         Explore a plugin's commands\n  dm doctor               Diagnose installation problems"
+)]
 pub struct Cli {
     /// Subcommand to run.
     #[command(subcommand)]

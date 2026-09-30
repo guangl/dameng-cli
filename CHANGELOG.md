@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 统一数据库与 SSH 插件源码结构为命令、业务、存储、迁移和交互五个目录；拆分导入导出命令与数据库执行处理。新增内部 `dm-plugin-support` 共用安全文件写入、十六进制编码和 AES-GCM 字节实现，保留公开 Rust 接口、配置、数据库和加密导出格式。
+- 宿主与内置插件帮助增加常用操作示例；空的 `dm db list`、`dm ssh list` 显示新增连接提示，`--json` 仍输出 `[]`。
+
 - `scripts/install-local.sh` 不再刷屏：三次 cargo 构建改为 `--quiet`（编译告警与错误仍写入 stderr，构建失败照旧中止安装），只在开头打印一行 `Building dm and the ssh/db plugins`，末尾保留安装汇总。此前每次运行都会打印三行 `Finished release profile [optimized] target(s) in ...`。
 - 宿主运行日志改为写入数据目录下的 `dm.log`，不再出现在终端：stdout 保留命令结果与 JSON，stderr 只保留进度条、插件输出和用户可见的 `错误`/`详情`/`提示` 报告。日志文件满 5 MiB 时在下次启动轮转为 `dm.log.1`；`DM_LOG=off` 时不创建日志文件（配置文件损坏、只能从环境变量取过滤级别时同样生效）；数据目录不可写时回退到 stderr 并直接打印一行说明（该说明不受当前日志级别过滤），绝不因此让命令失败。此前日志与用户可见输出混在 stderr，脚本、CI 和重定向场景都要额外过滤。日志后端因此从 `main.rs` 移入 `src/infrastructure/logging.rs`，并公开 `home_from_env()` 供入口先解析数据目录；缺失 SHA-256 侧车这类安全提示仍打印到 stderr，不随诊断日志一起落盘。README、CLI 参考、架构目录树与 `examples/config.toml` 同步说明日志位置与轮转规则。
 - 修复 `scripts/install-local.sh` 在存储中有旧清单时无法安装：脚本此前用 `dm info <name>` 判断该升级还是首次安装，而存储中的清单来自更早的 `dm` 版本（例如仍带已移除的 `permissions` 字段）时 `dm info` 本身就会失败，脚本于是走首次安装分支并报 `Plugin 'ssh' is already installed`，整个安装中断。现在与远程 `scripts/install.sh` 一致，对两个内置插件无条件执行 `dm install <包目录> --replace`——`--replace` 同时适用于首次安装与原地升级，保留插件的 config/data/cache，也是唯一能刷新旧清单元数据的路径。
