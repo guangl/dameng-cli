@@ -14,7 +14,8 @@ PLUGIN_LIST = "dm-plugins-{tag}-{target}.txt"
 
 
 def load_toml(path: Path) -> dict:
-    return tomllib.loads(path.read_text())
+    with path.open("rb") as source:
+        return tomllib.load(source)
 
 
 def version_of(path: Path) -> str:

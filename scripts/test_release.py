@@ -6,6 +6,7 @@ import sys
 import tarfile
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -37,6 +38,19 @@ def manifest_text(
         lines.append("[hooks]")
         lines.extend(f'{key} = "{path}"' for key, path in hooks.items())
     return "\n".join(lines) + "\n"
+
+
+class EncodingTests(unittest.TestCase):
+    def test_toml_is_utf8_even_when_default_text_reads_use_windows_encoding(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "plugin.toml"
+            path.write_bytes('name = "db"\ndescription = "插件配置"\n'.encode("utf-8"))
+            original = Path.read_text
+            def windows_read(path, *args, **kwargs):
+                kwargs.setdefault("encoding", "cp1252")
+                return original(path, *args, **kwargs)
+            with mock.patch.object(Path, "read_text", windows_read):
+                self.assertEqual(release.load_toml(path)["description"], "插件配置")
 
 
 class Repo:
