@@ -16,6 +16,7 @@ mod install;
 mod install_source;
 mod installer;
 mod logging;
+mod logging_options;
 mod prebuilt;
 mod prebuilt_release;
 mod purge_retry;
@@ -26,3 +27,5 @@ mod update;
 mod usability;
 
 mod release_plugins;
+
+mod resources;

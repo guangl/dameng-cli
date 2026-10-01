@@ -92,7 +92,7 @@ dm uninstall hello
 - Windows：`%LOCALAPPDATA%\dm`。
 - Linux / macOS：`$HOME/.config/dm`。
 
-该目录内的 `store.sqlite3` 保存插件清单、来源、Git revision 和 SHA-256。可选的 `config.toml` 只保存**宿主**设置，按用途分成 `[log]`、`[update]`、`[output]`、`[plugin]` 四张表，分别对应日志级别、自更新仓库与产物目标、进度条开关、额外继承给插件的环境变量；优先级为 命令行 > 环境变量 > 配置文件 > 默认值。**插件由各自的目录配置**：`config/<name>/config.toml`（插件自定义格式，宿主不读写），路径可用 `dm info <name>` 查看。模板见 [examples/config.toml](examples/config.toml)，复制到该目录即可生效。`plugins/` 保存可执行文件；`config/<name>`、`data/<name>`、`cache/<name>` 是每个插件的隔离目录。诊断日志写入该目录下的 `dm.log`（超过 5 MiB 时在下次启动轮转为 `dm.log.1`），可用 `DM_LOG` 调整级别（`off`/`error`/`warn`/`info`/`debug`/`trace`，默认 `info`；设为 `off` 时不创建日志文件）；stdout 始终保留给命令结果与 JSON，stderr 只保留进度条、插件输出和用户可见的 `错误`/`详情`/`提示`。使用自己的真实插件仓库地址：
+该目录内的 `store.sqlite3` 保存插件清单、来源、Git revision 和 SHA-256。可选的 `config.toml` 只保存**宿主**设置，按用途分成 `[log]`、`[update]`、`[output]`、`[plugin]` 四张表，分别对应日志级别、目录与每日大小上限，自更新仓库与产物目标、进度条开关、额外继承给插件的环境变量；优先级为 命令行 > 环境变量 > 配置文件 > 默认值。**插件由各自的目录配置**：`config/<name>/config.toml`（插件自定义格式，宿主不读写），路径可用 `dm info <name>` 查看。模板见 [examples/config.toml](examples/config.toml)，复制到该目录即可生效。`plugins/` 保存可执行文件；`config/<name>`、`data/<name>`、`cache/<name>` 是每个插件的隔离目录。诊断日志按本机日期写入 `logs/dm-YYYY-MM-DD.log`，保留当天及前 29 天；每个文件默认不超过 5 MiB，满额时淘汰旧内容并保留新日志。`[log] directory` / `DM_LOG_DIR` 设置目录，`[log] max_size_mb` / `DM_LOG_MAX_SIZE_MB` 设置大小上限，可用 `DM_LOG` 调整级别（`off`/`error`/`warn`/`info`/`debug`/`trace`，默认 `info`；设为 `off` 时不创建日志文件）；写入失败时静默跳过诊断日志，不回退到终端。stdout 始终保留给命令结果与 JSON，stderr 只保留进度条、插件输出和用户可见的 `错误`/`详情`/`提示`。使用自己的真实插件仓库地址：
 
 ```sh
 dm install https://github.com/YOUR_ORG/dm-backup.git --rev v1.2.0
@@ -173,3 +173,5 @@ dm config show --json               # 有效设置及 config/default/env 来源
 ```
 
 Bash：`source <(dm completions bash)`；Zsh：先运行 `autoload -Uz compinit; compinit`，再 `source <(dm completions zsh)`。第三方插件补全协议见 [使用体验与自动补全](docs/usability.md)。补全查询不创建日志、连接存储或机器密钥，不访问网络；旧插件未启用补全时不会被执行。
+
+更新检查默认最多并发 4 个任务，可通过 `[update] check_concurrency` / `DM_UPDATE_CHECK_CONCURRENCY` 调整为 1..16。Release 校验使用固定缓冲，配置、导入与 SQL 输入有大小上限，Git/下载辅助进程有输出限制和超时。详细边界见 [CLI 文档](docs/cli.md#内存与运行开销)。

@@ -39,6 +39,7 @@ pub struct PluginStore {
     pub(crate) home: PathBuf,
     /// Progress-bar override from the configuration file; `None` follows stderr.
     progress: Option<bool>,
+    pub(crate) update_check_concurrency: usize,
     /// Extra environment variable names inherited by plugins and hooks.
     pub(crate) plugin_environment: Vec<String>,
 }
@@ -48,8 +49,19 @@ impl PluginStore {
         Self {
             home: home.into(),
             progress: None,
+            update_check_concurrency: 4,
             plugin_environment: Vec::new(),
         }
+    }
+
+    /// Limit simultaneous update checks; interactive plugin execution is unaffected.
+    pub fn with_update_check_concurrency(mut self, workers: usize) -> Result<Self> {
+        ensure!(
+            (1..=16).contains(&workers),
+            "Update check concurrency must be between 1 and 16"
+        );
+        self.update_check_concurrency = workers;
+        Ok(self)
     }
 
     /// Per-plugin directories: configuration, data and cache.

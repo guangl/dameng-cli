@@ -69,3 +69,35 @@ fn versions_differ_falls_back_to_equality() {
     assert!(versions_differ("abc", "def"));
     assert!(!versions_differ("abc", "abc"));
 }
+
+#[test]
+fn archive_checksums_stream_large_files_and_bound_sidecars() {
+    use dameng_cli::self_update::verify_checksum_file;
+    use std::io::Write;
+    let temp = tempfile::tempdir().unwrap();
+    let archive = temp.path().join("archive");
+    let checksum = temp.path().join("checksum");
+    let mut file = std::fs::File::create(&archive).unwrap();
+    let mut hasher = Sha256::new();
+    let block = [0x55; 64 * 1024];
+    for _ in 0..256 {
+        file.write_all(&block).unwrap();
+        hasher.update(block);
+    }
+    drop(file);
+    std::fs::write(&checksum, format!("{:x}  archive", hasher.finalize())).unwrap();
+    verify_checksum_file(&archive, &checksum).unwrap();
+    std::fs::write(&archive, b"tampered").unwrap();
+    assert!(verify_checksum_file(&archive, &checksum).is_err());
+    std::fs::write(&checksum, [b'x'; 4097]).unwrap();
+    assert!(verify_checksum_file(&archive, &checksum).is_err());
+    std::fs::write(&checksum, "invalid").unwrap();
+    assert!(verify_checksum_file(&archive, &checksum).is_err());
+    std::fs::write(&checksum, "").unwrap();
+    assert!(verify_checksum_file(&archive, &checksum).is_err());
+    std::fs::write(&checksum, [0xff]).unwrap();
+    assert!(verify_checksum_file(&archive, &checksum).is_err());
+    assert!(verify_checksum_file(&archive, &temp.path().join("missing")).is_err());
+    std::fs::write(&checksum, format!("{:x}", Sha256::digest(b""))).unwrap();
+    assert!(verify_checksum_file(&temp.path().join("missing"), &checksum).is_err());
+}

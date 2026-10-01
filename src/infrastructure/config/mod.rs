@@ -11,7 +11,7 @@ use crate::infrastructure::store::home_from_env;
 use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 use std::{
-    env, fs,
+    env,
     path::{Path, PathBuf},
 };
 
@@ -39,7 +39,7 @@ pub fn log_filter_from_env() -> Option<String> {
 #[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
-    /// `[log]`: diagnostics written to stderr.
+    /// `[log]`: file-only diagnostic settings.
     #[serde(default)]
     pub log: LogSettings,
     /// `[update]`: where `dm self-update` takes its releases from.
@@ -53,14 +53,8 @@ pub struct Config {
     pub plugin: PluginSettings,
 }
 
-/// `[log]` table.
-#[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct LogSettings {
-    /// Log filter with the same syntax as `DM_LOG`, for example `debug` or `dm=debug`.
-    #[serde(default)]
-    pub level: Option<String>,
-}
+mod logging;
+pub use logging::LogSettings;
 
 /// `[update]` table.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize)]
@@ -72,6 +66,8 @@ pub struct UpdateSettings {
     /// Release target triple, same as `DM_UPDATE_TARGET`.
     #[serde(default)]
     pub target: Option<String>,
+    /// Concurrent update checks, from 1 through 16 (default 4).
+    pub check_concurrency: Option<usize>,
 }
 
 /// `[output]` table.
@@ -115,6 +111,8 @@ impl Config {
                 *value = Some(trimmed);
             }
         }
+        config.log.validate()?;
+        resources::validate_workers(config.update.check_concurrency.unwrap_or(4))?;
         config.plugin.environment = valid_environment_names(&config.plugin.environment)?;
         Ok(config)
     }
@@ -122,15 +120,17 @@ impl Config {
     /// Load `<home>/config.toml`. A missing file is not an error.
     pub fn load(home: &Path) -> Result<Self> {
         let path = Self::path_in(home);
-        let text = match fs::read_to_string(&path) {
-            Ok(text) => text,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                return Ok(Self::default());
-            }
-            Err(error) => {
-                return Err(error).with_context(|| format!("Read {}", path.display()));
-            }
-        };
+        let text =
+            match dm_plugin_support::bounded::text(&path, dm_plugin_support::bounded::CONFIG_LIMIT)
+            {
+                Ok(text) => text,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    return Ok(Self::default());
+                }
+                Err(error) => {
+                    return Err(error).with_context(|| format!("Read {}", path.display()));
+                }
+            };
         Self::from_toml(&text).with_context(|| format!("Invalid configuration {}", path.display()))
     }
 
@@ -187,3 +187,5 @@ impl Config {
 
 mod parse;
 use self::parse::{configured_value, parse_switch, valid_environment_names};
+
+mod resources;

@@ -24,7 +24,7 @@ use dm_plugin_sdk::{Context as PluginContext, Plugin, PluginResult};
 pub use cli::{run_cli, run_with, run_with_prompter};
 pub use domain::connection_string::build_connection_string;
 pub use domain::driver;
-pub use domain::sql::{format_result, read_sql};
+pub use domain::sql::{format_result, read_sql, write_result};
 pub use domain::types::{
     ConnectionSpec, DEFAULT_DRIVER, DEFAULT_LOGIN_TIMEOUT, DEFAULT_PORT, DEFAULT_PROBE,
     DEFAULT_USERNAME, Database, DatabaseConnection, DatabaseFactory, Outcome, QueryResult, Session,

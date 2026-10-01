@@ -46,3 +46,35 @@ fn results_are_rendered_as_tab_separated_rows() {
         "a result without columns still prints one empty header line"
     );
 }
+
+#[test]
+fn oversized_sql_is_rejected_before_execution() {
+    let temp = TempDir::new().unwrap();
+    let path = temp.path().join("large.sql");
+    let file = std::fs::File::create(&path).unwrap();
+    file.set_len(16 * 1024 * 1024 + 1).unwrap();
+    assert!(
+        read_sql(None, Some(path))
+            .unwrap_err()
+            .to_string()
+            .contains("Read")
+    );
+    assert!(
+        read_sql(Some("x".repeat(16 * 1024 * 1024 + 1)), None)
+            .unwrap_err()
+            .to_string()
+            .contains("16 MiB")
+    );
+}
+
+#[test]
+fn streaming_results_preserve_format_and_propagate_output_errors() {
+    let result = QueryResult {
+        columns: vec!["a".into()],
+        rows: vec![vec![Some("value".into())], vec![None]],
+    };
+    let mut output = Vec::new();
+    dm_plugin_db::write_result(&mut output, &result).unwrap();
+    assert_eq!(output, b"a\nvalue\n\n");
+    assert!(dm_plugin_db::write_result(&mut &mut [0_u8; 1][..], &result).is_err());
+}

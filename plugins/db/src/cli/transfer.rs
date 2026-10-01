@@ -7,7 +7,7 @@ use crate::transfer::import::import_document;
 use crate::ui::prompts::Prompter;
 use anyhow::{Context, Result};
 use dm_plugin_sdk::Context as PluginContext;
-use std::{fs, io::Write, path::PathBuf};
+use std::{io::Write, path::PathBuf};
 
 pub(super) fn export(
     context: &PluginContext,
@@ -42,7 +42,8 @@ pub(super) fn import(
     prompter: Option<&dyn Prompter>,
 ) -> Result<()> {
     let document: ExportDocument = serde_json::from_slice(
-        &fs::read(&file).with_context(|| format!("Read {}", file.display()))?,
+        &dm_plugin_support::bounded::file(&file, dm_plugin_support::bounded::DOCUMENT_LIMIT)
+            .with_context(|| format!("Read {}", file.display()))?,
     )
     .with_context(|| format!("Parse database connection export {}", file.display()))?;
     let connections = import_document(context, document, replace, prompter)?;

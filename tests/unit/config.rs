@@ -104,3 +104,42 @@ fn config_file_rejects_invalid_switches_and_environment_names() {
     let error = Config::from_toml("[plugin]\nenvironment = [\"1LEADING\"]\n").unwrap_err();
     assert!(error.to_string().contains("not a valid"), "{error:#}");
 }
+
+#[test]
+fn daily_log_settings_validate_directory_and_size() {
+    for text in [
+        "[log]\ndirectory = ''",
+        "[log]\nmax_size_mb = 0",
+        "[log]\nmax_size_mb = 18446744073709551615",
+    ] {
+        assert!(Config::from_toml(text).is_err(), "{text}");
+    }
+    let config = Config::from_toml("[log]\ndirectory = 'logs/custom'\nmax_size_mb = 2").unwrap();
+    assert_eq!(config.log.max_size_mb, Some(2));
+    assert_eq!(
+        config.log.directory.unwrap(),
+        std::path::PathBuf::from("logs/custom")
+    );
+}
+
+#[test]
+fn update_check_concurrency_is_validated() {
+    for workers in [0, 17] {
+        assert!(
+            dameng_cli::Config::from_toml(&format!("[update]\ncheck_concurrency = {workers}"))
+                .is_err()
+        );
+    }
+    let config = dameng_cli::Config::from_toml("[update]\ncheck_concurrency = 2").unwrap();
+    assert_eq!(config.update.check_concurrency, Some(2));
+    assert!(
+        dameng_cli::PluginStore::new("unused")
+            .with_update_check_concurrency(0)
+            .is_err()
+    );
+    assert!(
+        dameng_cli::PluginStore::new("unused")
+            .with_update_check_concurrency(2)
+            .is_ok()
+    );
+}

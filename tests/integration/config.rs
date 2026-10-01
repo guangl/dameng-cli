@@ -15,7 +15,7 @@ fn config_file_sets_log_filter() {
     let output = dm(temp.path()).arg("list").output().unwrap();
     assert!(output.status.success(), "{}", stderr(&output));
     // Diagnostics go to the log file of the data directory, never to stderr.
-    let log = fs::read_to_string(temp.path().join("dm.log")).unwrap();
+    let log = fs::read_to_string(dameng_cli::logging::log_file_path(temp.path())).unwrap();
     assert!(log.contains("opened plugin store"), "{log}");
     assert!(!stderr(&output).contains("opened plugin store"));
 
@@ -23,7 +23,8 @@ fn config_file_sets_log_filter() {
     let default_home = TempDir::new().unwrap();
     let output = dm(default_home.path()).arg("list").output().unwrap();
     assert!(output.status.success(), "{}", stderr(&output));
-    let log = fs::read_to_string(default_home.path().join("dm.log")).unwrap();
+    let log = fs::read_to_string(dameng_cli::logging::log_file_path(default_home.path()))
+        .unwrap_or_default();
     assert!(!log.contains("opened plugin store"), "{log}");
 }
 #[test]

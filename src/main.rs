@@ -31,12 +31,15 @@ fn main() {
             // Only the environment can decide now that the file is unusable;
             // honouring it keeps `DM_LOG=off` from creating a log file.
             let filter = log_filter_from_env().unwrap_or_else(|| DEFAULT_LOG_FILTER.to_owned());
-            init_logging(&filter, home.as_deref());
+            let _ = init_logging(&Config::default(), &filter, home.as_deref());
             cli::report(&error);
             std::process::exit(1);
         }
     };
-    init_logging(&config.log_filter(), home.as_deref());
+    if let Err(error) = init_logging(&config, &config.log_filter(), home.as_deref()) {
+        cli::report(&error);
+        std::process::exit(1);
+    }
     let _ = cleanup_self_update_backup();
     let code = match cli::run(&config) {
         Ok(code) => code,
@@ -48,16 +51,13 @@ fn main() {
     std::process::exit(code);
 }
 
-/// Configure the logging backend.
-///
-/// Logs go to `<DM_PLUGIN_HOME>/dm.log` so stdout stays machine-readable and
-/// stderr keeps only the progress bar, plugin output and the user-facing report;
-/// without a usable data directory they fall back to stderr. The filter comes
-/// from `DM_LOG`, then `RUST_LOG`, then `<DM_PLUGIN_HOME>/config.toml`, and
-/// defaults to `info`.
-fn init_logging(filter: &str, home: Option<&Path>) {
+/// Initialize file-only diagnostics; a missing destination disables logging.
+fn init_logging(config: &Config, filter: &str, home: Option<&Path>) -> anyhow::Result<()> {
     match home {
-        Some(home) => logging::init(filter, home),
-        None => logging::init_stderr(filter),
+        Some(home) => {
+            logging::init_at(filter, &config.log_directory(home), config.log_max_bytes()?)
+        }
+        None => logging::init_disabled(),
     }
+    Ok(())
 }
