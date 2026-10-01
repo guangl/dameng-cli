@@ -58,7 +58,8 @@ impl DailyLogWriter {
     fn write_locked(&mut self, bytes: &[u8]) -> io::Result<()> {
         let date = (self.clock)();
         if self.cleaned != Some(date) {
-            super::files::cleanup(&self.directory, date)?;
+            // Retention is best effort: history must never block current logs.
+            let _ = super::files::cleanup(&self.directory, date);
             self.cleaned = Some(date);
         }
         let path = self.directory.join(super::daily_file_name(date));

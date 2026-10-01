@@ -115,3 +115,48 @@ fn symlinks_are_not_followed_as_log_files() {
     writer.write_all(b"diagnostic\n").unwrap();
     assert_eq!(fs::read(destination).unwrap(), b"untouched");
 }
+
+#[cfg(any(unix, windows))]
+#[test]
+fn undeletable_history_does_not_discard_current_diagnostics() {
+    struct Restore(std::path::PathBuf, fs::Permissions);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            let _ = fs::set_permissions(&self.0, self.1.clone());
+        }
+    }
+    let temp = TempDir::new().unwrap();
+    let old = temp.path().join("dm-2026-08-31.log");
+    let today = temp.path().join("dm-2026-09-30.log");
+    fs::write(&old, "history\n").unwrap();
+    fs::write(&today, "before\n").unwrap();
+    let mut writer = DailyLogWriter::with_clock(temp.path(), 1024, || date("2026-09-30")).unwrap();
+    #[cfg(unix)]
+    let protected = temp.path();
+    #[cfg(windows)]
+    let protected = old.as_path();
+    let original = fs::metadata(protected).unwrap().permissions();
+    let _restore = Restore(protected.to_path_buf(), original.clone());
+    let mut permissions = original;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        permissions.set_mode(0o555);
+    }
+    #[cfg(windows)]
+    permissions.set_readonly(true);
+    fs::set_permissions(protected, permissions).unwrap();
+    // Privileged Unix users can bypass directory permissions; no failure to reproduce there.
+    if fs::remove_file(&old).is_ok() {
+        return;
+    }
+    writer.write_all(b"first\n").unwrap();
+    fs::set_permissions(&_restore.0, _restore.1.clone()).unwrap();
+    // Even after permissions recover, cleanup is not retried for each record.
+    writer.write_all(b"second\n").unwrap();
+    assert!(old.exists());
+    assert_eq!(
+        fs::read_to_string(today).unwrap(),
+        "before\nfirst\nsecond\n"
+    );
+}

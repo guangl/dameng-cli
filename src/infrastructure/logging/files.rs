@@ -10,8 +10,8 @@ pub(super) fn cleanup(directory: &Path, today: Date) -> io::Result<()> {
         .checked_sub(Span::new().days(29))
         .map_err(io::Error::other)?;
     for entry in fs::read_dir(directory)? {
-        let entry = entry?;
-        if !entry.file_type()?.is_file() {
+        let Ok(entry) = entry else { continue };
+        if !entry.file_type().is_ok_and(|kind| kind.is_file()) {
             continue;
         }
         let name = entry.file_name();
@@ -24,7 +24,7 @@ pub(super) fn cleanup(directory: &Path, today: Date) -> io::Result<()> {
             continue;
         };
         if date < cutoff {
-            fs::remove_file(entry.path())?;
+            let _ = fs::remove_file(entry.path());
         }
     }
     Ok(())
