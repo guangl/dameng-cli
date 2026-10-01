@@ -9,7 +9,7 @@ description = "Shared implementation utilities for the built-in dm plugins"
 
 [dependencies]
 anyhow = "1.0"
-aes-gcm = "0.10"
+aes-gcm = "0.11"
 rand = "0.8"
 clap = { version = "4.6", features = ["derive"] }
 rpassword = "7.5.4"
