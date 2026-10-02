@@ -21,7 +21,7 @@ anyhow = "1.0"
 clap = { version = "4.6", features = ["derive"] }
 # Pinned: 7.2.2 uses let-chains (Rust 1.88+) and breaks the declared 1.85 MSRV.
 comfy-table = "=7.2.1"
-dm-plugin-sdk = "0.4.0"
+dm-plugin-sdk = "0.4.1"
 rand = "0.8"
 pbkdf2 = "0.12"
 rpassword = "7.5.4"
