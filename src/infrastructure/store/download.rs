@@ -118,14 +118,37 @@ pub(crate) fn try_download_prebuilt(
     let bar = progress_bar_for(1, progress);
     bar.set_message("Downloading prebuilt plugin");
     for tag in release_tag_candidates(manifest, revision) {
-        let url =
-            format!("https://github.com/{owner}/{repository}/releases/download/{tag}/{asset}");
-        debug!("trying prebuilt asset {url}");
-        if download_prebuilt_asset(&url, destination) {
-            verify_optional_prebuilt_checksum(&url, destination)?;
-            bar.inc(1);
-            bar.finish_and_clear();
-            return Ok(());
+        let mut assets = vec![asset.clone()];
+        // v3.0.1 predates the SDK entrypoint in this repository. Its standalone
+        // CLI accepts the same arguments and streams, so it can run under dm.
+        // Never infer protocol compatibility for unrelated repositories/releases.
+        if owner.eq_ignore_ascii_case("guangl")
+            && repository.eq_ignore_ascii_case("dm-database-sqllog2db")
+            && manifest.name == "sqllog2db"
+            && manifest.version == "3.0.1"
+            && tag == "v3.0.1"
+        {
+            assets.push(format!(
+                "sqllog2db-{target}{}",
+                std::env::consts::EXE_SUFFIX
+            ));
+        }
+        for candidate in assets {
+            let url = format!(
+                "https://github.com/{owner}/{repository}/releases/download/{tag}/{candidate}"
+            );
+            debug!("trying prebuilt asset {url}");
+            if download_prebuilt_asset(&url, destination) {
+                verify_optional_prebuilt_checksum(&url, destination)?;
+                if candidate != asset {
+                    eprintln!(
+                        "dm: installing sqllog2db v3.0.1 standalone release compatibility binary"
+                    );
+                }
+                bar.inc(1);
+                bar.finish_and_clear();
+                return Ok(());
+            }
         }
     }
     bar.finish_and_clear();

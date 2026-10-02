@@ -29,3 +29,5 @@ mod usability;
 mod release_plugins;
 
 mod resources;
+
+mod sqllog2db_release;
