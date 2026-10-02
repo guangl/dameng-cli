@@ -142,3 +142,8 @@ fn standalone_fallback_is_limited_to_the_known_release() {
         assert!(!requests.contains("/sqllog2db-"));
     }
 }
+
+#[test]
+fn legacy_sqllog2db_repository_matching_is_case_insensitive() {
+    assert!(install("Guangl/DM-Database-Sqllog2db", "3.0.1", false, "valid").0);
+}

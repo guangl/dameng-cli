@@ -122,8 +122,8 @@ pub(crate) fn try_download_prebuilt(
         // v3.0.1 predates the SDK entrypoint in this repository. Its standalone
         // CLI accepts the same arguments and streams, so it can run under dm.
         // Never infer protocol compatibility for unrelated repositories/releases.
-        if owner == "guangl"
-            && repository == "dm-database-sqllog2db"
+        if owner.eq_ignore_ascii_case("guangl")
+            && repository.eq_ignore_ascii_case("dm-database-sqllog2db")
             && manifest.name == "sqllog2db"
             && manifest.version == "3.0.1"
             && tag == "v3.0.1"
