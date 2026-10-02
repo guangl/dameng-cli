@@ -31,10 +31,10 @@
 
 新版远程安装脚本使用 `--release-source <owner/repository> --release-tag <tag> --release-target <target>` 为本地验证后的插件包记录持久来源。之后 `dm update` 从最新正式 Release 的对应平台归档读取插件清单，SHA-256 必须存在且匹配；升级提取且仅安装清单声明的二进制与 hook。该来源不依赖 Git 或安装时的临时目录。
 
-## 0.4.0 发布准备
+## 0.4.1 发布准备
 
-源码中的宿主和 SDK 均为 0.4.0，内置插件均为 0.2.0。当前待发布变更列在 CHANGELOG 的 Unreleased；面向用户的发布说明保存为 [v0.4.0](releases/v0.4.0.md)，Release workflow 会优先使用该版本的说明文件。
+源码中的宿主和 SDK 均为 0.4.1，内置插件均为 0.2.0。本次变更列在 CHANGELOG 的 0.4.1 节；面向用户的发布说明保存为 [v0.4.1](releases/v0.4.1.md)，Release workflow 会优先使用该版本的说明文件。
 
-合并确认后，在合并提交上创建 `v0.4.0` 标签。发布后确认六个平台的宿主、db、ssh 归档及 SHA-256、插件名单均存在；在隔离的 `DM_PLUGIN_HOME` 验证远程安装、`dm update --json` 和宿主自更新。确认发布成功后再将 CHANGELOG 的 Unreleased 移入带日期的 0.4.0 节，并更新指定版本安装示例。PR 全绿仅证明源码通过检查，不代表已经发布。
+合并确认后，在合并提交上创建 `v0.4.1` 标签。发布后确认六个平台的宿主、db、ssh 归档及 SHA-256、插件名单均存在；在隔离的 `DM_PLUGIN_HOME` 验证远程安装、`dm update --json` 和宿主自更新。CHANGELOG 已记录 2026-10-02 的 0.4.1 节。PR 全绿仅证明源码通过检查，不代表已经发布。
 
 本次数据库驱动暂不接入，`dm db test/exec` 仍会明确报告未实现。SSH 的密码认证和保存私钥口令应答需要本机 `sshpass`。Linux CI 使用隔离的本机 SSH 服务验证加密密钥测试、登录以及错误口令失败，不连接外部机器。
