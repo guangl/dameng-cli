@@ -53,6 +53,13 @@ dm uninstall hello
 
 `dm install` 只安装预编译插件：本地目录需包含 `dm-<name>` 二进制和 `dm-plugin.toml`；GitHub HTTPS 来源会下载该仓库 Release 中与本机 target 匹配的 `dm-<name>` 二进制。没有可用预编译产物时直接报错，不再回退源码编译。插件 Release 应同时发布 `dm-<name>-<target>` 和同名 `.sha256` 文件；缺少 SHA-256 侧车时宿主会提示并信任 HTTPS 传输。
 
+兼容 `guangl/dm-database-sqllog2db` 的 v3.0.1：优先下载标准插件文件；缺少时下载同平台的 `sqllog2db-<target>` 独立命令，安装后通过 `dm sqllog2db ...` 调用。此旧版本保留独立命令的帮助文本和配置行为，不提供 SDK 插件入口；其他仓库和版本仍要求标准插件产物。
+
+```sh
+dm install https://github.com/guangl/dm-database-sqllog2db.git
+dm sqllog2db --help
+```
+
 ## 命令
 
 | 命令 | 作用 |
