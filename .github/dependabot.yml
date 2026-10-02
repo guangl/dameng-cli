@@ -10,3 +10,6 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 5
+    # This action ref is the declared MSRV, not a dependency to upgrade.
+    ignore:
+      - dependency-name: dtolnay/rust-toolchain

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Linux GNU x86_64/ARM64 发布构建固定 glibc 2.28，CI 和发布同时校验 ELF 符号要求并在 Debian 10 容器中启动宿主及内置插件；Rust stable 可升级但不得提高 glibc 基线。
+
+- 同步升级 rand 0.10、PBKDF2 0.13 和 SHA-2 0.11，适配随机源、摘要编码及 AES-GCM 0.11 API，保留既有密文和导出格式。
+- 升级 Pages 上传与部署 Action 至 v5；最低 Rust 版本提高到 1.99.0，升级 comfy-table 至 8.0 并适配样式 API；Dependabot 不再自动改写最低 Rust 版本检查。
+
 ## 0.4.1 — 2026-10-02
 
 - 兼容 `guangl/dm-database-sqllog2db` v3.0.1 的独立命令 Release 产物：优先安装标准插件，缺少时使用对应平台的旧文件名；保留校验、安装记录和命令参数。仓库名称匹配不区分大小写，兼容范围限定到已知版本。

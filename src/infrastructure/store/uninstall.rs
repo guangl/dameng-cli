@@ -34,10 +34,10 @@ impl PluginStore {
             "Installed plugin must be a regular directory"
         );
         let manifest = Manifest::read(&path).ok();
-        if let Some(manifest) = manifest.as_ref() {
-            if let Some(hook) = manifest.hooks.pre_uninstall.as_deref() {
-                self.run_hook(&path, hook, "pre-uninstall", manifest)?;
-            }
+        if let Some(manifest) = manifest.as_ref()
+            && let Some(hook) = manifest.hooks.pre_uninstall.as_deref()
+        {
+            self.run_hook(&path, hook, "pre-uninstall", manifest)?;
         }
         // Rename first so a database error can restore the complete installation.
         let stage = tempfile::Builder::new()
@@ -45,13 +45,12 @@ impl PluginStore {
             .tempdir_in(self.plugins())?;
         let removed = stage.path().join("package");
         fs::rename(&path, &removed).context("Stage plugin removal")?;
-        if let Some(manifest) = manifest.as_ref() {
-            if let Some(hook) = manifest.hooks.post_uninstall.as_deref() {
-                if let Err(error) = self.run_hook(&removed, hook, "post-uninstall", manifest) {
-                    let _ = fs::rename(&removed, &path);
-                    return Err(error).context("Run post-uninstall hook");
-                }
-            }
+        if let Some(manifest) = manifest.as_ref()
+            && let Some(hook) = manifest.hooks.post_uninstall.as_deref()
+            && let Err(error) = self.run_hook(&removed, hook, "post-uninstall", manifest)
+        {
+            let _ = fs::rename(&removed, &path);
+            return Err(error).context("Run post-uninstall hook");
         }
         let result = (|| -> Result<()> {
             let transaction = connection.unchecked_transaction()?;
@@ -94,10 +93,10 @@ impl PluginStore {
     fn purge_directories(&self, name: &str) -> Result<()> {
         let mut cleanup_failures = Vec::new();
         for directory in self.removal_paths(name) {
-            if let Err(error) = fs::remove_dir_all(&directory) {
-                if error.kind() != std::io::ErrorKind::NotFound {
-                    cleanup_failures.push(format!("{}: {error}", directory.display()));
-                }
+            if let Err(error) = fs::remove_dir_all(&directory)
+                && error.kind() != std::io::ErrorKind::NotFound
+            {
+                cleanup_failures.push(format!("{}: {error}", directory.display()));
             }
         }
         ensure!(

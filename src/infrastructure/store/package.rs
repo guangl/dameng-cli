@@ -144,14 +144,14 @@ impl PluginStore {
             }
             return Err(error).context("Publish installed plugin");
         }
-        if let Some(hook) = manifest.hooks.post_install.as_deref() {
-            if let Err(error) = self.run_hook(&destination, hook, "post-install", &manifest) {
-                let _ = fs::remove_dir_all(&destination);
-                if replacing {
-                    let _ = fs::rename(&previous, &destination);
-                }
-                return Err(error).context("Run post-install hook");
+        if let Some(hook) = manifest.hooks.post_install.as_deref()
+            && let Err(error) = self.run_hook(&destination, hook, "post-install", &manifest)
+        {
+            let _ = fs::remove_dir_all(&destination);
+            if replacing {
+                let _ = fs::rename(&previous, &destination);
             }
+            return Err(error).context("Run post-install hook");
         }
         let transaction = connection.transaction()?;
         let database_result = match installed {

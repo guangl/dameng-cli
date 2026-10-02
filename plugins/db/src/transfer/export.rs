@@ -7,7 +7,7 @@ use anyhow::{Context, Result, ensure};
 use dm_plugin_sdk::Context as PluginContext;
 use dm_plugin_support::secrets;
 use pbkdf2::pbkdf2_hmac;
-use rand::{RngCore, rngs::OsRng};
+use rand::{TryRng, rngs::SysRng};
 use sha2::Sha256;
 
 /// Implementation detail exposed for the tests; export format version.
@@ -106,7 +106,9 @@ pub fn export_document(
         "Export passphrase must not be empty"
     );
     let mut salt = [0_u8; 16];
-    OsRng.fill_bytes(&mut salt);
+    SysRng
+        .try_fill_bytes(&mut salt)
+        .context("Generate cryptographic random bytes")?;
     let mut key = [0_u8; 32];
     pbkdf2_hmac::<Sha256>(passphrase.as_bytes(), &salt, EXPORT_KDF_ROUNDS, &mut key);
     let plaintext = serde_json::to_vec(&portable)?;

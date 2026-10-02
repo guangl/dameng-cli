@@ -3,7 +3,7 @@
 use anyhow::{Context, Result, ensure};
 use dm_plugin_sdk::Context as PluginContext;
 use dm_plugin_support::secrets;
-use rand::{RngCore, rngs::OsRng};
+use rand::{TryRng, rngs::SysRng};
 use std::{fs, path::PathBuf};
 
 pub fn key_path(context: &PluginContext) -> PathBuf {
@@ -27,7 +27,9 @@ pub fn machine_key(context: &PluginContext) -> Result<[u8; 32]> {
         return Ok(key);
     }
     let mut key = [0_u8; 32];
-    OsRng.fill_bytes(&mut key);
+    SysRng
+        .try_fill_bytes(&mut key)
+        .context("Generate cryptographic random bytes")?;
     fs::write(&path, key).context("Write the connection encryption key")?;
     #[cfg(unix)]
     {

@@ -105,7 +105,7 @@ esac
     let fake_bin = temp.path().join("fake-bin");
     let bytes = b"prebuilt-binary";
     fs::write(&fake_bin, bytes).unwrap();
-    let digest = format!("{:x}", Sha256::digest(bytes));
+    let digest = dm_plugin_support::codec::hex(&Sha256::digest(bytes));
     let curl = tools.join("curl");
     fs::write(
         &curl,

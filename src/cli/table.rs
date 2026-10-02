@@ -15,7 +15,7 @@ pub fn render(plugins: &[PluginInfo]) -> String {
 
     let mut table = Table::new();
     table
-        .load_preset(UTF8_FULL)
+        .load_style(UTF8_FULL)
         .set_content_arrangement(ContentArrangement::Dynamic)
         .set_truncation_indicator("…")
         .set_header(["名称", "版本", "说明", "来源", "修订", "安装时间 (UTC)"]);

@@ -15,13 +15,13 @@
 
 ## 版本发布
 
-1. 同步宿主、SDK 的 package version 和宿主 SDK dependency version；按需更新示例、Cargo.lock 和 CHANGELOG。最低 Rust 版本为 1.85。
+1. 同步宿主、SDK 的 package version 和宿主 SDK dependency version；按需更新示例、Cargo.lock 和 CHANGELOG。最低 Rust 版本为 1.99.0。
 2. 从功能分支创建 PR，完成本地检查并确认 PR 的 CI 全绿；获得确认后再合并，不直接推送 `main`。
 3. 创建并推送与 Cargo package version 一致的 `vX.Y.Z` 标签。
 4. Release workflow 先运行完整 CI，再为 Linux x86_64、Linux ARM64、Linux x86_64 musl、macOS Apple Silicon、macOS Intel、Windows x86_64 编译宿主，并按 `plugins/*/dm-plugin.toml` 为每个内置插件编译 `dm-<name>`。
 5. 全部成功后创建 GitHub Release：宿主与每个内置插件各自一个压缩包，普通发行提供 tar.gz、Windows 提供 zip，并附带 SHA-256 校验文件；另有 `dm-plugins-<tag>-<target>.txt` 列出随本次发布的内置插件，安装脚本按它安装。插件归档包含 `dm-<name>`、`dm-plugin.toml`，以及插件自己的 README/`config.example.toml`（缺失时回退到宿主根目录的 LICENSE 与 README）。带 `-` 的版本标签标记为预发布。归档命名和目录结构也是 `dm self-update` 的稳定协议，不得在同一主版本中随意改变；`scripts/release.py` 会在打包前校验标签、SDK、插件版本与 `min_host_version`。
 
-当前仍不发布 aarch64 musl、aarch64 Windows 或 Linux ARMv7 产物，也不承诺旧 Linux 的 glibc 兼容性。产物在 GitHub hosted runner 上构建，需要更旧系统兼容性时另行制定构建基线。
+Linux GNU x86_64 和 ARM64 产物的最低 glibc 版本固定为 2.28。CI 与发布使用 cargo-zigbuild 及显式 `.2.28` 目标构建宿主和所有内置插件，检查 ELF 符号版本并在 Debian 10 容器中启动验证；任何超过基线的符号要求或启动失败均阻止发布。Rust 构建使用 stable，可继续升级，最低源码编译版本为 1.99.0；升级工具链不得提高 glibc 基线。musl 产物不依赖 glibc。当前仍不发布 aarch64 musl、aarch64 Windows 或 Linux ARMv7 产物。
 
 本工作流发布 GitHub 宿主与内置插件二进制，不自动发布 crates.io 包。未来若启用 crates.io，应先发布 `dm-plugin-sdk`，再发布依赖它的 `dameng-cli`；凭证通过 GitHub Secrets 管理。首次 SDK 发布前，使用源码/path 或固定提交的 Git 依赖。
 

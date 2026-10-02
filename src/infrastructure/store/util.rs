@@ -15,7 +15,7 @@ pub(crate) fn sha256_file(path: &Path) -> Result<String> {
         }
         hasher.update(&buffer[..read]);
     }
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(dm_plugin_support::codec::hex(&hasher.finalize()))
 }
 
 pub(crate) fn inherit_safe_environment(

@@ -35,31 +35,30 @@ impl PluginStore {
                     } else {
                         entry.path().join("previous")
                     };
-                    if candidate.is_dir() {
-                        if let Ok(manifest) = Manifest::read(&candidate) {
-                            if database_names.contains(&manifest.name) {
-                                let stored = self.info(&manifest.name)?;
-                                if stored.manifest == manifest {
-                                    let destination = self.plugins().join(&manifest.name);
-                                    let destination_matches = Manifest::read(&destination)
-                                        .is_ok_and(|current| current == stored.manifest);
-                                    if !destination_matches {
-                                        if let Ok(metadata) = fs::symlink_metadata(&destination) {
-                                            ensure!(
-                                                metadata.is_dir(),
-                                                "Refusing to replace non-directory {}",
-                                                destination.display()
-                                            );
-                                            fs::remove_dir_all(&destination)?;
-                                        }
-                                        fs::rename(&candidate, &destination)?;
-                                        disk_names.insert(manifest.name.clone());
-                                        repairs.push(format!(
-                                            "restored interrupted transaction for {}",
-                                            manifest.name
-                                        ));
-                                    }
+                    if candidate.is_dir()
+                        && let Ok(manifest) = Manifest::read(&candidate)
+                        && database_names.contains(&manifest.name)
+                    {
+                        let stored = self.info(&manifest.name)?;
+                        if stored.manifest == manifest {
+                            let destination = self.plugins().join(&manifest.name);
+                            let destination_matches = Manifest::read(&destination)
+                                .is_ok_and(|current| current == stored.manifest);
+                            if !destination_matches {
+                                if let Ok(metadata) = fs::symlink_metadata(&destination) {
+                                    ensure!(
+                                        metadata.is_dir(),
+                                        "Refusing to replace non-directory {}",
+                                        destination.display()
+                                    );
+                                    fs::remove_dir_all(&destination)?;
                                 }
+                                fs::rename(&candidate, &destination)?;
+                                disk_names.insert(manifest.name.clone());
+                                repairs.push(format!(
+                                    "restored interrupted transaction for {}",
+                                    manifest.name
+                                ));
                             }
                         }
                     }

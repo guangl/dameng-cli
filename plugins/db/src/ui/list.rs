@@ -62,7 +62,7 @@ pub fn render_table(connections: &[DatabaseConnection]) -> String {
 
     let mut table = Table::new();
     table
-        .load_preset(UTF8_FULL)
+        .load_style(UTF8_FULL)
         .set_content_arrangement(ContentArrangement::Dynamic)
         .set_truncation_indicator("…")
         .set_header(["名称", "地址", "端口", "用户名", "Schema", "驱动"]);
