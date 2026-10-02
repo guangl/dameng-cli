@@ -278,7 +278,7 @@ dependencies = [
 
 [[package]]
 name = "dameng-cli"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -372,7 +372,7 @@ dependencies = [
 
 [[package]]
 name = "dm-plugin-sdk"
-version = "0.4.0"
+version = "0.4.1"
 
 [[package]]
 name = "dm-plugin-ssh"
