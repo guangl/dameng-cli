@@ -16,7 +16,7 @@ path = "src/main.rs"
 
 [dependencies]
 dm-plugin-support = { path = "../../crates/dm-plugin-support" }
-aes-gcm = "0.10"
+aes-gcm = "0.11"
 anyhow = "1.0"
 clap = { version = "4.6", features = ["derive"] }
 # Pinned: 7.2.2 uses let-chains (Rust 1.88+) and breaks the declared 1.85 MSRV.
