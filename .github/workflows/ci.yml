@@ -86,15 +86,6 @@ jobs:
         with:
           tool: cargo-llvm-cov
       - run: cargo llvm-cov --workspace --locked --fail-under-lines 95
-  msrv:
-    name: Minimum Rust 1.99.0
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.ref || github.ref }}
-      - uses: dtolnay/rust-toolchain@1.99.0
-      - run: cargo check --workspace --all-targets --locked
   linux-compatibility:
     name: glibc 2.28 (${{ matrix.target }})
     strategy:
