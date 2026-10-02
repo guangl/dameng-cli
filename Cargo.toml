@@ -43,7 +43,7 @@ clap = { version = "4.6.7", features = ["derive"] }
 env_logger = "0.11"
 log = "0.4"
 # Pinned: 7.2.2 uses let-chains (Rust 1.88+) and breaks the declared 1.85 MSRV.
-comfy-table = "=7.2.1"
+comfy-table = "=8.0.0"
 indicatif = "0.18"
 serde = { version = "1.0.229", features = ["derive"] }
 tempfile = "3.27.0"
