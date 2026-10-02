@@ -52,7 +52,7 @@ rusqlite = { version = "0.40.2", features = ["bundled"] }
 dm-plugin-sdk = { version = "0.4.1", path = "crates/dm-plugin-sdk" }
 semver = "1.0.28"
 serde_json = "1.0.151"
-sha2 = "0.10.9"
+sha2 = "0.11.0"
 fs2 = "0.4.3"
 jiff = "0.2.37"
 env_filter = "2.0"
