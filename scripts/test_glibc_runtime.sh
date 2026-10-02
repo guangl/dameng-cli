@@ -10,12 +10,18 @@ esac
 docker run --rm --network none --tmpfs /tmp \
   -e DM_PLUGIN_HOME=/tmp/dm-home \
   -v "$PWD/target/$target/release:/artifacts:ro" \
+  -v "$PWD/plugins:/manifests:ro" \
   debian:buster-slim sh -ec '
     ldd --version | head -n 1 | grep -F "2.28"
     /artifacts/dm --version
     for binary in /artifacts/dm-*; do
       [ -f "$binary" ] && [ -x "$binary" ] || continue
-      "$binary" --help
-      "$binary" list
+      name=${binary##*/dm-}
+      mkdir -p "/tmp/package-$name"
+      cp "$binary" "/tmp/package-$name/"
+      cp "/manifests/$name/dm-plugin.toml" "/tmp/package-$name/"
+      /artifacts/dm install "/tmp/package-$name"
+      /artifacts/dm "$name" --help
+      /artifacts/dm "$name" list
     done
   '
