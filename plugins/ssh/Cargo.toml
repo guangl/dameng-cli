@@ -23,7 +23,7 @@ clap = { version = "4.6", features = ["derive"] }
 comfy-table = "=7.2.1"
 dm-plugin-sdk = "0.4.1"
 pbkdf2 = "0.12"
-rand = "0.8"
+rand = "0.10"
 rpassword = "7.5.4"
 rusqlite = { version = "0.40", features = ["bundled"] }
 serde = { version = "1.0.229", features = ["derive"] }
