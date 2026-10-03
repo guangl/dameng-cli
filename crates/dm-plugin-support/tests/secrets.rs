@@ -1,16 +1,16 @@
 use aes_gcm::aead::{Aead, KeyInit};
-use aes_gcm::{Aes256Gcm, Key, Nonce};
+use aes_gcm::{Aes256Gcm, Nonce};
 use dm_plugin_support::secrets::{open, seal};
 
 #[test]
 fn reads_existing_nonce_prefixed_ciphertext() {
     let key = [42; 32];
     let nonce = [7; 12];
-    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
+    let cipher = Aes256Gcm::new_from_slice(&key).unwrap();
     let mut payload = nonce.to_vec();
     payload.extend(
         cipher
-            .encrypt(Nonce::from_slice(&nonce), b"existing secret".as_ref())
+            .encrypt(&Nonce::from(nonce), b"existing secret".as_ref())
             .unwrap(),
     );
     assert_eq!(open(&key, &payload).unwrap(), b"existing secret");
@@ -20,10 +20,10 @@ fn reads_existing_nonce_prefixed_ciphertext() {
 fn fresh_ciphertext_remains_readable_by_the_previous_format() {
     let key = [42; 32];
     let bytes = seal(&key, b"secret").unwrap();
-    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
+    let cipher = Aes256Gcm::new_from_slice(&key).unwrap();
     assert_eq!(
         cipher
-            .decrypt(Nonce::from_slice(&bytes[..12]), &bytes[12..])
+            .decrypt(&Nonce::try_from(&bytes[..12]).unwrap(), &bytes[12..])
             .unwrap(),
         b"secret"
     );

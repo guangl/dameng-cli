@@ -10,6 +10,7 @@ use std::cell::RefCell;
 use tempfile::TempDir;
 
 mod documents;
+mod legacy;
 mod records;
 mod shape;
 

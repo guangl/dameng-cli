@@ -10,6 +10,7 @@ use dm_plugin_sdk::Context as PluginContext;
 use std::cell::RefCell;
 use tempfile::TempDir;
 
+mod legacy;
 mod records;
 
 struct PasswordPrompter(RefCell<Vec<String>>);

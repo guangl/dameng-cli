@@ -26,7 +26,10 @@ fn self_update_replaces_binary_from_release() {
         }
 
         let archive_bytes = b"fake release archive";
-        let digest = format!("{:x}  archive\n", Sha256::digest(archive_bytes));
+        let digest = format!(
+            "{}  archive\n",
+            dm_plugin_support::codec::hex(&Sha256::digest(archive_bytes))
+        );
 
         let archive = temp.path().join("archive.tar.gz");
         fs::write(&archive, archive_bytes).unwrap();

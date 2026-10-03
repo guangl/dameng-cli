@@ -22,7 +22,10 @@ pub fn validate_repository(repository: &str) -> Result<()> {
 }
 
 pub fn verify_checksum(archive: &[u8], checksum: &[u8]) -> Result<()> {
-    verify_digest(&format!("{:x}", Sha256::digest(archive)), checksum)
+    verify_digest(
+        &dm_plugin_support::codec::hex(&Sha256::digest(archive)),
+        checksum,
+    )
 }
 
 fn verify_digest(actual: &str, checksum: &[u8]) -> Result<()> {
@@ -55,5 +58,8 @@ pub fn verify_checksum_file(archive: &Path, checksum: &Path) -> Result<()> {
         }
         hasher.update(&buffer[..count]);
     }
-    verify_digest(&format!("{:x}", hasher.finalize()), &checksum)
+    verify_digest(
+        &dm_plugin_support::codec::hex(&hasher.finalize()),
+        &checksum,
+    )
 }

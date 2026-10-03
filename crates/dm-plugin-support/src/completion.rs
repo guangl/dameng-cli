@@ -52,18 +52,17 @@ pub fn candidates(mut command: Command, words: &[String], names: &[String]) -> V
     if let Some(arg) = pending {
         return values(&arg, current, names);
     }
-    if flags {
-        if let Some((flag, prefix)) = current.split_once('=') {
-            if let Some(arg) = command.get_arguments().find(|arg| {
-                arg.get_long()
-                    .is_some_and(|long| flag == format!("--{long}"))
-            }) {
-                return values(arg, prefix, names)
-                    .into_iter()
-                    .map(|value| format!("{flag}={value}"))
-                    .collect();
-            }
-        }
+    if flags
+        && let Some((flag, prefix)) = current.split_once('=')
+        && let Some(arg) = command.get_arguments().find(|arg| {
+            arg.get_long()
+                .is_some_and(|long| flag == format!("--{long}"))
+        })
+    {
+        return values(arg, prefix, names)
+            .into_iter()
+            .map(|value| format!("{flag}={value}"))
+            .collect();
     }
     let blocked: BTreeSet<_> = command
         .get_arguments()

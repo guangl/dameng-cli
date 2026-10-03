@@ -13,7 +13,10 @@ fn update_helpers_validate_repository_and_versions() {
 }
 #[test]
 fn update_checksum_verification_rejects_tampering() {
-    let digest = format!("{:x}  archive\n", Sha256::digest(b"archive"));
+    let digest = format!(
+        "{}  archive\n",
+        dm_plugin_support::codec::hex(&Sha256::digest(b"archive"))
+    );
     assert!(verify_checksum(b"archive", digest.as_bytes()).is_ok());
     assert!(verify_checksum(b"changed", digest.as_bytes()).is_err());
 }
@@ -85,7 +88,14 @@ fn archive_checksums_stream_large_files_and_bound_sidecars() {
         hasher.update(block);
     }
     drop(file);
-    std::fs::write(&checksum, format!("{:x}  archive", hasher.finalize())).unwrap();
+    std::fs::write(
+        &checksum,
+        format!(
+            "{}  archive",
+            dm_plugin_support::codec::hex(&hasher.finalize())
+        ),
+    )
+    .unwrap();
     verify_checksum_file(&archive, &checksum).unwrap();
     std::fs::write(&archive, b"tampered").unwrap();
     assert!(verify_checksum_file(&archive, &checksum).is_err());
@@ -98,6 +108,10 @@ fn archive_checksums_stream_large_files_and_bound_sidecars() {
     std::fs::write(&checksum, [0xff]).unwrap();
     assert!(verify_checksum_file(&archive, &checksum).is_err());
     assert!(verify_checksum_file(&archive, &temp.path().join("missing")).is_err());
-    std::fs::write(&checksum, format!("{:x}", Sha256::digest(b""))).unwrap();
+    std::fs::write(
+        &checksum,
+        dm_plugin_support::codec::hex(&Sha256::digest(b"")),
+    )
+    .unwrap();
     assert!(verify_checksum_file(&temp.path().join("missing"), &checksum).is_err());
 }

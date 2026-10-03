@@ -13,7 +13,7 @@ resolver = "3"
 name = "dameng-cli"
 version = "0.4.1"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.99.0"
 description = "A minimal plugin host for Dameng database tools"
 license = "MIT"
 repository = "https://github.com/guangl/dameng-cli"
@@ -42,8 +42,7 @@ dm-plugin-support = { path = "crates/dm-plugin-support" }
 clap = { version = "4.6.7", features = ["derive"] }
 env_logger = "0.11"
 log = "0.4"
-# Pinned: 7.2.2 uses let-chains (Rust 1.88+) and breaks the declared 1.85 MSRV.
-comfy-table = "=7.2.1"
+comfy-table = "8.0"
 indicatif = "0.18"
 serde = { version = "1.0.229", features = ["derive"] }
 tempfile = "3.27.0"
@@ -52,7 +51,7 @@ rusqlite = { version = "0.40.2", features = ["bundled"] }
 dm-plugin-sdk = { version = "0.4.1", path = "crates/dm-plugin-sdk" }
 semver = "1.0.28"
 serde_json = "1.0.151"
-sha2 = "0.10.9"
+sha2 = "0.11.0"
 fs2 = "0.4.3"
 jiff = "0.2.37"
 env_filter = "2.0"

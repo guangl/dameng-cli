@@ -22,7 +22,7 @@
 
 ## 本地验证
 
-需要稳定版 Rust、Cargo 和 Git。
+需要 Rust 1.99.0 或更高版本、Cargo 和 Git。
 
 ```sh
 cargo fmt --all -- --check

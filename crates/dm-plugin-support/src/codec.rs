@@ -8,7 +8,7 @@ pub fn hex(bytes: &[u8]) -> String {
 
 pub fn unhex(text: &str) -> Result<Vec<u8>> {
     ensure!(
-        text.len() % 2 == 0 && text.bytes().all(|byte| byte.is_ascii_hexdigit()),
+        text.len().is_multiple_of(2) && text.bytes().all(|byte| byte.is_ascii_hexdigit()),
         "Expected hexadecimal text"
     );
     (0..text.len())

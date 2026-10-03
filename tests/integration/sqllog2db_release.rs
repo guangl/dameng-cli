@@ -74,7 +74,7 @@ esac
         .env(
             "CHECKSUM",
             if checksum == "valid" {
-                format!("{:x}", Sha256::digest(fs::read(&binary).unwrap()))
+                dm_plugin_support::codec::hex(&Sha256::digest(fs::read(&binary).unwrap()))
             } else {
                 checksum.to_owned()
             },

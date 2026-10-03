@@ -62,7 +62,10 @@ esac
                 .success()
         );
         use sha2::{Digest, Sha256};
-        let checksum = format!("{:x}\n", Sha256::digest(fs::read(&asset).unwrap()));
+        let checksum = format!(
+            "{}\n",
+            dm_plugin_support::codec::hex(&Sha256::digest(fs::read(&asset).unwrap()))
+        );
         fs::write(asset.with_extension("gz.sha256"), checksum).unwrap();
         root.to_path_buf()
     }

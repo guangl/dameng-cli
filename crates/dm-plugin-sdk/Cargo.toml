@@ -2,7 +2,7 @@
 name = "dm-plugin-sdk"
 version = "0.4.1"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.99.0"
 description = "Rust SDK for dameng-cli plugins"
 license = "MIT"
 repository = "https://github.com/guangl/dameng-cli"
