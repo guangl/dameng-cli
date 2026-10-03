@@ -9,7 +9,7 @@ if ! command -v cargo >/dev/null 2>&1; then
     exit 1
 fi
 
-for manifest in crates/dm-plugin-sdk/Cargo.toml crates/dm-plugin-support/Cargo.toml plugins/db/Cargo.toml plugins/ssh/Cargo.toml; do
+for manifest in crates/dm-plugin-sdk/Cargo.toml plugins/db/Cargo.toml plugins/ssh/Cargo.toml; do
     [ -f "$project_dir/$manifest" ] || {
         echo "dm local installer: initialize components with git submodule update --init --recursive" >&2
         exit 1

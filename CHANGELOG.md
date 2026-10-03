@@ -4,7 +4,7 @@
 
 - SDK、db、ssh 与 hello 模板迁移为固定提交的 git submodule，独立 CI 与发布流程；共享库保留在宿主仓库。
 - hello 提供 GitHub template；宿主保留集成 workspace 与随宿主安装，发布校验来源清单以支持插件独立更新。
-- 内部工具库 dm-plugin-support 也从宿主目录迁出为固定提交的 git submodule（独立仓库，保持 `publish = false`，不创建标签、不产出 Release 产物），只供宿主使用，宿主通过 submodule 继续集成当前源码。
+- 工具库 dm-plugin-support 先迁出为固定提交的 git submodule（独立仓库，保持 `publish = false`，不创建标签、不产出 Release 产物），随后整体移除：宿主工具代码回到 `src/support/`（有界读取、十六进制编码、子进程与并发控制、交互与补全、配置展示），submodule、Cargo 依赖与 lockfile 条目一并删除，独立仓库归档；宿主不再为插件重定向该仓库。
 - db、ssh 插件各自在 `src/support/` 内维护有界读取、十六进制编码、AES-GCM 字节格式、终端交互、配置展示、诊断与补全工具，移除对 dm-plugin-support 的 Git 依赖和 lockfile 条目；两个插件仓库独立克隆即可构建，内联代码的单元测试一并迁入各自的 `tests/unit/`。宿主不再需要为插件重定向该仓库的 Cargo patch。
 - 新增插件列表，记录 db、ssh、sqllog2db 的来源、安装方式和兼容限制，区分开发示例，并在 README、文档首页与导航添加入口。
 - SSH 改为内置 Rust 库，无需额外安装客户端；添加配置须先通过连通性与认证测试，失败不覆盖已有记录。

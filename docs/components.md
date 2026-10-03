@@ -5,7 +5,7 @@ title: 组件开发与独立发版
 
 # 组件开发与独立发版
 
-宿主通过 git submodule 接入 SDK、db、ssh、support 和 hello 模板。SDK 与插件独立管理版本；dm-plugin-support 是宿主自己的内部工具库，从宿主目录迁出到独立仓库，只固定提交引用、不发布，内置插件各自在 `src/support/` 内维护同类工具，不再依赖它。
+宿主通过 git submodule 接入 SDK、db、ssh 和 hello 模板。SDK 与插件独立管理版本；宿主的工具代码留在 `src/support/`，内置插件各自在自己的仓库内维护 `src/support/`，两边不共享，也没有跨仓库的内部库。
 
 ## 初始化与构建
 
@@ -34,6 +34,6 @@ cargo test --workspace --locked
 - SDK：在 dm-plugin-sdk 仓库更新包版本，通过 PR 后创建匹配的 vX.Y.Z 标签。Release workflow 运行 CI、验证标签并发布 crates.io，需要仓库 Secret `CARGO_REGISTRY_TOKEN`。
 - db、ssh：各自仓库同步 Cargo.toml、dm-plugin.toml 和 Cargo.lock，通过 PR 后创建匹配标签。发布六个平台归档和 SHA-256，GNU Linux 检查 glibc 2.28 符号与 Debian 10 运行。另发布仓库安装方式使用的原始二进制和 SHA-256；musl 仅发布独立目标归档。
 - hello：dm-plugin-template 是 GitHub template，Use this template 创建自己的插件。同步清单、binary 名、构建脚本和 README 后，即可复用测试与独立 Release workflow。
-- support：独立仓库 dm-plugin-support，但保持宿主内部共享库的定位，不发布：不发布 crates.io 包、不创建标签、不产出 Release 产物，CI 只做质量与测试检查。宿主以 submodule 固定提交接入；内置插件不再依赖它，各自维护自己的 `src/support/`。修改走该仓库 PR，再由宿主 PR 更新固定提交并刷新 lockfile。
+- 宿主内部工具：`src/support/` 随宿主仓库一起发版，没有独立仓库、标签或 Release 产物；插件内的同类实现同样随各自插件发版。
 
 宿主 Release 保留当前安装协议，继续附带固定组件提交构建的 db、ssh。额外的 SHA-256 校验来源清单记录独立仓库和插件标签，安装后更新跟随独立插件 Release。来源仓库尚未发布正式 Release 时，更新检查会报告查询失败；配置完成、PR 通过和实际 Release 发布是不同阶段。

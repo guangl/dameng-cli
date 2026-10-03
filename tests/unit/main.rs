@@ -11,5 +11,11 @@ mod logging;
 mod manifest;
 mod self_update;
 mod store;
+mod support_bounded;
+mod support_completion;
+mod support_config;
+mod support_interaction;
+mod support_parallel;
+mod support_process;
 
 mod cli_args;

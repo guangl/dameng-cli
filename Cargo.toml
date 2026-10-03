@@ -1,7 +1,6 @@
 [workspace]
 members = [
     "crates/dm-plugin-sdk",
-    "crates/dm-plugin-support",
     "examples/hello",
     "plugins/db",
     "plugins/ssh",
@@ -38,7 +37,6 @@ path = "tests/unit/main.rs"
 
 [dependencies]
 anyhow = "1.0.104"
-dm-plugin-support = { path = "crates/dm-plugin-support" }
 clap = { version = "4.6.7", features = ["derive"] }
 env_logger = "0.11"
 log = "0.4"

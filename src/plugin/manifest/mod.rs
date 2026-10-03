@@ -61,7 +61,7 @@ impl Manifest {
             fs::symlink_metadata(&path).with_context(|| format!("Read {}", path.display()))?;
         ensure!(metadata.is_file(), "Manifest must be a regular file");
         ensure!(metadata.len() <= 64 * 1024, "Manifest exceeds 64 KiB");
-        Self::from_toml(&dm_plugin_support::bounded::text(&path, 64 * 1024)?)
+        Self::from_toml(&crate::support::bounded::text(&path, 64 * 1024)?)
             .with_context(|| format!("Invalid manifest {}", path.display()))
     }
 

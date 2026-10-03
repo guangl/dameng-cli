@@ -522,7 +522,6 @@ dependencies = [
  "clap",
  "comfy-table",
  "dm-plugin-sdk",
- "dm-plugin-support",
  "env_filter",
  "env_logger",
  "fs2",
@@ -693,20 +692,6 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml",
-]
-
-[[package]]
-name = "dm-plugin-support"
-version = "0.1.0"
-dependencies = [
- "aes-gcm",
- "anyhow",
- "clap",
- "rand",
- "rpassword",
- "serde",
- "serde_json",
- "tempfile",
 ]
 
 [[package]]

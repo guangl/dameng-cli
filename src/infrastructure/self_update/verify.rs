@@ -23,7 +23,7 @@ pub fn validate_repository(repository: &str) -> Result<()> {
 
 pub fn verify_checksum(archive: &[u8], checksum: &[u8]) -> Result<()> {
     verify_digest(
-        &dm_plugin_support::codec::hex(&Sha256::digest(archive)),
+        &crate::support::codec::hex(&Sha256::digest(archive)),
         checksum,
     )
 }
@@ -47,7 +47,7 @@ fn verify_digest(actual: &str, checksum: &[u8]) -> Result<()> {
 
 /// Verify an archive using a fixed 64 KiB buffer instead of loading it in memory.
 pub fn verify_checksum_file(archive: &Path, checksum: &Path) -> Result<()> {
-    let checksum = dm_plugin_support::bounded::file(checksum, 4096)?;
+    let checksum = crate::support::bounded::file(checksum, 4096)?;
     let mut file = std::fs::File::open(archive)?;
     let mut hasher = Sha256::new();
     let mut buffer = [0_u8; 64 * 1024];
@@ -58,8 +58,5 @@ pub fn verify_checksum_file(archive: &Path, checksum: &Path) -> Result<()> {
         }
         hasher.update(&buffer[..count]);
     }
-    verify_digest(
-        &dm_plugin_support::codec::hex(&hasher.finalize()),
-        &checksum,
-    )
+    verify_digest(&crate::support::codec::hex(&hasher.finalize()), &checksum)
 }

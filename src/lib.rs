@@ -4,6 +4,9 @@ pub mod cli;
 mod infrastructure;
 mod plugin;
 
+#[doc(hidden)]
+pub mod support;
+
 /// Host diagnostics: where the log file lives and how the backend starts.
 pub mod logging {
     pub use crate::infrastructure::logging::*;

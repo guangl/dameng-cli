@@ -3,7 +3,7 @@ use log::info;
 use std::{path::PathBuf, process::Command};
 
 use super::progress_bar_for;
-use dm_plugin_support::process::capture;
+use crate::support::process::capture;
 use std::time::Duration;
 
 pub(crate) fn checkout_git(

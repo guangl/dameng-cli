@@ -1,7 +1,7 @@
 //! Argument definitions for the `dm` command line.
 
+use crate::support::config::ConfigCommand;
 use clap::{Parser, Subcommand};
-use dm_plugin_support::config::ConfigCommand;
 use std::ffi::OsString;
 
 /// The `dm` command line.

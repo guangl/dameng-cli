@@ -48,11 +48,8 @@ pub fn self_update_with_options(options: SelfUpdateOptions<'_>) -> Result<SelfUp
         let url = format!("https://api.github.com/repos/{repository}/releases/latest");
         let metadata = temp.path().join("release.json");
         download(&url, &metadata)?;
-        serde_json::from_slice::<Release>(&dm_plugin_support::bounded::file(
-            &metadata,
-            1024 * 1024,
-        )?)?
-        .tag_name
+        serde_json::from_slice::<Release>(&crate::support::bounded::file(&metadata, 1024 * 1024)?)?
+            .tag_name
     };
     let current = Version::parse(env!("CARGO_PKG_VERSION"))?;
     let available = Version::parse(tag.trim_start_matches('v'))
@@ -97,7 +94,7 @@ pub fn self_update_with_options(options: SelfUpdateOptions<'_>) -> Result<SelfUp
 
 fn download(url: &str, destination: &std::path::Path) -> Result<()> {
     info!("downloading {url}");
-    let output = dm_plugin_support::process::capture(
+    let output = crate::support::process::capture(
         Command::new("curl")
             .args([
                 "-q",

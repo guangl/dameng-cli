@@ -74,7 +74,7 @@ esac
         .env(
             "CHECKSUM",
             if checksum == "valid" {
-                dm_plugin_support::codec::hex(&Sha256::digest(fs::read(&binary).unwrap()))
+                dameng_cli::support::codec::hex(&Sha256::digest(fs::read(&binary).unwrap()))
             } else {
                 checksum.to_owned()
             },

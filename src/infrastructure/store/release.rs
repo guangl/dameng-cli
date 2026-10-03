@@ -2,8 +2,8 @@
 use super::{InstallMode, PluginStore, github_repository};
 use crate::Manifest;
 use crate::infrastructure::self_update::{normalize_tag, verify_checksum_file};
+use crate::support::process::capture;
 use anyhow::{Context, Result, ensure};
-use dm_plugin_support::process::capture;
 use std::time::Duration;
 use std::{
     fs,
