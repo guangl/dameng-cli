@@ -153,4 +153,15 @@ for plugin in $plugins; do
         "$install_dir/dm" install "$plugin_dir" --replace
     fi
 done
+
+# Shell completion is written to the location each shell loads automatically.
+# Older hosts without --install only get a hint instead of failing the install.
+if "$install_dir/dm" completions --help 2>/dev/null | grep -q -- '--install'; then
+    for shell in bash zsh; do
+        "$install_dir/dm" completions "$shell" --install ||
+            echo "dm installer: ${shell} completion was not installed" >&2
+    done
+else
+    echo "提示：运行 $install_dir/dm completions bash --install 可启用 shell 补全" >&2
+fi
 echo "Installed dm ${version} and its bundled plugins to $install_dir/dm"

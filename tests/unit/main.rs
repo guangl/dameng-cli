@@ -6,6 +6,7 @@
 
 mod cli_report;
 mod cli_table;
+mod completion_install;
 mod config;
 mod logging;
 mod manifest;

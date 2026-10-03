@@ -32,6 +32,8 @@ class InstallerTests(unittest.TestCase):
                 host.write_text('''#!/bin/sh
 if [ "$*" = 'install --help' ]; then
   echo '--release-source'
+elif [ "$*" = 'completions --help' ]; then
+  echo '--install'
 else
   printf '%s\\n' "$*" >> "$DM_TEST_LOG"
 fi
@@ -87,6 +89,9 @@ else:
         result, log = self.install("independent")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("--release-source guangl/dm-plugin-db --release-tag v0.2.0", log)
+        # The installer also installs shell completion for both supported shells.
+        self.assertIn("completions bash --install", log)
+        self.assertIn("completions zsh --install", log)
 
     def test_old_release_tracks_host_repository_and_host_tag(self):
         result, log = self.install("legacy")

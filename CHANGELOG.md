@@ -6,6 +6,7 @@
 - hello 提供 GitHub template；宿主保留集成 workspace 与随宿主安装，发布校验来源清单以支持插件独立更新。
 - 工具库 dm-plugin-support 先迁出为固定提交的 git submodule（独立仓库，保持 `publish = false`，不创建标签、不产出 Release 产物），随后整体移除：宿主工具代码回到 `src/support/`（有界读取、十六进制编码、子进程与并发控制、交互与补全、配置展示），submodule、Cargo 依赖与 lockfile 条目一并删除，独立仓库归档；宿主不再为插件重定向该仓库。
 - db、ssh 插件各自在 `src/support/` 内维护有界读取、十六进制编码、AES-GCM 字节格式、终端交互、配置展示、诊断与补全工具，移除对 dm-plugin-support 的 Git 依赖和 lockfile 条目；两个插件仓库独立克隆即可构建，内联代码的单元测试一并迁入各自的 `tests/unit/`。宿主不再需要为插件重定向该仓库的 Cargo patch。
+- `dm completions <shell> --install [--dir PATH]` 把补全脚本写入 shell 自动加载的目录（Bash 用 bash-completion/completions，Zsh 用 zsh/site-functions），并打印路径与启用提示；`scripts/install.sh`、`scripts/install-local.sh` 安装后自动为 Bash 与 Zsh 启用补全，旧宿主不支持该参数时只输出提示；不带 `--install` 时命令行为不变。
 - 新增插件列表，记录 db、ssh、sqllog2db 的来源、安装方式和兼容限制，区分开发示例，并在 README、文档首页与导航添加入口。
 - SSH 改为内置 Rust 库，无需额外安装客户端；添加配置须先通过连通性与认证测试，失败不覆盖已有记录。
 - 移除重复的 SSH 登录别名，保留 `dm ssh connect`。

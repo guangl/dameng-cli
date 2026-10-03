@@ -61,7 +61,7 @@ SSH 插件用同样的两种形式迁移：`dm ssh export [--file PATH] [--inclu
 | `dm <name> [args...]` | 执行启用的插件并原样转发参数。 |
 | `dm update [--json]` | 并行读取各来源的清单版本；固定 ref 仍按原 ref 检查。来源是已被删除的本地目录（例如安装脚本的临时目录）时该项报告 `unknown`、`update_available` 为 `false`，不会让整条命令失败。 |
 | `dm doctor [--repair] [--json]` | 检查 SQLite、插件目录、残留事务及孤立目录；`--repair` 只处理可恢复问题。 |
-| `dm completions <shell>` | 输出 Bash 或 Zsh 动态补全脚本，支持已安装插件、插件子命令/选项/文件路径及连接名称。 |
+| `dm completions <shell> [--install [--dir PATH]]` | 输出 Bash 或 Zsh 动态补全脚本，支持已安装插件、插件子命令/选项/文件路径及连接名称；`--install` 改为写入 shell 的补全目录（默认 `${XDG_DATA_HOME:-~/.local/share}` 下的约定位置，`--dir` 覆盖），并打印路径与启用提示。 |
 | `dm config init/show/path` | 创建配置示例、显示有效值与来源、显示配置路径；`show` 支持 `--json`。 |
 | `dm doctor <plugin> [--json]` | 转发到插件的环境检查；插件检查不支持宿主 `--repair`。 |
 

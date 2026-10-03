@@ -50,9 +50,28 @@ dm ssh doctor --json
 
 补全包括宿主命令、已安装插件、启用补全的插件子命令与参数、文件路径，以及保存的连接名称。无需为内置插件单独安装脚本，安装、卸载或添加连接后自动生效。
 
+### 安装
+
+`scripts/install.sh` 与 `scripts/install-local.sh` 安装完宿主后会直接调用 `dm completions <shell> --install`，把脚本写到 shell 自动加载的目录，重新打开终端即可使用：
+
+| shell | 默认路径 | 是否自动加载 |
+| --- | --- | --- |
+| Bash | `${XDG_DATA_HOME:-~/.local/share}/bash-completion/completions/dm` | 是，bash-completion 会加载该目录 |
+| Zsh | `${XDG_DATA_HOME:-~/.local/share}/zsh/site-functions/_dm` | 需要该目录在 `fpath` 中，见下方提示 |
+
+手动安装或换目录：
+
+```sh
+dm completions bash --install              # 写入默认目录
+dm completions zsh --install
+dm completions bash --install --dir ~/.local/share/bash-completion/completions
+```
+
+`--install` 会打印实际写入的路径和启用提示；不加该参数时命令仍然只输出脚本，行为与之前一致。
+
 ### Bash
 
-在 `~/.bashrc` 中加入：
+已用安装脚本安装时无需任何配置；也可以自己在 `~/.bashrc` 中加入：
 
 ```sh
 source <(dm completions bash)
@@ -60,15 +79,21 @@ source <(dm completions bash)
 
 ### Zsh
 
-在 `~/.zshrc` 的 `compinit` 之后加入：
+已用安装脚本安装时，只需确保补全目录在 `fpath` 中（`compinit` 之前），例如在 `~/.zshrc` 加入：
+
+```sh
+fpath=(${XDG_DATA_HOME:-$HOME/.local/share}/zsh/site-functions $fpath)
+autoload -Uz compinit
+compinit
+```
+
+也可以不落盘，直接在 `compinit` 之后 source：
 
 ```sh
 autoload -Uz compinit
 compinit
 source <(dm completions zsh)
 ```
-
-也可将 `dm completions zsh` 的输出保存为 `$fpath` 中的 `_dm` 文件，让 `compinit` 加载。
 
 ### 体验示例
 
