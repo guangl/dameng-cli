@@ -5,6 +5,16 @@ use dameng_cli::{
 use std::path::Path;
 
 fn main() {
+    // Informational flags must work without configuration or writable storage.
+    if std::env::args_os().len() == 2
+        && std::env::args_os()
+            .nth(1)
+            .is_some_and(|arg| arg == "--version" || arg == "-V" || arg == "--help" || arg == "-h")
+    {
+        use clap::Parser;
+        let _ = cli::Cli::parse();
+        return;
+    }
     // Tab completion is quiet, read-only, and works even with invalid settings.
     if std::env::args_os()
         .nth(1)

@@ -67,12 +67,9 @@ pub(super) fn doctor(context: &Context, json: bool) -> Result<i32> {
             Vec::new()
         }
     };
-    report.tool("ssh");
-    if entries.iter().any(|server| {
-        server.auth_type == "password" || (server.auth_type == "key" && server.secret.is_some())
-    }) {
-        report.tool("sshpass");
-    }
+    report
+        .checks
+        .push("内置 Rust SSH，无需额外安装客户端工具".into());
     for server in &entries {
         if server.auth_type == "key" {
             if let Some(key) = &server.key_path {

@@ -9,8 +9,9 @@ fn export_and_import_round_trip_servers() {
     let temp = TempDir::new().unwrap();
     let source = temp.path().join("source");
     fs::create_dir_all(&source).unwrap();
-    ok(ssh(&source)
-        .args([
+    seed(
+        &source,
+        &[
             "add",
             "prod",
             "--host",
@@ -21,11 +22,11 @@ fn export_and_import_round_trip_servers() {
             "root",
             "--password",
             "p@ssw0rd",
-        ])
-        .output()
-        .unwrap());
-    ok(ssh(&source)
-        .args([
+        ],
+    );
+    seed(
+        &source,
+        &[
             "add",
             "keyed",
             "--host",
@@ -36,9 +37,8 @@ fn export_and_import_round_trip_servers() {
             "/tmp/id_ed25519",
             "--passphrase",
             "secret",
-        ])
-        .output()
-        .unwrap());
+        ],
+    );
 
     let stdout = ok(ssh(&source).args(["export"]).output().unwrap());
     assert!(stdout.contains("\"servers\""), "{stdout}");
@@ -117,8 +117,9 @@ fn encrypted_export_needs_a_terminal() {
     let temp = TempDir::new().unwrap();
     let home = temp.path().join("home");
     fs::create_dir_all(&home).unwrap();
-    ok(ssh(&home)
-        .args([
+    seed(
+        &home,
+        &[
             "add",
             "prod",
             "--host",
@@ -127,9 +128,8 @@ fn encrypted_export_needs_a_terminal() {
             "root",
             "--password",
             "p@ssw0rd",
-        ])
-        .output()
-        .unwrap());
+        ],
+    );
 
     let file = temp.path().join("servers.json");
     let stderr = failure(

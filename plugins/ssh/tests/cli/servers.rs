@@ -10,8 +10,9 @@ fn add_list_and_remove_servers() {
     let home = temp.path().join("home");
     fs::create_dir_all(&home).unwrap();
 
-    let add = ok(ssh(&home)
-        .args([
+    let add = seed(
+        &home,
+        &[
             "add",
             "prod",
             "--host",
@@ -22,9 +23,8 @@ fn add_list_and_remove_servers() {
             "root",
             "--password",
             "p@ssw0rd",
-        ])
-        .output()
-        .unwrap());
+        ],
+    );
     assert!(add.contains("已保存 SSH 连接 prod"), "{add}");
 
     let list = ok(ssh(&home).args(["list"]).output().unwrap());
@@ -64,8 +64,9 @@ fn list_json_reports_servers_without_secrets() {
     let empty = ok(ssh(&home).args(["list", "--json"]).output().unwrap());
     assert_eq!(empty.trim(), "[]");
 
-    ok(ssh(&home)
-        .args([
+    seed(
+        &home,
+        &[
             "add",
             "prod",
             "--host",
@@ -76,11 +77,11 @@ fn list_json_reports_servers_without_secrets() {
             "root",
             "--password",
             "p@ssw0rd",
-        ])
-        .output()
-        .unwrap());
-    ok(ssh(&home)
-        .args([
+        ],
+    );
+    seed(
+        &home,
+        &[
             "add",
             "keyed",
             "--host",
@@ -91,9 +92,8 @@ fn list_json_reports_servers_without_secrets() {
             "/tmp/id_ed25519",
             "--passphrase",
             "",
-        ])
-        .output()
-        .unwrap());
+        ],
+    );
 
     let output = ok(ssh(&home).args(["list", "--json"]).output().unwrap());
     let parsed: serde_json::Value = serde_json::from_str(&output).unwrap();

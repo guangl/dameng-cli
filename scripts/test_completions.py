@@ -1,5 +1,6 @@
 """Run generated adapters in real shells against isolated host/plugin stores."""
 import argparse
+import json
 import os
 from pathlib import Path
 import shlex
@@ -50,8 +51,15 @@ def main():
             shutil.copyfile(ROOT / f"plugins/{plugin}/dm-plugin.toml", package / "dm-plugin.toml")
             shutil.copyfile(binary_directory / f"dm-{plugin}{suffix}", package / f"dm-{plugin}{suffix}")
             run([dm, "install", str(package)], env, root)
-        for name in ["prod", "stage"]:
-            run([dm, "ssh", "add", name, "--host", "example.invalid", "--username", "root", "--password", "never-echo-this"], env, root)
+        # Completion only needs offline saved names; imported fixtures do not
+        # claim that an unreachable example host passed add validation.
+        records = root / "servers.json"
+        records.write_text(json.dumps({"version": 1, "count": 2, "servers": [
+            {"name": name, "host": "example.invalid", "port": 22,
+             "username": "root", "auth_type": "password"}
+            for name in ["prod", "stage"]
+        ]}))
+        run([dm, "ssh", "import", str(records)], env, root)
         run([dm, "db", "add", "prod", "--host", "example.invalid", "--password", "never-echo-this"], env, root)
         key = root / "private key"
         key.write_text("fixture")
