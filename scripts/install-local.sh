@@ -50,4 +50,8 @@ publish_binary "${project_dir}/target/release/dm-db" "${project_dir}/plugins/db/
 # already installed.
 "${install_dir}/dm" install "${project_dir}/plugins/ssh" --replace
 "${install_dir}/dm" install "${project_dir}/plugins/db" --replace
+for shell in bash zsh; do
+    "${install_dir}/dm" completions "${shell}" --install ||
+        echo "dm local installer: ${shell} completion was not installed" >&2
+done
 echo "Installed dm, dm-plugin-ssh and dm-plugin-db from local source to ${install_dir}/dm"

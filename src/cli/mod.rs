@@ -15,7 +15,7 @@ pub mod table;
 mod update;
 
 pub use args::{Cli, Command};
-pub use completions::Shell;
+pub use completions::{Shell, activation_hint, completion_dir, install, script};
 pub use report::report;
 
 use crate::{Config, PluginStore};
@@ -82,7 +82,19 @@ pub fn run(config: &Config) -> Result<i32> {
             target.as_deref(),
             json,
         )?,
-        Command::Completions { shell } => print!("{}", completions::script(shell)),
+        Command::Completions {
+            shell,
+            install,
+            dir,
+        } => {
+            if !install {
+                print!("{}", completions::script(shell));
+            } else {
+                let path = completions::install(shell, dir.as_deref())?;
+                println!("已安装 {} 补全：{}", shell.label(), path.display());
+                println!("提示：{}", completions::activation_hint(shell, &path));
+            }
+        }
         Command::Complete { mut words } => {
             if words.first().is_some_and(|word| word == "--") {
                 words.remove(0);

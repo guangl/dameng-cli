@@ -86,7 +86,15 @@ pub enum Command {
         json: bool,
     },
     /// 生成包含插件和连接名称的动态 shell 补全脚本。
-    Completions { shell: super::Shell },
+    Completions {
+        shell: super::Shell,
+        /// 安装到 shell 的补全目录，而不是打印到标准输出。
+        #[arg(long)]
+        install: bool,
+        /// 覆盖安装目录；默认按 XDG 数据目录选择。
+        #[arg(long, requires = "install")]
+        dir: Option<std::path::PathBuf>,
+    },
     /// 卸载插件，默认保留配置和连接数据。
     Uninstall {
         name: String,

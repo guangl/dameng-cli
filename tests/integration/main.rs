@@ -7,6 +7,7 @@
 
 mod cli;
 mod common;
+mod completion_install;
 mod config;
 mod config_runtime;
 mod doctor;
