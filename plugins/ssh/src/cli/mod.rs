@@ -26,6 +26,17 @@ pub fn run_cli(context: &PluginContext) -> Result<i32> {
 /// Command dispatch with an injectable prompt source, so tests cover the
 /// interactive branches without a terminal.
 pub fn run_with_prompter(context: &PluginContext, prompter: Option<&dyn Prompter>) -> Result<i32> {
+    run_with_validator(context, prompter, &crate::test_server)
+}
+
+/// Injectable transport validation for library integrations and isolated tests.
+/// The executable always uses the native SSH validator.
+#[doc(hidden)]
+pub fn run_with_validator(
+    context: &PluginContext,
+    prompter: Option<&dyn Prompter>,
+    validator: &dyn Fn(&PluginContext, &crate::Server) -> Result<()>,
+) -> Result<i32> {
     if completion::handle(context)? {
         return Ok(0);
     }
@@ -52,8 +63,9 @@ pub fn run_with_prompter(context: &PluginContext, prompter: Option<&dyn Prompter
                 prompter,
                 replace,
                 fields.yes,
+                validator,
             )?;
-            println!("已保存 SSH 连接 {name}。下一步：dm ssh test {name}");
+            println!("SSH 连通性与认证测试成功，已保存 SSH 连接 {name}");
         }
         SshCommand::Edit { name, fields } => edit::edit(context, &name, fields, prompter)?,
         SshCommand::Doctor { json } => return settings::doctor(context, json),

@@ -1,106 +1,196 @@
-use std::fs;
-
-use tempfile::TempDir;
-
 use crate::common::*;
+use std::io::Write;
+use tempfile::TempDir;
+#[path = "../support/server.rs"]
+mod server;
 
-#[cfg(unix)]
 #[test]
-fn add_with_key_reports_and_key_auth_runs_ssh() {
-    use std::os::unix::fs::PermissionsExt;
+fn native_password_add_test_connect_and_failed_replace_without_external_tools() {
+    let peer = server::Fixture::new();
     let temp = TempDir::new().unwrap();
     let home = temp.path().join("home");
-    fs::create_dir_all(&home).unwrap();
+    let port = peer.port.to_string();
+    let args = [
+        "add",
+        "prod",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        &port,
+        "--username",
+        "user",
+        "--password",
+        "fixture-password",
+    ];
+    let output = ok(ssh(&home).env("PATH", "").args(args).output().unwrap());
+    assert!(output.contains("认证测试成功"));
+    assert!(
+        ok(ssh(&home)
+            .env("PATH", "")
+            .args(["test", "prod"])
+            .output()
+            .unwrap())
+        .contains("测试成功")
+    );
+    let before = std::fs::read(home.join("data/ssh/servers.sqlite3")).unwrap();
+    let mut wrong = args;
+    wrong[9] = "wrong-secret";
+    let error = failure(ssh(&home).args(wrong).arg("--replace").output().unwrap());
+    assert!(error.contains("认证失败"), "{error}");
+    assert!(error.contains("配置未保存"));
+    assert!(!error.contains("wrong-secret"));
+    assert_eq!(
+        before,
+        std::fs::read(home.join("data/ssh/servers.sqlite3")).unwrap()
+    );
+    let mut child = ssh(&home)
+        .env("PATH", "")
+        .args(["connect", "prod"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(b"native-shell-ok\n")
+        .unwrap();
+    let output = child.wait_with_output().unwrap();
+    assert_eq!(output.status.code(), Some(7));
+    assert!(String::from_utf8_lossy(&output.stdout).contains("native-shell-ok"));
+    let rejected = failure(ssh(&home).args(["ssh", "prod"]).output().unwrap());
+    assert!(rejected.contains("unrecognized subcommand"), "{rejected}");
+}
 
-    let tools = temp.path().join("tools");
-    fs::create_dir(&tools).unwrap();
-    let ssh_script = tools.join("ssh");
-    fs::write(&ssh_script, "#!/bin/sh\nexit 0\n").unwrap();
-    fs::set_permissions(&ssh_script, fs::Permissions::from_mode(0o755)).unwrap();
-    let sshpass = tools.join("sshpass");
-    fs::write(
-        &sshpass,
-        "#!/bin/sh\n[ \"$SSHPASS\" = secret ] || exit 2\n[ \"$1\" = -e ] || exit 3\n[ \"$2\" = -P ] || exit 4\n[ \"$3\" = 'Enter passphrase for key' ] || exit 5\nshift 3\nexec \"$@\"\n",
-    )
-    .unwrap();
-    fs::set_permissions(&sshpass, fs::Permissions::from_mode(0o755)).unwrap();
-    let path = std::env::join_paths(
-        std::iter::once(tools).chain(std::env::split_paths(&std::env::var_os("PATH").unwrap())),
-    )
-    .unwrap();
-
-    let add = ok(ssh(&home)
+#[test]
+fn native_encrypted_private_key_authentication_and_wrong_passphrase() {
+    let peer = server::Fixture::new();
+    let temp = TempDir::new().unwrap();
+    let home = temp.path().join("home");
+    let path = temp.path().join("encrypted key");
+    peer.key
+        .encrypt(&mut rand::rng(), "key-phrase")
+        .unwrap()
+        .write_openssh_file(&path, russh::keys::ssh_key::LineEnding::LF)
+        .unwrap();
+    let port = peer.port.to_string();
+    ok(ssh(&home)
+        .env("PATH", "")
         .args([
             "add",
             "keyed",
             "--host",
-            "10.0.0.9",
+            "127.0.0.1",
+            "--port",
+            &port,
             "--username",
-            "ubuntu",
+            "user",
             "--key",
-            "/tmp/id_ed25519",
-            "--passphrase",
-            "secret",
         ])
+        .arg(&path)
+        .args(["--passphrase", "key-phrase"])
         .output()
         .unwrap());
-    assert!(add.contains("已保存 SSH 连接 keyed"), "{add}");
-
-    let list = ok(ssh(&home).args(["list"]).output().unwrap());
-    assert!(list.contains("key"), "{list}");
-
-    let mut test = ssh(&home);
-    test.env("PATH", &path);
-    let test_out = ok(test.args(["test", "keyed"]).output().unwrap());
-    assert!(test_out.contains("SSH 连接 keyed 测试成功"), "{test_out}");
+    ok(ssh(&home)
+        .env("PATH", "")
+        .args(["test", "keyed"])
+        .output()
+        .unwrap());
+    let error = failure(
+        ssh(&home)
+            .args([
+                "add",
+                "bad",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                &port,
+                "--username",
+                "user",
+                "--key",
+            ])
+            .arg(&path)
+            .args(["--passphrase", "wrong-phrase"])
+            .output()
+            .unwrap(),
+    );
+    assert!(error.contains("配置未保存"));
+    assert!(!error.contains("wrong-phrase"));
+    let entries = ok(ssh(&home).args(["list", "--json"]).output().unwrap());
+    let entries: serde_json::Value = serde_json::from_str(&entries).unwrap();
+    assert_eq!(entries.as_array().unwrap().len(), 1);
 }
 
-#[cfg(unix)]
 #[test]
-fn password_auth_test_and_ssh_exit_codes_are_preserved() {
-    use std::os::unix::fs::PermissionsExt;
+fn changed_host_key_is_rejected_and_failed_first_auth_does_not_pin() {
+    let peer = server::Fixture::new();
     let temp = TempDir::new().unwrap();
     let home = temp.path().join("home");
-    fs::create_dir_all(&home).unwrap();
-
-    let tools = temp.path().join("tools");
-    fs::create_dir(&tools).unwrap();
-    let sshpass = tools.join("sshpass");
-    fs::write(&sshpass, "#!/bin/sh\nexit 0\n").unwrap();
-    fs::set_permissions(&sshpass, fs::Permissions::from_mode(0o755)).unwrap();
-    let path = std::env::join_paths(
-        std::iter::once(tools).chain(std::env::split_paths(&std::env::var_os("PATH").unwrap())),
+    let port = peer.port.to_string();
+    let args = [
+        "add",
+        "prod",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        &port,
+        "--username",
+        "user",
+        "--password",
+        "wrong-password",
+    ];
+    let error = failure(ssh(&home).args(args).output().unwrap());
+    assert!(error.contains("配置未保存"));
+    assert!(!home.join("data/ssh/known_hosts").exists());
+    let mut good = args;
+    good[9] = "fixture-password";
+    ok(ssh(&home).args(good).output().unwrap());
+    // Seed a different trusted host key for the same endpoint.
+    std::fs::write(
+        home.join("data/ssh/known_hosts"),
+        format!(
+            "[127.0.0.1]:{} {}\n",
+            peer.port,
+            peer.key.public_key().to_openssh().unwrap()
+        ),
     )
     .unwrap();
+    let error = failure(ssh(&home).args(["test", "prod"]).output().unwrap());
+    assert!(error.contains("主机密钥校验失败"), "{error}");
+}
 
-    ok(ssh(&home)
-        .args([
-            "add",
-            "pw",
-            "--host",
-            "10.0.0.10",
-            "--username",
-            "root",
-            "--password",
-            "p@ssw0rd",
-        ])
-        .output()
-        .unwrap());
-
-    let mut test = ssh(&home);
-    test.env("PATH", &path);
-    let test_out = ok(test.args(["test", "pw"]).output().unwrap());
-    assert!(test_out.contains("SSH 连接 pw 测试成功"), "{test_out}");
-
-    fs::write(&sshpass, "#!/bin/sh\nexit 7\n").unwrap();
-    let mut session = ssh(&home);
-    session.env("PATH", &path);
-    let output = session.args(["ssh", "pw"]).output().unwrap();
-    assert_eq!(output.status.code(), Some(7));
-
-    fs::write(&sshpass, "#!/bin/sh\nkill -TERM $$\n").unwrap();
-    let mut signalled = ssh(&home);
-    signalled.env("PATH", &path);
-    let output = signalled.args(["ssh", "pw"]).output().unwrap();
-    assert_eq!(output.status.code(), Some(143));
+#[test]
+fn add_times_out_during_handshake_and_never_saves() {
+    let temp = TempDir::new().unwrap();
+    let home = temp.path().join("home");
+    write_plugin_config(&home, "[test]\nconnect_timeout = 1\n");
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port().to_string();
+    let start = std::time::Instant::now();
+    let error = failure(
+        ssh(&home)
+            .args([
+                "add",
+                "silent",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                &port,
+                "--username",
+                "user",
+                "--password",
+                "hidden-password",
+            ])
+            .output()
+            .unwrap(),
+    );
+    assert!(error.contains("timed out"), "{error}");
+    assert!(error.contains("配置未保存"));
+    assert!(!error.contains("hidden-password"));
+    assert!(start.elapsed() < std::time::Duration::from_secs(5));
+    assert_eq!(
+        ok(ssh(&home).args(["list", "--json"]).output().unwrap()).trim(),
+        "[]"
+    );
 }

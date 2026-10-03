@@ -2,7 +2,6 @@
 import getpass
 import os
 from pathlib import Path
-import shlex
 import shutil
 import socket
 import subprocess
@@ -20,7 +19,7 @@ def run(args, **kwargs):
 
 def main():
     sshd = shutil.which("sshd") or "/usr/sbin/sshd"
-    assert Path(sshd).is_file() and shutil.which("sshpass"), "sshd and sshpass are required"
+    assert Path(sshd).is_file(), "sshd is required for this compatibility test"
     privilege = [] if os.geteuid() == 0 else ["sudo", "-n"]
     run(privilege + ["mkdir", "-p", "/run/sshd"])
     with tempfile.TemporaryDirectory(prefix="dm-ssh-auth-") as directory:
@@ -62,24 +61,7 @@ def main():
                         time.sleep(0.05)
                 else:
                     raise AssertionError("loopback sshd did not start")
-                known = root / "known_hosts"
-                host_public = Path(str(host_key) + ".pub").read_text().split()
-                known.write_text(f"[127.0.0.1]:{port} {host_public[0]} {host_public[1]}\n")
-                client_config = root / "ssh_config"
-                client_config.write_text(
-                    f'Host *\n  UserKnownHostsFile "{known}"\n  StrictHostKeyChecking yes\n'
-                    "  IdentitiesOnly yes\n  IdentityAgent none\n  RequestTTY no\n"
-                )
-                # Add only test-specific host-key settings; use the actual OpenSSH client.
-                tools = root / "tools"
-                tools.mkdir()
-                wrapper = tools / "ssh"
-                wrapper.write_text(
-                    f"#!/bin/sh\nexec /usr/bin/ssh -F {shlex.quote(str(client_config))} \"$@\"\n"
-                )
-                wrapper.chmod(0o755)
                 env = dict(os.environ, DM_PLUGIN_HOME=str(root / "home"), DM_LOG="off")
-                env["PATH"] = str(tools) + os.pathsep + env["PATH"]
                 binary = str(ROOT / "target/debug/dm")
                 package = root / "package"
                 package.mkdir()

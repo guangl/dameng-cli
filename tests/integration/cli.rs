@@ -177,3 +177,17 @@ fn info_points_at_the_plugin_owned_configuration() {
         "{config_file:?}"
     );
 }
+
+#[test]
+fn version_flags_work_without_valid_configuration_or_storage() {
+    let temp = TempDir::new().unwrap();
+    let home = temp.path().join("home");
+    fs::create_dir_all(&home).unwrap();
+    fs::write(home.join("config.toml"), "invalid = [").unwrap();
+    for flag in ["--version", "-V"] {
+        let output = ok(dm(&home).arg(flag).output().unwrap());
+        assert_eq!(output.trim(), concat!("dm ", env!("CARGO_PKG_VERSION")));
+    }
+    assert!(!home.join("store.sqlite3").exists());
+    assert!(!home.join("logs").exists());
+}

@@ -26,7 +26,7 @@ pub fn ssh_hint(error: &Error) -> String {
         return "网络连接失败；请检查地址、端口、防火墙和网络连通性。".into();
     }
     if text.contains("运行 dm ssh doctor") {
-        return "运行 `dm ssh doctor` 检查本机 ssh/sshpass、配置与私钥路径。".into();
+        return "运行 `dm ssh doctor` 检查配置与私钥路径。".into();
     }
     if text.contains("not configured") || text.contains("不存在") || text.contains("尚无连接")
     {
@@ -43,9 +43,6 @@ pub fn ssh_hint(error: &Error) -> String {
     if text.contains("export") || text.contains("import") || text.contains("passphrase") {
         return "导入/导出失败：请检查文件路径、导出版本与口令；加密导入导出需要在终端下输入并确认口令。"
             .into();
-    }
-    if text.contains("sshpass") {
-        return "密码认证或使用已保存私钥口令的测试/登录需要安装 `sshpass`；未保存口令的密钥连接直接使用系统 ssh。".into();
     }
     if text.contains("password") || text.contains("key") {
         return "请通过 `--password` 或 `--key` 提供认证，或在终端下运行以交互输入。".into();

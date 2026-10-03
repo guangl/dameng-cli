@@ -16,7 +16,7 @@ pub(crate) struct Cli {
 
 #[derive(Subcommand)]
 pub(crate) enum SshCommand {
-    /// 添加连接；同名连接需使用 --replace。
+    /// 添加连接；认证测试成功后保存，同名连接需使用 --replace。
     Add {
         name: Option<String>,
         #[command(flatten)]
@@ -67,6 +67,6 @@ pub(crate) enum SshCommand {
     /// 测试连接（非交互网络测试）。
     Test { name: Option<String> },
     /// 登录 SSH；省略名称可搜索选择连接。
-    #[command(name = "connect", visible_alias = "ssh")]
+    #[command(name = "connect")]
     Ssh { name: Option<String> },
 }

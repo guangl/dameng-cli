@@ -18,5 +18,5 @@ port = 22
 
 # dm ssh test 的连接参数。
 [test]
-# SSH ConnectTimeout（秒），默认 10。
+# add/test/connect 连接与认证总超时（秒），默认 10。
 connect_timeout = 10

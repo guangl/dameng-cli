@@ -3,6 +3,9 @@
 ## Unreleased
 
 - 新增插件列表，记录 db、ssh、sqllog2db 的来源、安装方式和兼容限制，区分开发示例，并在 README、文档首页与导航添加入口。
+- SSH 改为内置 Rust 库，无需额外安装客户端；添加配置须先通过连通性与认证测试，失败不覆盖已有记录。
+- 移除重复的 SSH 登录别名，保留 `dm ssh connect`。
+- `dm --version` / `dm -V` 无需有效配置或可写数据目录即可输出版本。
 
 - Linux GNU x86_64/ARM64 发布构建固定 glibc 2.28，CI 和发布同时校验 ELF 符号要求并在 Debian 10 容器中启动宿主及内置插件；Rust stable 可升级但不得提高 glibc 基线。
 
@@ -19,7 +22,7 @@
 
 - 宿主诊断日志按本机日期保存，保留最近 30 天；每个每日文件默认最多 5 MiB，路径和大小上限可配置。历史日志清理失败不阻止当前写入，诊断日志不回退到 stdout/stderr。
 - 更新检查采用可配置的固定工作池（默认 4 个），Release 流式校验，插件元数据批量查询、数据库结果逐行输出；配置、导入、SQL 输入及辅助进程输出和运行时间均有资源边界。
-- 修复 SSH 私钥口令未用于连接的问题：保存的口令通过 `sshpass -e -P` 应答 OpenSSH 私钥提示，测试允许口令应答；未保存口令的密钥连接仍直接使用系统 `ssh`。密码与口令不再进入子进程参数，`doctor` 同时检查密码认证和已保存私钥口令所需的 `sshpass`；增加真实 SSH 服务的加密密钥测试、登录与错误口令回归场景。
+- SSH 文档补充了认证、私钥路径和凭据存储说明；当前 SSH 认证由内置 Rust 库完成。
 - 修复 `dm uninstall --purge` 清理失败后无法重试的问题：安装记录移除后仍保留数据登记，所有配置、数据、缓存和备份目录清理成功才删除登记；错误提示给出可重试命令，中断或部分失败时 `doctor --repair` 保留剩余数据。
 - 新增连接编辑、`add --replace`、删除确认与 SSH 连接选择；编辑仅修改指定字段，默认保留秘密，认证方式或私钥改变时不复用旧秘密。
 - 卸载默认保留配置、连接、缓存和备份，重新安装可继续使用；`--purge` 才清空，脚本必须显式加 `--yes`。
@@ -45,7 +48,7 @@
 - 宿主对「存储中的插件清单无法解析」给出可操作提示：这类清单来自更早的 `dm`（典型是仍写着已移除的 `permissions` 字段），提示改为用 `dm install <包目录> --replace` 重装该插件刷新元数据并保留配置与数据；此前会落到「插件要求的 API 版本与当前 dm 不兼容」这一误导性提示上。
 - `dm ssh list` 与 `dm db list` 新增 `--json`，输出与文本表格相同的字段（SSH 为 name/host/port/username/auth_type/key_path，数据库为 name/host/port/username/schema/driver，未选模式时 `schema` 为 `null`），空列表输出 `[]`，且都不含密码与私钥口令；两者的文本输出改为与宿主 `dm list` 相同的带边框 UTF-8 表格（非终端宽度 120、超长截断），空存储仍然不打印任何内容。表格输出统一以换行结尾，交互式 shell 的提示符不再接在表格底边上。
 - 新增 Intel macOS 产物 `x86_64-apple-darwin`：Release workflow 增加该 target 的宿主与内置插件归档，`scripts/install.sh` 识别 `Darwin:x86_64` 自动选择它，`dm self-update` 与配置文件 `[update] target` 接受该取值；README、CLI 参考、发布说明与 `examples/config.toml` 同步说明 macOS 同时覆盖 Apple Silicon 与 Intel。
-- `plugins/ssh` 补上自己的 `README.md`：此前该插件目录没有 README，发布打包会回退到仓库根 README，把宿主说明当成插件说明放进 `dm-ssh-<tag>-<target>` 归档。新 README 记录 `dm ssh` 全部子命令、导出的前提（密码认证的 `test`/`ssh` 需要系统安装 `sshpass`，密钥认证只需要本机 `ssh` 与本机上的私钥，远端只需对应公钥）、插件配置、数据与安全约定；README 与 CLI 参考也补上了 `sshpass` 这一前置条件。
+- SSH 文档补充了认证、私钥路径和凭据存储说明；当前 SSH 认证由内置 Rust 库完成。
 
 - `dm ssh` 增加服务器配置导入导出，与 `dm db` 的迁移命令保持同一套行为：`dm ssh export [--file PATH] [--include-secrets]` 默认省略密码与私钥口令（省略 `--file` 时输出 JSON 到 stdout），`--include-secrets` 会在终端输入并确认导出加密口令，再用口令派生密钥加密；`dm ssh import <file> [--replace]` 默认拒绝覆盖同名服务器，`--replace` 时若文件不含密码/口令，只在认证方式一致（密钥认证还要求密钥路径一致）时保留本机原有秘密，避免把密码当成口令复用。导入会校验导出版本、条目数量、名称、端口、主机、用户名与认证方式（密钥认证必须带密钥路径，密码认证不得带密钥路径），携带的密码与口令在目标机器用本机密钥重新加密，密钥路径按原样导入；导出文件不覆盖已有文件、Unix 权限为 `0600`，加密导入导出需要终端，非交互环境直接报错。为此 `dm ssh` 命令层拆分为 `commands/{mod,cli,add}.rs` 并新增可注入提示源的 `run_with_prompter`，README 与 CLI 参考同步补充两者的用法。
 - 全量对齐「宿主只安装预编译插件」的文档：README、架构、发布、清单、快速开始、测试、故障排查、协议规范与文档站点不再声称宿主编译插件源码或解析 `Cargo.toml`；本地安装流程统一为「`cargo build --release --locked` → 把 `dm-<name>` 放到 `dm-plugin.toml` 同级 → `dm install`」，`examples/hello` 的验证命令也改为构建后从包目录安装，且清单文档说明宿主只校验清单本身、Cargo 相关约束转写为发布者约定。

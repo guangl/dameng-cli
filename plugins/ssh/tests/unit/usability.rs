@@ -1,5 +1,5 @@
 use crate::common::*;
-use dm_plugin_ssh::{decrypt, load_servers, run_with_prompter};
+use dm_plugin_ssh::{decrypt, load_servers};
 use tempfile::TempDir;
 fn run(context: &mut dm_plugin_sdk::Context, args: &[&str]) -> anyhow::Result<i32> {
     context.args = args.iter().map(std::ffi::OsString::from).collect();

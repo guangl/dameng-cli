@@ -1,5 +1,5 @@
 use dm_plugin_sdk::Context as PluginContext;
-use dm_plugin_ssh::{decrypt, load_servers, run_with_prompter};
+use dm_plugin_ssh::{decrypt, load_servers};
 use std::ffi::OsString;
 use tempfile::TempDir;
 

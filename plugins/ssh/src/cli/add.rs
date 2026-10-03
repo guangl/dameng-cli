@@ -26,6 +26,7 @@ pub(crate) fn add_server(
     prompter: Option<&dyn Prompter>,
     replace: bool,
     yes: bool,
+    validator: &dyn Fn(&PluginContext, &Server) -> Result<()>,
 ) -> Result<String> {
     // Values omitted on the command line fall back to the plugin's own
     // configuration file before any prompt.
@@ -93,18 +94,17 @@ pub(crate) fn add_server(
             &format!("保存连接 {name}：{username}@{host}:{port}（密码已隐藏）？"),
         )?;
     }
-    save_server(
-        context,
-        &Server {
-            name: name.clone(),
-            host,
-            port,
-            username,
-            auth_type,
-            key_path,
-            secret,
-        },
-        replace,
-    )?;
+    let server = Server {
+        name: name.clone(),
+        host,
+        port,
+        username,
+        auth_type,
+        key_path,
+        secret,
+    };
+    validator(context, &server)
+        .map_err(|error| anyhow::anyhow!("SSH 连接 '{name}' 添加失败，配置未保存：{error:#}"))?;
+    save_server(context, &server, replace)?;
     Ok(name)
 }

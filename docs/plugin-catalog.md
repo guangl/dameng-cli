@@ -15,7 +15,7 @@ description: dameng-cli 内置插件、外部兼容工具的用途、安装方�
 | 名称 | 用途 | 来源与发布 | 安装方式 | 兼容条件与限制 |
 | --- | --- | --- | --- | --- |
 | `db` | 保存、编辑、列出达梦连接配置，导入导出连接 | [源码](https://github.com/guangl/dameng-cli/tree/main/plugins/db) · [宿主 Release](https://github.com/guangl/dameng-cli/releases) | 随宿主安装脚本安装；独立安装见下文 | 当前版本 0.2.0，API 1，要求 `dm >= 0.4.0`；`test`、`exec` 的数据库驱动尚未接入 |
-| `ssh` | 保存、编辑 SSH 服务器，测试连接并调用 OpenSSH 登录 | [源码](https://github.com/guangl/dameng-cli/tree/main/plugins/ssh) · [宿主 Release](https://github.com/guangl/dameng-cli/releases) | 随宿主安装脚本安装；独立安装见下文 | 当前版本 0.2.0，API 1，要求 `dm >= 0.4.0`；运行需要系统 `ssh`，密码或已保存私钥口令认证还需要 `sshpass` |
+| `ssh` | 保存、编辑 SSH 服务器，测试连接并通过内置 SSH 库登录 | [源码](https://github.com/guangl/dameng-cli/tree/main/plugins/ssh) · [宿主 Release](https://github.com/guangl/dameng-cli/releases) | 随宿主安装脚本安装；独立安装见下文 | 当前版本 0.2.0，API 1，要求 `dm >= 0.4.0`；当前源码使用内置 Rust SSH 库，无需额外安装客户端；`add` 通过连通性和认证测试后才保存，失败不保存或覆盖配置 |
 | `sqllog2db` | 解析达梦 SQL 日志，导出 Parquet 或 CSV | [仓库](https://github.com/guangl/dm-database-sqllog2db) · [v3.0.1 Release](https://github.com/guangl/dm-database-sqllog2db/releases/tag/v3.0.1) | 使用下文固定版本的仓库安装命令 | v3.0.1 的旧文件名兼容安装要求 `dm >= 0.4.1`；它保留独立程序的帮助与配置行为，不提供 SDK 插件入口 |
 
 ### 内置插件：db、ssh
@@ -55,7 +55,7 @@ dm sqllog2db --help
 ## 如何判断能否安装
 
 - 插件包或仓库根目录必须有合法的 `dm-plugin.toml`，其 API 和最低宿主版本要与当前 `dm` 兼容。
-- 本地包必须包含 `dm-<name>`（Windows 为 `.exe`）；仓库来源必须有与本机系统、架构相匹配的预编译 Release 产物。`dm install` 不会编译源码。
+- 本地包必须包含 `dm-<name>`（Windows 为 `.exe`）；仓库来源需在根目录包含对应二进制，或发布与本机系统、架构相匹配的预编译 Release 产物；推荐通过 Releases 与 SHA-256 校验文件分发。`dm install` 不会编译源码。
 - 校验安装包并确认来源，再按上面的命令安装，通过 `dm <name> --help` 或插件自己的诊断命令验证运行；例如 `dm ssh doctor`。
 - Linux GNU 的 glibc 版本也必须符合插件二进制的要求。宿主后续发布构建已加入 glibc 2.28 符号与 Debian 10 运行检查；已有 Release 与外部插件仍应分别核实。
 
