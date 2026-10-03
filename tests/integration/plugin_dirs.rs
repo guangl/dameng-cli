@@ -36,6 +36,7 @@ fn plugin_directories_are_grouped_per_plugin() {
 }
 
 /// A plugin that reports the directories the host handed it.
+#[cfg(unix)]
 fn reporting_package(root: &Path) -> std::path::PathBuf {
     use std::os::unix::fs::PermissionsExt;
     let source = root.join("reporting package");
@@ -55,6 +56,7 @@ fn reporting_package(root: &Path) -> std::path::PathBuf {
     source
 }
 
+#[cfg(unix)]
 #[test]
 fn completion_reads_the_legacy_directory_before_migration() {
     let temp = TempDir::new().unwrap();

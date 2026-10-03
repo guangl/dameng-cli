@@ -1,5 +1,9 @@
 //! Plugin names that collide with host directories stay readable when they were
 //! installed by an older release.
+//!
+//! The fixtures are shell scripts, so these tests run on Unix only.
+#![cfg(unix)]
+
 use crate::common::*;
 use std::fs;
 use tempfile::TempDir;
