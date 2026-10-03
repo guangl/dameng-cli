@@ -14,8 +14,8 @@ description: dameng-cli 内置插件、外部兼容工具的用途、安装方�
 
 | 名称 | 用途 | 来源与发布 | 安装方式 | 兼容条件与限制 |
 | --- | --- | --- | --- | --- |
-| `db` | 保存、编辑、列出达梦连接配置，导入导出连接 | [源码](https://github.com/guangl/dm-plugin-db) · [宿主 Release](https://github.com/guangl/dameng-cli/releases) | 随宿主安装脚本安装；独立安装见下文 | 当前版本 0.2.0，API 1，要求 `dm >= 0.4.0`；`test`、`exec` 的数据库驱动尚未接入 |
-| `ssh` | 保存、编辑 SSH 服务器，测试连接并通过内置 SSH 库登录 | [源码](https://github.com/guangl/dm-plugin-ssh) · [宿主 Release](https://github.com/guangl/dameng-cli/releases) | 随宿主安装脚本安装；独立安装见下文 | 当前版本 0.2.0，API 1，要求 `dm >= 0.4.0`；当前源码使用内置 Rust SSH 库，无需额外安装客户端；`add` 通过连通性和认证测试后才保存，失败不保存或覆盖配置 |
+| `db` | 保存、编辑、列出达梦连接配置，导入导出连接 | [源码](https://github.com/guangl/dm-plugin-db) · [v0.2.0 Release](https://github.com/guangl/dm-plugin-db/releases/tag/v0.2.0) | 随宿主安装脚本安装；也可从插件自己的 Release 安装 | 当前版本 0.2.0，API 1，要求 `dm >= 0.4.0`；`test`、`exec` 的数据库驱动尚未接入 |
+| `ssh` | 保存、编辑 SSH 服务器，测试连接并通过内置 SSH 库登录 | [源码](https://github.com/guangl/dm-plugin-ssh) · [v0.2.0 Release](https://github.com/guangl/dm-plugin-ssh/releases/tag/v0.2.0) | 随宿主安装脚本安装；也可从插件自己的 Release 安装 | 当前版本 0.2.0，API 1，要求 `dm >= 0.4.0`；当前源码使用内置 Rust SSH 库，无需额外安装客户端；`add` 通过连通性和认证测试后才保存，失败不保存或覆盖配置 |
 | `sqllog2db` | 解析达梦 SQL 日志，导出 Parquet 或 CSV | [仓库](https://github.com/guangl/dm-database-sqllog2db) · [v3.0.1 Release](https://github.com/guangl/dm-database-sqllog2db/releases/tag/v3.0.1) | 使用下文固定版本的仓库安装命令 | v3.0.1 的旧文件名兼容安装要求 `dm >= 0.4.1`；它保留独立程序的帮助与配置行为，不提供 SDK 插件入口 |
 
 ### 内置插件：db、ssh
@@ -35,7 +35,14 @@ dm install ./path/to/db-package
 dm install ./path/to/ssh-package
 ```
 
-插件也可在 [db](https://github.com/guangl/dm-plugin-db) 和 [ssh](https://github.com/guangl/dm-plugin-ssh) 独立仓库发版；首次 Release 发布前请继续使用宿主安装包。新宿主发布的来源清单会把后续更新指向各自独立 Release。
+db 与 ssh 也各自在独立仓库发版：v0.2.0 起提供与宿主相同的九个平台归档及 SHA-256，可直接从插件仓库安装，之后 `dm update db` / `dm update ssh` 会跟随插件自己的 Release：
+
+```sh
+dm install https://github.com/guangl/dm-plugin-db.git --rev v0.2.0
+dm install https://github.com/guangl/dm-plugin-ssh.git --rev v0.2.0
+```
+
+宿主安装脚本安装的插件已经记录持久来源，会跟随 [dm-plugin-sources](https://github.com/guangl/dameng-cli/releases) 清单指向的插件标签，无需手动重装。
 
 已安装同名插件时，使用 `dm update db` / `dm update ssh`；用下载的本地包替换时，使用 `dm install ./path/to/package --replace`。
 
@@ -61,7 +68,7 @@ dm sqllog2db --help
 - 校验安装包并确认来源，再按上面的命令安装，通过 `dm <name> --help` 或插件自己的诊断命令验证运行；例如 `dm ssh doctor`。
 - Linux GNU 的 glibc 版本也必须符合插件二进制的要求。宿主后续发布构建已加入 glibc 2.28 符号与 Debian 10 运行检查；已有 Release 与外部插件仍应分别核实。
 
-目前没有 `dm install --check` 或 `--dry-run`。安装失败时，命令会报告清单、宿主版本或缺少当前平台产物等原因。清单格式和分发约定见 [插件协议](plugins.html)。
+安装前可以用 `dm install <source> --check`（别名 `--dry-run`）预演：它按安装流程解析来源、校验清单、安装冲突与预编译产物，远程来源同样会下载并校验 SHA-256，但不会运行 hook、不会写 plugins 目录和 SQLite；失败时报出的原因与真正安装时一致。安装失败时，命令会报告清单、宿主版本或缺少当前平台产物等原因。清单格式和分发约定见 [插件协议](plugins.html)。
 
 ## 把你的插件加入列表
 

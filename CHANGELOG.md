@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.4.2 — 2026-10-03
+
+- `dm install <source> --check`（别名 `--dry-run`）预演安装：按安装流程解析来源、校验清单、安装冲突与预编译产物，远程来源同样下载并校验 SHA-256，然后报告将要安装的插件、来源、方式与可执行文件来源；不运行 hook、不写 plugins 目录与 SQLite。检查与安装共用同一套冲突规则（`src/infrastructure/store/conflict.rs`），因此检查失败时报出的原因与真正安装时一致。
+
+- 新增发布产物目标 `aarch64-unknown-linux-musl`、`armv7-unknown-linux-gnueabihf` 与 `aarch64-pc-windows-msvc`：Release 与 CI 矩阵、`dm self-update --target` 与 `[update] target` 的取值、插件预编译产物标签（新增 `armv7-linux`、`aarch64-windows`）、安装脚本对 `armv7l` 的自动识别，以及 glibc 2.28 检查同步更新（ARMv7 使用 zigbuild 的 `.2.28` 目标构建，CI 通过 QEMU 在 Debian 10 容器中启动校验）。db、ssh 与 hello 模板仓库跟随同一份目标清单。
 
 - 修复宿主目录清理边界：旧版保留名称插件继续使用旧布局，卸载清理不再删除宿主根目录及其他插件数据；诊断修复与卸载清理保护日志目录、父目录和日志内容，支持嵌套路径、点路径及符号链接。日志位于插件程序目录中时，须先迁出日志再卸载。
 
@@ -57,7 +61,6 @@
 - 宿主对「存储中的插件清单无法解析」给出可操作提示：这类清单来自更早的 `dm`（典型是仍写着已移除的 `permissions` 字段），提示改为用 `dm install <包目录> --replace` 重装该插件刷新元数据并保留配置与数据；此前会落到「插件要求的 API 版本与当前 dm 不兼容」这一误导性提示上。
 - `dm ssh list` 与 `dm db list` 新增 `--json`，输出与文本表格相同的字段（SSH 为 name/host/port/username/auth_type/key_path，数据库为 name/host/port/username/schema/driver，未选模式时 `schema` 为 `null`），空列表输出 `[]`，且都不含密码与私钥口令；两者的文本输出改为与宿主 `dm list` 相同的带边框 UTF-8 表格（非终端宽度 120、超长截断），空存储仍然不打印任何内容。表格输出统一以换行结尾，交互式 shell 的提示符不再接在表格底边上。
 - 新增 Intel macOS 产物 `x86_64-apple-darwin`：Release workflow 增加该 target 的宿主与内置插件归档，`scripts/install.sh` 识别 `Darwin:x86_64` 自动选择它，`dm self-update` 与配置文件 `[update] target` 接受该取值；README、CLI 参考、发布说明与 `examples/config.toml` 同步说明 macOS 同时覆盖 Apple Silicon 与 Intel。
-- SSH 文档补充了认证、私钥路径和凭据存储说明；当前 SSH 认证由内置 Rust 库完成。
 
 - `dm ssh` 增加服务器配置导入导出，与 `dm db` 的迁移命令保持同一套行为：`dm ssh export [--file PATH] [--include-secrets]` 默认省略密码与私钥口令（省略 `--file` 时输出 JSON 到 stdout），`--include-secrets` 会在终端输入并确认导出加密口令，再用口令派生密钥加密；`dm ssh import <file> [--replace]` 默认拒绝覆盖同名服务器，`--replace` 时若文件不含密码/口令，只在认证方式一致（密钥认证还要求密钥路径一致）时保留本机原有秘密，避免把密码当成口令复用。导入会校验导出版本、条目数量、名称、端口、主机、用户名与认证方式（密钥认证必须带密钥路径，密码认证不得带密钥路径），携带的密码与口令在目标机器用本机密钥重新加密，密钥路径按原样导入；导出文件不覆盖已有文件、Unix 权限为 `0600`，加密导入导出需要终端，非交互环境直接报错。为此 `dm ssh` 命令层拆分为 `commands/{mod,cli,add}.rs` 并新增可注入提示源的 `run_with_prompter`，README 与 CLI 参考同步补充两者的用法。
 - 全量对齐「宿主只安装预编译插件」的文档：README、架构、发布、清单、快速开始、测试、故障排查、协议规范与文档站点不再声称宿主编译插件源码或解析 `Cargo.toml`；本地安装流程统一为「`cargo build --release --locked` → 把 `dm-<name>` 放到 `dm-plugin.toml` 同级 → `dm install`」，`examples/hello` 的验证命令也改为构建后从包目录安装，且清单文档说明宿主只校验清单本身、Cargo 相关约束转写为发布者约定。

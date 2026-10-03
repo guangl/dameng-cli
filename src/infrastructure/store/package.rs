@@ -37,58 +37,9 @@ impl PluginStore {
             [&manifest.name],
             |row| row.get::<_, bool>(0),
         )?;
-        // Host directory names are refused for new plugins only; an installed
-        // one stays operable so it can be inspected, migrated or removed.
-        if !installed {
-            crate::plugin::manifest::validate_new_name(&manifest.name)?;
-        }
-        let missing_on_disk = fs::symlink_metadata(&destination)
-            .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound);
-        let present_on_disk =
-            fs::symlink_metadata(&destination).is_ok_and(|metadata| metadata.is_dir());
-        let replacing = match mode {
-            InstallMode::New => {
-                ensure!(
-                    !installed,
-                    "Plugin '{}' is already installed; run dm update to upgrade it, or dm install --replace to replace this installation",
-                    manifest.name
-                );
-                ensure!(
-                    missing_on_disk,
-                    "Plugin '{}' already exists on disk; run dm doctor",
-                    manifest.name
-                );
-                false
-            }
-            InstallMode::Update => {
-                ensure!(installed, "Plugin '{}' is not installed", manifest.name);
-                ensure!(
-                    present_on_disk,
-                    "Installed plugin '{}' is missing or invalid; run dm doctor",
-                    manifest.name
-                );
-                true
-            }
-            // Replacement may also bring the first installation of a plugin, so
-            // an installed plugin has to exist on disk, while a new one must not
-            // hit a leftover directory.
-            InstallMode::Replace => {
-                if installed {
-                    ensure!(
-                        present_on_disk,
-                        "Installed plugin '{}' is missing or invalid; run dm doctor",
-                        manifest.name
-                    );
-                } else {
-                    ensure!(
-                        missing_on_disk,
-                        "Plugin '{}' already exists on disk; run dm doctor",
-                        manifest.name
-                    );
-                }
-                installed
-            }
-        };
+        // The same rules back "dm install --check", so a preview cannot pass
+        // while the installation itself would be refused.
+        let replacing = super::conflict::resolve(installed, &destination, &manifest.name, mode)?;
         let stage = tempfile::Builder::new()
             .prefix(".install-")
             .tempdir_in(&plugins)?;

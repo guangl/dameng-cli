@@ -15,6 +15,7 @@ mod errors;
 mod hooks;
 mod host_directory_protection;
 mod install;
+mod install_check;
 mod install_source;
 mod installer;
 mod legacy;

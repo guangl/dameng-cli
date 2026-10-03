@@ -6,6 +6,13 @@ import tomllib
 from pathlib import Path
 
 BASELINE = (2, 28)
+# Every GNU Linux target the release builds; musl targets are checked by design
+# (they carry no glibc symbol requirements) and are refused here.
+GNU_TARGETS = {
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "armv7-unknown-linux-gnueabihf",
+}
 
 
 def required_versions(output: str) -> set[tuple[int, ...]]:
@@ -30,7 +37,7 @@ def check_binary(path: Path) -> None:
 
 
 def binaries(target: str) -> list[Path]:
-    if target not in {"x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"}:
+    if target not in GNU_TARGETS:
         raise ValueError(f"Not a supported GNU Linux target: {target}")
     names = ["dm"]
     for manifest in sorted(Path("plugins").glob("*/dm-plugin.toml")):

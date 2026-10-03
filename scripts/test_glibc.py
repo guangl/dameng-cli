@@ -26,8 +26,10 @@ class GlibcTests(unittest.TestCase):
                         check_glibc.check_binary(Path("dm"))
 
     def test_all_bundled_binaries_are_checked(self):
-        paths = check_glibc.binaries("x86_64-unknown-linux-gnu")
-        self.assertEqual({p.name for p in paths}, {"dm", "dm-db", "dm-ssh"})
+        for target in ("x86_64-unknown-linux-gnu", "armv7-unknown-linux-gnueabihf"):
+            with self.subTest(target=target):
+                paths = check_glibc.binaries(target)
+                self.assertEqual({p.name for p in paths}, {"dm", "dm-db", "dm-ssh"})
         with self.assertRaises(ValueError):
             check_glibc.binaries("x86_64-unknown-linux-musl")
 

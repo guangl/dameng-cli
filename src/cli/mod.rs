@@ -43,8 +43,11 @@ pub fn run(config: &Config) -> Result<i32> {
             release_target,
             rev,
             replace,
+            check,
         } => {
-            if let Some(repository) = release_source {
+            if check {
+                plugins::check_install(&store, &source, rev.as_deref(), replace)?;
+            } else if let Some(repository) = release_source {
                 let manifest = store.install_release_package(
                     std::path::Path::new(&source),
                     &repository,

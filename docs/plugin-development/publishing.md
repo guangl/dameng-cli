@@ -26,7 +26,7 @@ description: 独立插件仓库、本地安装、Git 安装和版本策略。
 dm install ./dm-plugin-backup
 ```
 
-本地安装要求目录内已包含 `dm-<name>` 二进制和 `dm-plugin.toml`；宿主只复制这两者（以及清单声明的 hook），不执行编译。
+本地安装要求目录内已包含 `dm-<name>` 二进制和 `dm-plugin.toml`；宿主只复制这两者（以及清单声明的 hook），不执行编译。发布前可以先预演一次：`dm install ./dm-plugin-backup --check` 会指出缺少的二进制、清单问题或与已安装插件的冲突，而不改动任何文件。
 
 ## HTTPS Git 安装
 
@@ -52,7 +52,7 @@ GitHub HTTPS 来源的预编译下载使用约定命名：
 https://github.com/OWNER/REPO/releases/download/v<version>/dm-<name>-<target>[.exe]
 ```
 
-`<target>` 映射为 `aarch64-macos`、`x86_64-macos`、`aarch64-linux`、`x86_64-linux`、`x86_64-windows`。发布工作流应同时构建插件入口 `dm-<name>`（不是独立 CLI），并发布同名 `.sha256` 文件；宿主发现 `.sha256` 时会强制校验，缺失时警告并信任 HTTPS。没有匹配产物时安装失败。
+`<target>` 映射为 `aarch64-macos`、`x86_64-macos`、`aarch64-linux`、`x86_64-linux`、`armv7-linux`、`x86_64-windows`、`aarch64-windows`；x86_64 与 ARM64 的 musl 产物与同架构 GNU 产物共用标签，只额外发布带 target 的独立归档，避免同名文件互相覆盖。发布工作流应同时构建插件入口 `dm-<name>`（不是独立 CLI），并发布同名 `.sha256` 文件；宿主发现 `.sha256` 时会强制校验，缺失时警告并信任 HTTPS。没有匹配产物时安装失败。
 
 ## 安装来源
 
