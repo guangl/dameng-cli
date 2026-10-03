@@ -37,6 +37,8 @@ curl -fsSL https://raw.githubusercontent.com/guangl/dameng-cli/main/scripts/inst
 
 ### 安装插件
 
+可安装的内置插件与外部兼容工具见 [插件列表](docs/plugin-catalog.md)，包含用途、来源、安装命令和兼容限制。
+
 远程安装插件需要 Git 和 curl；本地安装使用预编译插件目录，不需要 Rust/Cargo。用仓库自带的 hello 示例走一遍完整流程（示例 crate 要先构建，包目录里必须有编译好的 `dm-hello`）：
 
 ```sh
@@ -157,7 +159,7 @@ cargo llvm-cov --workspace --locked --fail-under-lines 95
 
 行覆盖率要求不低于 95%，CI 与本地使用同一条 `cargo llvm-cov` 命令把关（需要 `cargo install cargo-llvm-cov` 和 `llvm-tools-preview` 组件）。
 
-GitHub CI 覆盖 Linux、macOS、Windows 和最低 Rust 版本。版本标签触发测试与宿主二进制打包，产物同时供安装脚本和 `dm self-update` 使用，详见 [发布说明](docs/releasing.md)。
+GitHub CI 覆盖 Linux、macOS、Windows、覆盖率和 GNU Linux glibc 2.28 兼容性。版本标签触发测试与宿主二进制打包，产物同时供安装脚本和 `dm self-update` 使用，详见 [发布说明](docs/releasing.md)。
 
 - [贡献指南](CONTRIBUTING.md)
 - [行为准则](CODE_OF_CONDUCT.md)
