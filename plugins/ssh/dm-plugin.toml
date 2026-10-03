@@ -1,7 +1,0 @@
-name = "ssh"
-version = "0.2.0"
-description = "管理保存的 SSH 连接"
-api_version = 1
-completion = true
-min_host_version = "0.4.0"
-environment = []

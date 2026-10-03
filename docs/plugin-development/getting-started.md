@@ -61,7 +61,7 @@ dm-plugin-sdk = { path = "../dameng-cli/crates/dm-plugin-sdk" }
 独立发布仓库不能依赖开发机器上的路径。发布前改为任何用户都能访问且固定到实际提交的 Git 依赖：
 
 ```toml
-dm-plugin-sdk = { git = "https://github.com/guangl/dameng-cli.git", rev = "<full-commit-sha>" }
+dm-plugin-sdk = { git = "https://github.com/guangl/dm-plugin-sdk.git", rev = "<full-commit-sha>" }
 ```
 
 SDK 尚未承诺发布到 crates.io；不要提交本机绝对路径。
@@ -117,3 +117,5 @@ dm backup --help
 目录里没有 `dm-<name>` 时 `dm install` 会直接报错，提示缺少预编译产物。安装成功后，插件运行不再依赖包目录和 Cargo 构建目录；修改源码并提升版本后，重新构建、覆盖包目录里的二进制，再运行 `dm update backup`，宿主会从该目录重新安装并原子切换到新版本。要分发给别人，则需按[发布与分发](publishing.html)把 `dm-<name>-<target>` 发布到 GitHub Release。
 
 下一步阅读[项目结构与清单](manifest.html)。
+
+也可从 [dm-plugin-template](https://github.com/guangl/dm-plugin-template) 点击 **Use this template** 创建独立插件仓库，获得示例、协议测试、CI 与 Release workflow。

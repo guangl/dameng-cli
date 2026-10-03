@@ -6,7 +6,7 @@
 面向达梦（Dameng）数据库工具的 **Rust 插件宿主**。命令名为 `dm`。
 
 宿主只负责插件安装、发现、执行和卸载；所有数据库功能由独立 Rust 插件提供，宿主自身不包含数据库驱动、连接配置或具体数据库操作。
-当前仓库包含两个插件：`plugins/ssh` 管理 SSH 服务器连接，`plugins/db` 管理达梦数据库连接配置（`test`/`exec` 的驱动实现待接入）。
+当前仓库通过 git submodule 固定两个独立插件仓库的提交：`plugins/ssh` 管理 SSH 服务器连接，`plugins/db` 管理达梦数据库连接配置（`test`/`exec` 的驱动实现待接入）。
 这是独立社区项目，与达梦官方无隶属关系。
 
 ## 快速开始
@@ -187,3 +187,24 @@ Bash：`source <(dm completions bash)`；Zsh：先运行 `autoload -Uz compinit;
 更新检查默认最多并发 4 个任务，可通过 `[update] check_concurrency` / `DM_UPDATE_CHECK_CONCURRENCY` 调整为 1..16。Release 校验使用固定缓冲，配置、导入与 SQL 输入有大小上限，Git/下载辅助进程有输出限制和超时。详细边界见 [CLI 文档](docs/cli.md#内存与运行开销)。
 
 Linux GNU x86_64/ARM64 发布产物要求 glibc 2.28 或更新版本；musl 产物不依赖 glibc。源码构建要求 Rust 1.99.0 或更新版本，发布时使用 stable 工具链，并通过 glibc 符号与 Debian 10 启动检查。
+
+## 独立组件仓库
+
+SDK、db、ssh 和 hello 模板以 git submodule 固定提交；dm-plugin-support 保留在宿主仓库，不独立发版。
+
+```sh
+git clone --recurse-submodules https://github.com/guangl/dameng-cli.git
+# 已有检出：
+git submodule update --init --recursive
+```
+
+| 目录 | 仓库 | 版本与发布 |
+| --- | --- | --- |
+| crates/dm-plugin-sdk | [dm-plugin-sdk](https://github.com/guangl/dm-plugin-sdk) | 独立 SDK 版本，配置 crates.io 发布流程 |
+| plugins/db | [dm-plugin-db](https://github.com/guangl/dm-plugin-db) | 独立插件版本与 GitHub Release |
+| plugins/ssh | [dm-plugin-ssh](https://github.com/guangl/dm-plugin-ssh) | 独立插件版本与 GitHub Release |
+| examples/hello | [dm-plugin-template](https://github.com/guangl/dm-plugin-template) | 点击 Use this template 创建新插件 |
+
+主仓库保留 Cargo workspace 和集成检查。组件修改在各自仓库经 PR 合入后，再通过宿主 PR 更新固定提交。宿主 Release 继续附带已验证提交的插件安装包，插件后续更新来源由发布的 SHA-256 校验来源清单指向各自仓库。发布流程的存在不表示已发布对应版本。
+
+详细步骤见 [组件开发与 submodule 更新](docs/components.md)。

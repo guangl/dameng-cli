@@ -6,7 +6,7 @@
 
 ## 范围
 
-本仓库维护 `dm` 宿主、Rust 插件 SDK、协议与基础示例。数据库连接、SQL 工具、导入导出、巡检等业务功能应建立独立 Rust 插件，不添加到宿主。
+本仓库维护 `dm` 宿主、协议、内部共享库和组件集成；SDK、db、ssh 与 hello 模板通过 submodule 接入，各自仓库维护源码和版本。数据库连接、SQL 工具、导入导出、巡检等业务功能应建立独立 Rust 插件，不添加到宿主。
 
 代码按职责拆成小文件：**每个 `.rs` 文件不超过 200 行**，由 `sh scripts/check_file_lines.sh` 在 CI 中把关，超过时按模块继续拆分。
 
@@ -22,7 +22,7 @@
 
 ## 本地验证
 
-需要 Rust 1.99.0 或更高版本、Cargo 和 Git。
+需要 Rust 1.99.0 或更高版本、Cargo 和 Git。首次执行 `git submodule update --init --recursive`；组件修改先在各自仓库提交 PR，再更新宿主引用，见 [组件开发](docs/components.md)。
 
 ```sh
 cargo fmt --all -- --check

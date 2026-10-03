@@ -31,5 +31,5 @@ permalink: /plugin-development/
 - [插件协议 v1](../plugins.html)
 - [CLI 参考](../cli.html)
 - [宿主架构](../architecture.html)
-- [可运行 hello 示例](https://github.com/guangl/dameng-cli/tree/main/examples/hello)
-- [SDK 源码](https://github.com/guangl/dameng-cli/blob/main/crates/dm-plugin-sdk/src/lib.rs)
+- [可运行 hello 示例](https://github.com/guangl/dm-plugin-template)
+- [SDK 源码](https://github.com/guangl/dm-plugin-sdk/blob/main/src/lib.rs)

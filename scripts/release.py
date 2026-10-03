@@ -1,6 +1,7 @@
 """Version checks and portable release archives; Python 3.11+."""
 import hashlib
 import os
+import re
 from pathlib import Path
 import sys
 import tarfile
@@ -11,6 +12,7 @@ import zipfile
 SUPPORTED_API_VERSIONS = {1}
 # Name of the asset listing the bundled plugins; read by scripts/install.sh.
 PLUGIN_LIST = "dm-plugins-{tag}-{target}.txt"
+PLUGIN_SOURCES = "dm-plugin-sources-{tag}-{target}.txt"
 
 
 def load_toml(path: Path) -> dict:
@@ -117,14 +119,11 @@ def bundled_plugins() -> list[tuple[Path, dict]]:
 
 
 def verify() -> tuple[str, list[tuple[Path, dict]]]:
-    """Check the tag, the SDK and every bundled plugin before packaging."""
+    """Check the host tag and independently versioned bundled plugins."""
     host = version_of(Path("Cargo.toml"))
-    sdk = version_of(Path("crates/dm-plugin-sdk/Cargo.toml"))
     tag = os.environ["RELEASE_TAG"]
     if tag != f"v{host}":
         raise SystemExit(f"Release tag {tag} does not match host version {host}")
-    if sdk != host:
-        raise SystemExit(f"SDK version {sdk} must match host version {host}")
     plugins = bundled_plugins()
     print(
         f"{tag}: host {host}, "
@@ -209,6 +208,21 @@ def package():
     listing = dist / PLUGIN_LIST.format(tag=tag, target=target)
     listing.write_text("".join(f"{manifest['name']}\n" for _, manifest in plugins))
     _write_checksum(listing)
+    # Keep bundled installation, but update each plugin from its own repository.
+    sources = dist / PLUGIN_SOURCES.format(tag=tag, target=target)
+    rows = []
+    for directory, manifest in plugins:
+        crate = load_toml(directory / "Cargo.toml")["package"]
+        repository = crate.get("repository", "")
+        prefix = "https://github.com/"
+        if not repository.startswith(prefix):
+            raise SystemExit(f"{directory}: package.repository must be a GitHub HTTPS URL")
+        repository = repository[len(prefix):].removesuffix(".git").rstrip("/")
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
+            raise SystemExit(f"{directory}: invalid GitHub repository")
+        rows.append(f"{manifest['name']} {repository} v{manifest['version']}\n")
+    sources.write_text("".join(rows))
+    _write_checksum(sources)
 
 
 if __name__ == "__main__":

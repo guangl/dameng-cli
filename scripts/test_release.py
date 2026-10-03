@@ -68,7 +68,7 @@ class Repo:
         for name in plugins:
             write(
                 root / f"plugins/{name}/Cargo.toml",
-                f'[package]\nname = "dm-plugin-{name}"\nversion = "0.1.0"\n',
+                f'[package]\nname = "dm-plugin-{name}"\nversion = "0.1.0"\nrepository = "https://github.com/example/dm-plugin-{name}"\n',
             )
             write(root / f"plugins/{name}/dm-plugin.toml", manifest_text(name))
             write(root / f"plugins/{name}/README.md", f"# {name}\n")
@@ -170,11 +170,10 @@ class PluginGateTests(TempRepoTest):
             release.verify()
         self.assertIn("v9.9.9", str(raised.exception))
 
-    def test_sdk_version_must_match_the_host_version(self):
+    def test_sdk_version_is_independent_of_the_host_version(self):
         write(Path("crates/dm-plugin-sdk/Cargo.toml"), '[package]\nname = "sdk"\nversion = "0.1.0"\n')
-        with self.assertRaises(SystemExit) as raised:
-            release.verify()
-        self.assertIn("SDK version", str(raised.exception))
+        tag, _ = run_quietly(release.verify)
+        self.assertEqual(tag, self.tag)
 
 
 class PrereleaseHostTests(TempRepoTest):
@@ -208,6 +207,10 @@ class PackagingTests(TempRepoTest):
         listing = dist / f"dm-plugins-v0.2.0-{self.target}.txt"
         self.assertEqual(listing.read_text(), "alpha\nbeta\n")
         self.assertTrue(listing.with_name(listing.name + ".sha256").is_file())
+        sources = dist / f"dm-plugin-sources-v0.2.0-{self.target}.txt"
+        self.assertEqual(sources.read_text(),
+                         "alpha example/dm-plugin-alpha v0.1.0\nbeta example/dm-plugin-beta v0.1.0\n")
+        self.assertTrue(sources.with_name(sources.name + ".sha256").is_file())
 
         with tarfile.open(dist / f"dm-alpha-v0.2.0-{self.target}.tar.gz") as archive:
             names = archive.getnames()
@@ -216,6 +219,15 @@ class PackagingTests(TempRepoTest):
         # The plugin documents itself; the host files fill the gaps.
         self.assertIn(f"dm-alpha-v0.2.0-{self.target}/README.md", names)
         self.assertIn(f"dm-alpha-v0.2.0-{self.target}/LICENSE", names)
+
+    def test_plugin_source_requires_a_github_repository(self):
+        for repository in ("https://example.com/owner/repo", "https://github.com/owner/repo/extra"):
+            with self.subTest(repository=repository):
+                write(Path("plugins/alpha/Cargo.toml"),
+                      f'[package]\nversion = "0.1.0"\nrepository = "{repository}"\n')
+                self.repo.binaries(self.target)
+                with self.assertRaises(SystemExit):
+                    run_quietly(release.package)
 
     def test_declared_hooks_travel_inside_the_archive(self):
         manifest = Path("plugins/alpha/dm-plugin.toml")
