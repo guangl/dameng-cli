@@ -76,7 +76,7 @@ fn rust_plugin_lifecycle_and_process_contract() {
     for directory in ["config", "data", "cache"] {
         assert!(stdout.contains(&format!(
             "{directory}={}",
-            fs::canonicalize(home.join(directory).join("probe"))
+            fs::canonicalize(home.join("probe").join(directory))
                 .unwrap()
                 .display()
         )));
@@ -91,8 +91,9 @@ fn rust_plugin_lifecycle_and_process_contract() {
         .output()
         .unwrap());
     assert!(ok(dm(&home).arg("list").output().unwrap()).contains("尚无插件"));
+    assert!(!home.join("probe").exists());
     for directory in ["config", "data", "cache"] {
-        assert!(!home.join(directory).join("probe").exists());
+        assert!(!home.join("probe").join(directory).exists());
     }
     assert!(!dm(&home).arg("probe").output().unwrap().status.success());
 }

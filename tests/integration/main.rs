@@ -18,6 +18,7 @@ mod install_source;
 mod installer;
 mod logging;
 mod logging_options;
+mod plugin_dirs;
 mod prebuilt;
 mod prebuilt_release;
 mod purge_retry;

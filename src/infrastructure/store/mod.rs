@@ -1,4 +1,5 @@
 mod completion;
+mod directories;
 mod doctor;
 mod download;
 mod git;
@@ -15,7 +16,9 @@ mod uninstall;
 mod update;
 mod util;
 
-pub(crate) use self::{download::*, git::checkout_git, types::InstallMode, util::*};
+pub(crate) use self::{
+    directories::RESERVED_HOME_ENTRIES, download::*, git::checkout_git, types::InstallMode, util::*,
+};
 pub use self::{
     home::{PluginStore, home_from_env},
     prebuilt::*,

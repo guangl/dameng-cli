@@ -83,12 +83,17 @@ impl PluginStore {
             |row| row.get(0),
         )?)
     }
-    /// Paths affected by a purge, including package backups.
+    /// Paths affected by a purge: the plugin's own subtree, directories left
+    /// behind by the older layout, and package backups.
     pub fn removal_paths(&self, name: &str) -> Vec<std::path::PathBuf> {
-        self.per_plugin_directories(name)
-            .into_iter()
-            .chain(std::iter::once(self.backups().join(name)))
-            .collect()
+        let mut paths = vec![self.home.join(name)];
+        paths.extend(
+            self.legacy_per_plugin_directories(name)
+                .into_iter()
+                .filter(|path| path.exists()),
+        );
+        paths.push(self.backups().join(name));
+        paths
     }
     fn purge_directories(&self, name: &str) -> Result<()> {
         let mut cleanup_failures = Vec::new();

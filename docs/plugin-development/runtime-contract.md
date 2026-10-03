@@ -34,7 +34,7 @@ dm backup --database demo --label "nightly copy"
 
 ## 插件自己的配置
 
-插件由**自己的目录**配置，不往宿主配置文件里加键：`DM_PLUGIN_CONFIG_DIR`（即 `<DM_PLUGIN_HOME>/config/<name>`）属于插件，目录里的约定文件是 `config.toml`，表结构与校验完全由插件决定。宿主只负责创建目录、传入路径，并在 `dm info <name>` 中显示位置；它既不读取也不改写这个文件，因此插件可以随时演进自己的配置格式。
+插件由**自己的目录**配置，不往宿主配置文件里加键：`DM_PLUGIN_CONFIG_DIR`（即 `<DM_PLUGIN_HOME>/<name>/config`）属于插件，目录里的约定文件是 `config.toml`，表结构与校验完全由插件决定。宿主只负责创建目录、传入路径，并在 `dm info <name>` 中显示位置；它既不读取也不改写这个文件，因此插件可以随时演进自己的配置格式。
 
 SDK 提供路径约定，插件不必自己拼接：
 

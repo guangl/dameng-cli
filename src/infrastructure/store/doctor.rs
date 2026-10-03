@@ -5,7 +5,7 @@ use std::{collections::BTreeSet, fs};
 
 use crate::Manifest;
 
-use super::{DoctorReport, PluginStore, sha256_file};
+use super::{DoctorReport, PluginStore, RESERVED_HOME_ENTRIES, sha256_file};
 
 impl PluginStore {
     pub fn doctor(&self, repair: bool) -> Result<DoctorReport> {
@@ -146,6 +146,24 @@ impl PluginStore {
                     fs::remove_dir_all(entry.path())?;
                     repairs.push(format!("removed orphaned {kind}/{name}"));
                 }
+            }
+        }
+        // The current layout keeps everything for one plugin below
+        // `<DM_PLUGIN_HOME>/<name>`; other directories are leftovers from a
+        // plugin that is no longer installed or retained.
+        for entry in fs::read_dir(&self.home)? {
+            let entry = entry?;
+            if !entry.file_type()?.is_dir() {
+                continue;
+            }
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if RESERVED_HOME_ENTRIES.contains(&name.as_str()) || installed_names.contains(&name) {
+                continue;
+            }
+            issues.push(format!("orphaned plugin directory: {name}"));
+            if repair {
+                fs::remove_dir_all(entry.path())?;
+                repairs.push(format!("removed orphaned plugin directory {name}"));
             }
         }
         Ok(DoctorReport { issues, repairs })

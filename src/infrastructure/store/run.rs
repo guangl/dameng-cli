@@ -27,10 +27,13 @@ impl PluginStore {
         } else {
             self.load_completion(name)?
         };
-        let config_dir = self.home.join("config").join(name);
-        let data_dir = self.home.join("data").join(name);
-        let cache_dir = self.home.join("cache").join(name);
+        let [config_dir, data_dir, cache_dir] = self.per_plugin_directories(name);
         if create {
+            // Move directories left by the older layout before the plugin can
+            // read them, so upgrades keep connections, keys and configuration.
+            for migrated in self.migrate_per_plugin_directories(name)? {
+                info!("migrated plugin directory {migrated}");
+            }
             for directory in [&config_dir, &data_dir, &cache_dir] {
                 fs::create_dir_all(directory)?;
             }

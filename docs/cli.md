@@ -119,7 +119,7 @@ environment = ["DM_DATABASE_URL"]     # 等价于 DM_PLUGIN_ENVIRONMENT
 
 ## 插件配置
 
-插件由**自己的目录**配置：`<DM_PLUGIN_HOME>/config/<name>/`，约定文件为 `config.toml`，格式与校验由插件自己定义，宿主既不读取也不改写。`dm info <name>` 会打印该插件的 config/data/cache 目录和配置文件是否存在：
+插件由**自己的目录**配置：`<DM_PLUGIN_HOME>/<name>/config/`，约定文件为 `config.toml`，格式与校验由插件自己定义，宿主既不读取也不改写。`dm info <name>` 会打印该插件的 config/data/cache 目录和配置文件是否存在：
 
 ```sh
 dm info ssh
@@ -129,7 +129,7 @@ dm info ssh
 
 运行中的插件同时通过 `DM_PLUGIN_CONFIG_DIR`、`DM_PLUGIN_DATA_DIR`、`DM_PLUGIN_CACHE_DIR` 拿到这三个目录（见[运行时协议](plugin-development/runtime-contract.html)）。`dm uninstall <name>` 默认保留它们；`--purge` 才删除。清理失败时保留登记并显示具体路径；修复目录问题后重试 `dm uninstall <name> --purge --yes`，直到全部目录清理成功。`dm doctor --repair` 只清理未登记为主动保留的孤立目录。
 
-优先级为 命令行参数 > 环境变量 > 配置文件 > 内置默认值，因此临时覆盖不必修改文件。配置文件位于数据目录内，不能通过它迁移数据目录本身；需要更换目录请设置 `DM_PLUGIN_HOME`。插件自身的配置仍由插件管理（见 `config/<name>` 与 `data/<name>`）。
+优先级为 命令行参数 > 环境变量 > 配置文件 > 内置默认值，因此临时覆盖不必修改文件。配置文件位于数据目录内，不能通过它迁移数据目录本身；需要更换目录请设置 `DM_PLUGIN_HOME`。插件自身的配置仍由插件管理（见 `<name>/config` 与 `<name>/data`）。
 
 ## 环境变量与数据目录
 

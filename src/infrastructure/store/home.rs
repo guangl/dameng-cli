@@ -64,11 +64,6 @@ impl PluginStore {
         Ok(self)
     }
 
-    /// Per-plugin directories: configuration, data and cache.
-    pub fn plugin_directories(&self, name: &str) -> [PathBuf; 3] {
-        self.per_plugin_directories(name)
-    }
-
     /// Apply the `progress` configuration key; `None` keeps following stderr.
     pub fn with_progress(mut self, progress: Option<bool>) -> Self {
         self.progress = progress;
@@ -99,14 +94,6 @@ impl PluginStore {
 
     pub(crate) fn backups(&self) -> PathBuf {
         self.home.join("backups")
-    }
-
-    pub(crate) fn per_plugin_directories(&self, name: &str) -> [PathBuf; 3] {
-        [
-            self.home.join("config").join(name),
-            self.home.join("data").join(name),
-            self.home.join("cache").join(name),
-        ]
     }
 
     fn database(&self) -> PathBuf {

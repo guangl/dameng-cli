@@ -102,7 +102,7 @@ dm sqllog2db --help
 - Windows：`%LOCALAPPDATA%\dm`。
 - Linux / macOS：`$HOME/.config/dm`。
 
-该目录内的 `store.sqlite3` 保存插件清单、来源、Git revision 和 SHA-256。可选的 `config.toml` 只保存**宿主**设置，按用途分成 `[log]`、`[update]`、`[output]`、`[plugin]` 四张表，分别对应日志级别、目录与每日大小上限，自更新仓库与产物目标、进度条开关、额外继承给插件的环境变量；优先级为 命令行 > 环境变量 > 配置文件 > 默认值。**插件由各自的目录配置**：`config/<name>/config.toml`（插件自定义格式，宿主不读写），路径可用 `dm info <name>` 查看。模板见 [examples/config.toml](examples/config.toml)，复制到该目录即可生效。`plugins/` 保存可执行文件；`config/<name>`、`data/<name>`、`cache/<name>` 是每个插件的隔离目录。诊断日志按本机日期写入 `logs/dm-YYYY-MM-DD.log`，保留当天及前 29 天；每个文件默认不超过 5 MiB，满额时淘汰旧内容并保留新日志。`[log] directory` / `DM_LOG_DIR` 设置目录，`[log] max_size_mb` / `DM_LOG_MAX_SIZE_MB` 设置大小上限，可用 `DM_LOG` 调整级别（`off`/`error`/`warn`/`info`/`debug`/`trace`，默认 `info`；设为 `off` 时不创建日志文件）；写入失败时静默跳过诊断日志，不回退到终端。stdout 始终保留给命令结果与 JSON，stderr 只保留进度条、插件输出和用户可见的 `错误`/`详情`/`提示`。使用自己的真实插件仓库地址：
+该目录内的 `store.sqlite3` 保存插件清单、来源、Git revision 和 SHA-256。可选的 `config.toml` 只保存**宿主**设置，按用途分成 `[log]`、`[update]`、`[output]`、`[plugin]` 四张表，分别对应日志级别、目录与每日大小上限，自更新仓库与产物目标、进度条开关、额外继承给插件的环境变量；优先级为 命令行 > 环境变量 > 配置文件 > 默认值。**插件由各自的目录配置**：`<name>/config/config.toml`（插件自定义格式，宿主不读写），路径可用 `dm info <name>` 查看。模板见 [examples/config.toml](examples/config.toml)，复制到该目录即可生效。`plugins/` 保存可执行文件；每个插件的数据按插件名分组放在 `<name>/{config,data,cache}`（早期版本的 `config/<name>` 等目录会在插件运行时自动迁移过去）。诊断日志按本机日期写入 `logs/dm-YYYY-MM-DD.log`，保留当天及前 29 天；每个文件默认不超过 5 MiB，满额时淘汰旧内容并保留新日志。`[log] directory` / `DM_LOG_DIR` 设置目录，`[log] max_size_mb` / `DM_LOG_MAX_SIZE_MB` 设置大小上限，可用 `DM_LOG` 调整级别（`off`/`error`/`warn`/`info`/`debug`/`trace`，默认 `info`；设为 `off` 时不创建日志文件）；写入失败时静默跳过诊断日志，不回退到终端。stdout 始终保留给命令结果与 JSON，stderr 只保留进度条、插件输出和用户可见的 `错误`/`详情`/`提示`。使用自己的真实插件仓库地址：
 
 ```sh
 dm install https://github.com/YOUR_ORG/dm-backup.git --rev v1.2.0

@@ -5,6 +5,13 @@ const RESERVED_NAMES: &[&str] = &[
     "complete",
     "config",
     "completions",
+    // These name directories inside DM_PLUGIN_HOME, so a plugin must not
+    // claim them for its own subtree.
+    "cache",
+    "data",
+    "logs",
+    "plugins",
+    "backups",
     "help",
     "info",
     "install",
