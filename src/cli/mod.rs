@@ -28,10 +28,13 @@ use clap::Parser;
 /// success with `0`; the plugin passthrough returns the plugin's own code.
 pub fn run(config: &Config) -> Result<i32> {
     let cli = Cli::parse();
-    let store = PluginStore::from_env()?
+    let store = PluginStore::from_env()?;
+    let log_directory = config.log_directory(store.home());
+    let store = store
         .with_update_check_concurrency(config.update_check_concurrency()?)?
         .with_progress(config.progress()?)
-        .with_plugin_environment(config.plugin_environment()?);
+        .with_plugin_environment(config.plugin_environment()?)
+        .with_log_directory(log_directory);
     match cli.command {
         Command::Install {
             source,

@@ -16,13 +16,18 @@ mod hooks;
 mod install;
 mod install_source;
 mod installer;
+mod legacy;
 mod logging;
 mod logging_options;
+mod plugin_dirs;
+mod plugin_migration;
+mod plugin_names;
 mod prebuilt;
 mod prebuilt_release;
 mod purge_retry;
 mod self_update;
 mod store;
+mod store_tables;
 mod update;
 
 mod usability;

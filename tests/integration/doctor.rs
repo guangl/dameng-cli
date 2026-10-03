@@ -50,6 +50,23 @@ fn doctor_restores_an_interrupted_removal() {
     store.verify(Some("probe")).unwrap();
 }
 #[test]
+fn doctor_keeps_a_configured_log_directory() {
+    let temp = TempDir::new().unwrap();
+    let home = temp.path().join("home");
+    fs::create_dir_all(&home).unwrap();
+    write_config(&home, "[log]\ndirectory = \"diagnostics\"\n");
+    // Not named like a daily log file: the logger prunes those by date, and
+    // this test is about the directory surviving `doctor --repair`.
+    let log = home.join("diagnostics").join("keep.log");
+    fs::create_dir_all(log.parent().unwrap()).unwrap();
+    fs::write(&log, "log line").unwrap();
+
+    let report = ok(dm(&home).args(["doctor", "--repair"]).output().unwrap());
+    assert!(log.is_file(), "{report}");
+    assert!(!report.contains("diagnostics"), "{report}");
+}
+
+#[test]
 fn doctor_cleans_orphaned_per_plugin_directories() {
     let temp = TempDir::new().unwrap();
     let home = temp.path().join("home");

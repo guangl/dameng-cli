@@ -80,7 +80,11 @@ pub(super) fn uninstall(store: &PluginStore, name: &str, purge: bool, yes: bool)
             store.info(name)?;
         }
         eprintln!("将清除插件 {name} 的配置、连接、缓存及备份：");
-        for path in store.removal_paths(name) {
+        for path in store
+            .removal_paths(name)
+            .into_iter()
+            .filter(|path| path.symlink_metadata().is_ok())
+        {
             eprintln!("  {}", path.display());
         }
         crate::support::interaction::confirm(

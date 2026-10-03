@@ -154,8 +154,8 @@ fn info_points_at_the_plugin_owned_configuration() {
     assert!(info.contains("(不存在)"), "{info}");
 
     // The plugin owns this file; the host only reports where it belongs.
-    fs::create_dir_all(home.join("config/probe")).unwrap();
-    fs::write(home.join("config/probe/config.toml"), "greeting = \"hi\"\n").unwrap();
+    fs::create_dir_all(home.join("probe/config")).unwrap();
+    fs::write(home.join("probe/config/config.toml"), "greeting = \"hi\"\n").unwrap();
     let info = ok(dm(&home).args(["info", "probe"]).output().unwrap());
     assert!(info.contains("(存在)"), "{info}");
 
@@ -168,12 +168,12 @@ fn info_points_at_the_plugin_owned_configuration() {
     // Compare paths component-wise: Windows reports backslash separators.
     let config = Path::new(parsed["paths"]["config"].as_str().unwrap());
     assert!(
-        config.ends_with(Path::new("config").join("probe")),
+        config.ends_with(Path::new("probe").join("config")),
         "{config:?}"
     );
     let config_file = Path::new(parsed["paths"]["config_file"].as_str().unwrap());
     assert!(
-        config_file.ends_with(Path::new("config").join("probe").join("config.toml")),
+        config_file.ends_with(Path::new("probe").join("config").join("config.toml")),
         "{config_file:?}"
     );
 }

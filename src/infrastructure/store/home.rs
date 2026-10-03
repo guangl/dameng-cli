@@ -34,6 +34,13 @@ pub fn home_from_env() -> Result<PathBuf> {
     })
 }
 
+/// Tables the host owns in `store.sqlite3`.
+///
+/// Plugins must never add tables here: a plugin keeps its own SQLite file below
+/// `DM_PLUGIN_DATA_DIR`, so upgrading or removing one plugin cannot affect the
+/// host store or another plugin.
+pub(crate) const STORE_TABLES: [&str; 2] = ["installed_plugins", "retained_plugin_data"];
+
 /// An explicit store path makes embedding and tests independent of user state.
 pub struct PluginStore {
     pub(crate) home: PathBuf,
@@ -42,6 +49,9 @@ pub struct PluginStore {
     pub(crate) update_check_concurrency: usize,
     /// Extra environment variable names inherited by plugins and hooks.
     pub(crate) plugin_environment: Vec<String>,
+    /// Effective log directory; the host owns it and never treats it as plugin
+    /// data, not even when the configuration points it somewhere unusual.
+    pub(crate) log_directory: Option<PathBuf>,
 }
 
 impl PluginStore {
@@ -51,7 +61,26 @@ impl PluginStore {
             progress: None,
             update_check_concurrency: 4,
             plugin_environment: Vec::new(),
+            log_directory: None,
         }
+    }
+
+    /// Record where the host writes its daily log file.
+    pub fn with_log_directory(mut self, directory: impl Into<PathBuf>) -> Self {
+        self.log_directory = Some(directory.into());
+        self
+    }
+
+    /// The host data directory this store operates on.
+    pub fn home(&self) -> &std::path::Path {
+        &self.home
+    }
+
+    /// Directory holding the host log files; `<home>/logs` unless configured.
+    pub(crate) fn log_directory(&self) -> PathBuf {
+        self.log_directory
+            .clone()
+            .unwrap_or_else(|| self.home.join("logs"))
     }
 
     /// Limit simultaneous update checks; interactive plugin execution is unaffected.
@@ -62,11 +91,6 @@ impl PluginStore {
         );
         self.update_check_concurrency = workers;
         Ok(self)
-    }
-
-    /// Per-plugin directories: configuration, data and cache.
-    pub fn plugin_directories(&self, name: &str) -> [PathBuf; 3] {
-        self.per_plugin_directories(name)
     }
 
     /// Apply the `progress` configuration key; `None` keeps following stderr.
@@ -99,14 +123,6 @@ impl PluginStore {
 
     pub(crate) fn backups(&self) -> PathBuf {
         self.home.join("backups")
-    }
-
-    pub(crate) fn per_plugin_directories(&self, name: &str) -> [PathBuf; 3] {
-        [
-            self.home.join("config").join(name),
-            self.home.join("data").join(name),
-            self.home.join("cache").join(name),
-        ]
     }
 
     fn database(&self) -> PathBuf {

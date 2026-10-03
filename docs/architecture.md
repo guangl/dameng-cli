@@ -62,7 +62,7 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
 ```text
 DM_PLUGIN_HOME/
 ├── config.toml                # 可选宿主配置：日志、自更新目标与仓库、进度条、插件环境
-├── store.sqlite3              # 插件元数据
+├── store.sqlite3              # 宿主自己的插件元数据，插件不得在此建表
 ├── store.sqlite3-wal          # SQLite 运行时文件，存在时不要单独移动
 ├── store.sqlite3-shm          # SQLite 运行时文件，存在时不要单独移动
 ├── logs/                      # 按本机日期写入 dm-YYYY-MM-DD.log，保留 30 天
@@ -70,15 +70,18 @@ DM_PLUGIN_HOME/
     └── hello/
         ├── dm-plugin.toml
         └── dm-hello[.exe]
-├── config/hello/              # 插件持久配置（约定 config.toml，由插件自己解析）
-├── data/hello/                # 插件持久数据
-└── cache/hello/               # 可再生成缓存
+└── hello/                     # 每个插件一个目录，插件的数据都在它下面
+    ├── config/                # 持久配置（约定 config.toml，由插件自己解析）
+    ├── data/                  # 持久数据
+    └── cache/                 # 可再生成缓存
 ```
+
+插件目录按插件名分组：`<DM_PLUGIN_HOME>/<name>/{config,data,cache}`。早期版本按用途分成 `config/<name>`、`data/<name>`、`cache/<name>`；宿主在运行插件前把旧目录移到新位置：目标已有数据时保留新位置、旧目录原样留下，目标只是空占位时把旧内容搬进去，并发首启时迁移的失败方不会中断插件。补全在迁移发生前读取旧目录，保证升级后立即可用；`dm doctor --repair` 清理已卸载插件的分组目录，并把配置指定的日志目录当作宿主数据跳过。
 
 ## 运行边界
 
 SDK 使用 Rust trait 统一开发接口；跨进程只约定参数、环境变量、标准输入输出和退出码，不共享 Rust 内存布局。安装 API 和运行 SDK API 都检查兼容性。
-宿主不连接数据库，不引入数据库 SDK，不维护全局连接或业务命令。宿主配置只描述宿主自身行为；插件设置放在各插件的 `config/<name>/` 目录中，由插件解析，宿主不读写。
+宿主不连接数据库，不引入数据库 SDK，不维护全局连接或业务命令。宿主配置只描述宿主自身行为；插件设置放在各插件的 `<name>/config/` 目录中，由插件解析，宿主不读写。
 独立进程提供故障隔离，但不是权限沙箱。插件 binary 与生命周期 hook 都拥有当前用户权限。宿主会清理运行时环境，仅继承安全基础变量和清单白名单。SDK 依赖声明、Git revision 和本地 SHA-256 也不等于发布者身份认证。
 插件需要的数据库客户端动态库由插件作者声明和管理；宿主不会自动打包动态库。
 
