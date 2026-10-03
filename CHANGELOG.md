@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 新增插件列表，记录 db、ssh、sqllog2db 的来源、安装方式和兼容限制，区分开发示例，并在 README、文档首页与导航添加入口。
+
 - Linux GNU x86_64/ARM64 发布构建固定 glibc 2.28，CI 和发布同时校验 ELF 符号要求并在 Debian 10 容器中启动宿主及内置插件；Rust stable 可升级但不得提高 glibc 基线。
 
 - 同步升级 rand 0.10、PBKDF2 0.13 和 SHA-2 0.11，适配随机源、摘要编码及 AES-GCM 0.11 API，保留既有密文和导出格式。
