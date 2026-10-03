@@ -29,7 +29,8 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
 | `src/infrastructure/config/` | `<DM_PLUGIN_HOME>/config.toml` 的 `[log]`/`[update]`/`[output]`/`[plugin]` 四张表的解析与校验、默认值与「环境变量优先」的取值规则 |
 | `src/infrastructure/self_update/` | 宿主 Release 查询、下载、SHA-256 校验、解包和原子自替换 |
 | `crates/dm-plugin-sdk` | `Plugin` / `Context` / `PluginResult` 和协议版本 |
-| `crates/dm-plugin-support` | 内置插件共用的十六进制编码、AES-GCM 字节格式、安全文件写入；独立仓库的 submodule，仍是宿主内部 crate，不发布；插件通过固定提交的 Git 依赖引用，不属于公开协议 SDK |
+| `crates/dm-plugin-support` | 宿主内部工具：十六进制编码、AES-GCM 字节格式、安全文件写入、有界读取、子进程与并发控制、交互与补全；独立仓库的 submodule，不发布，不属于公开协议 SDK。内置插件不再依赖它，各自维护 `plugins/{db,ssh}/src/support/` |
+| `plugins/{db,ssh}/src/support/` | 插件自己拥有的同类工具（有界读取、编码、加密字节、终端交互、配置展示、诊断与补全）；随插件仓库版本化，不跨仓库共享 |
 | `plugins/{db,ssh}/src/cli/` | 参数定义与命令处理；导入导出命令处理单独集中在 `transfer.rs` |
 | `plugins/{db,ssh}/src/domain/` | 数据库驱动接口、SQL 与连接串，或 SSH 认证与进程构建 |
 | `plugins/{db,ssh}/src/storage/` | 插件配置、SQLite 记录、插件自己的机器密钥与错误上下文 |
@@ -86,12 +87,12 @@ SDK 使用 Rust trait 统一开发接口；跨进程只约定参数、环境变�
 源解析集中在 `PluginStore` 的安装事务中：插件只能从本地目录或 HTTPS Git URL 安装，并把清单、来源、revision 和 SHA-256 存入 SQLite。当前没有发布者身份、签名、撤回或安全公告；若未来接入中央市场，这些能力需要服务端协议支持。
 业务能力始终在独立 Rust 插件仓库实现，不向宿主添加数据库业务子命令。
 
-动态补全由 shell 适配脚本调用隐藏的 `dm complete` 入口；宿主以只读 SQLite 获取已安装插件名称，按清单 `completion = true` 查询插件的 `__complete` 接口，并设置响应期限。内置插件复用 `dm-plugin-support` 的 clap 候选生成器、交互输入、配置展示和环境诊断工具。默认卸载在 SQLite 的 `retained_plugin_data` 中登记数据保留状态，修复孤立目录时跳过这些记录。
+动态补全由 shell 适配脚本调用隐藏的 `dm complete` 入口；宿主以只读 SQLite 获取已安装插件名称，按清单 `completion = true` 查询插件的 `__complete` 接口，并设置响应期限。内置插件各自在 `src/support/` 内实现 clap 候选生成器、交互输入、配置展示和环境诊断工具，插件之间不共享这部分代码。默认卸载在 SQLite 的 `retained_plugin_data` 中登记数据保留状态，修复孤立目录时跳过这些记录。
 
 宿主诊断日志仅写文件，日志路径与每日上限由 `[log] directory/max_size_mb` 或 `DM_LOG_DIR/DM_LOG_MAX_SIZE_MB` 决定。文件写入锁协调多个宿主进程，日期改变时重新选择文件并清理 30 天前的每日日志；达到上限时以有界复制和原子替换淘汰旧内容。打开或写入失败时静默丢弃日志，stdout/stderr 继续只承担命令结果、插件输出、进度和用户可见的错误报告。
 
-宿主更新检查使用固定工作池（默认 4 个，最多 16 个），保留插件排序；Git 与下载辅助进程有输出及运行时间限制。共享的 `dm-plugin-support::bounded` 统一限制配置、SQL 与连接导入的在内存中读取大小，Release 校验逐块计算 SHA-256。插件列表通过一个数据库查询取回元数据；结果输出按行写入。第三方插件执行仍保留自身生命周期与交互行为，不提供进程树级 CPU/RSS 强制配额。
+宿主更新检查使用固定工作池（默认 4 个，最多 16 个），保留插件排序；Git 与下载辅助进程有输出及运行时间限制。宿主与内置插件各自的有界读取工具（`dm-plugin-support::bounded` 与插件内的同名模块）统一限制配置、SQL 与连接导入的在内存中读取大小，Release 校验逐块计算 SHA-256。插件列表通过一个数据库查询取回元数据；结果输出按行写入。第三方插件执行仍保留自身生命周期与交互行为，不提供进程树级 CPU/RSS 强制配额。
 
 `scripts/check_resource_memory.py` 用同一个校验探针比较整包读取和流式读取 128 MiB 文件，要求流式探针峰值 RSS 不超过 32 MiB，并至少比整包读取低 64 MiB；Linux CI 持续执行该检查。这是校验路径的回归门槛，不代表整个应用或插件进程树的总内存限制。
 
-SDK、db、ssh 和 hello 模板的目录是固定提交的 git submodule，仍属于集成 workspace；各组件的独立构建、版本和发布流程见 [组件开发](components.html)。
+SDK、support、db、ssh 和 hello 模板的目录是固定提交的 git submodule，仍属于集成 workspace；各组件的独立构建、版本和发布流程见 [组件开发](components.html)。
