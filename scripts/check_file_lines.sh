@@ -21,4 +21,9 @@ if [ -n "$violations" ]; then
     exit 1
 fi
 
+# git ls-files in the host does not enumerate files within submodules.
+if [ -f .gitmodules ]; then
+    git submodule foreach --recursive 'sh scripts/check_file_lines.sh'
+fi
+
 echo "All Rust files are within $limit lines."

@@ -62,3 +62,10 @@ env_filter = "2.0"
 [patch.crates-io]
 dm-plugin-sdk = { path = "crates/dm-plugin-sdk" }
 
+# Standalone plugins pin Git dependencies; the integration workspace uses its
+# reviewed submodule SDK and in-tree support library for all members.
+[patch."https://github.com/guangl/dm-plugin-sdk.git"]
+dm-plugin-sdk = { path = "crates/dm-plugin-sdk" }
+
+[patch."https://github.com/guangl/dameng-cli.git"]
+dm-plugin-support = { path = "crates/dm-plugin-support" }

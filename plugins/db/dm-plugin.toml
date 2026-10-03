@@ -1,7 +1,0 @@
-name = "db"
-version = "0.2.0"
-description = "管理保存的达梦数据库连接"
-api_version = 1
-completion = true
-min_host_version = "0.4.0"
-environment = []

@@ -47,6 +47,7 @@ esac
 
 archive="dm-${version}-${target}.tar.gz"
 plugin_list="dm-plugins-${version}-${target}.txt"
+plugin_sources="dm-plugin-sources-${version}-${target}.txt"
 base_url="https://github.com/${repository}/releases/download/${version}"
 work_dir=$(mktemp -d "${TMPDIR:-/tmp}/dm-install.XXXXXXXX")
 trap 'rm -rf "$work_dir"' EXIT HUP INT TERM
@@ -97,7 +98,7 @@ download_asset() {
         echo "dm installer: ${asset}.sha256 is missing (HTTP ${status})" >&2
         exit 1
     }
-    verify_sha256 "$asset"
+    verify_sha256 "$asset" || exit 1
     return 0
 }
 
@@ -118,6 +119,14 @@ if download_asset "$plugin_list"; then
     plugins=$(sed -e 's/[[:space:]]*$//' -e '/^$/d' "$work_dir/${plugin_list}")
 fi
 
+# New releases record independent plugin repositories; old releases retain the
+# host source. The source list is checked with the same SHA-256 policy as assets.
+if download_asset "$plugin_sources"; then
+    has_plugin_sources=true
+else
+    has_plugin_sources=false
+fi
+
 # Word splitting is intended: the list holds one plugin name per line.
 for plugin in $plugins; do
     plugin_archive="dm-${plugin}-${version}-${target}.tar.gz"
@@ -130,7 +139,15 @@ for plugin in $plugins; do
     # --replace keeps the plugin's config/data/cache directories and also works
     # for a first installation, so running the installer again upgrades in place.
     if "$install_dir/dm" install --help | grep -q -- '--release-source'; then
-        "$install_dir/dm" install "$plugin_dir" --replace --release-source "$repository" --release-tag "$version" --release-target "$target"
+        source_repository=$repository
+        source_tag=$version
+        if [ "$has_plugin_sources" = true ]; then
+            source_record=$(awk -v name="$plugin" '$1 == name {print $2 " " $3}' "$work_dir/$plugin_sources")
+            [ -n "$source_record" ] || { echo "dm installer: missing source for $plugin" >&2; exit 1; }
+            source_repository=${source_record% *}
+            source_tag=${source_record##* }
+        fi
+        "$install_dir/dm" install "$plugin_dir" --replace --release-source "$source_repository" --release-tag "$source_tag" --release-target "$target"
     else
         # Older released hosts do not yet support persistent Release sources.
         "$install_dir/dm" install "$plugin_dir" --replace

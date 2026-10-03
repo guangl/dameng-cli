@@ -9,6 +9,13 @@ if ! command -v cargo >/dev/null 2>&1; then
     exit 1
 fi
 
+for manifest in crates/dm-plugin-sdk/Cargo.toml plugins/db/Cargo.toml plugins/ssh/Cargo.toml; do
+    [ -f "$project_dir/$manifest" ] || {
+        echo "dm local installer: initialize components with git submodule update --init --recursive" >&2
+        exit 1
+    }
+done
+
 # --quiet keeps Cargo's "Compiling"/"Finished" chatter out of the installer output;
 # build warnings and errors still reach stderr, and a failing build stops the script.
 echo "Building dm and the ssh/db plugins"

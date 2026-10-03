@@ -69,7 +69,7 @@ dm-plugin-sdk = { path = "../dameng-cli/crates/dm-plugin-sdk" }
 
 将 path 调整为 SDK 的实际相对路径。这适用于本地开发；独立发布前将 SDK 改为可访问的 Git 依赖并固定到实际提交，或在 SDK 正式发布后使用 crates.io 版本。不要将本机绝对路径提交为公开插件的依赖。
 
-实现方式见 [hello](https://github.com/guangl/dameng-cli/blob/main/examples/hello/src/main.rs)。执行 `cargo generate-lockfile` 并提交 `Cargo.lock`，构建后把 `dm-<name>` 放到 `dm-plugin.toml` 同级，再 `dm install ./my-plugin`；宿主不会替你编译。远程插件仓库的根目录就是该 crate，所有依赖必须能在独立克隆后解析；不初始化 Git 子模块，并需在 Release 里发布 `dm-<name>-<target>` 预编译资产。
+实现方式见 [hello](https://github.com/guangl/dm-plugin-template/blob/main/src/main.rs)。执行 `cargo generate-lockfile` 并提交 `Cargo.lock`，构建后把 `dm-<name>` 放到 `dm-plugin.toml` 同级，再 `dm install ./my-plugin`；宿主不会替你编译。远程插件仓库的根目录就是该 crate，所有依赖必须能在独立克隆后解析；不初始化 Git 子模块，并需在 Release 里发布 `dm-<name>-<target>` 预编译资产。
 
 ## 校验规则
 

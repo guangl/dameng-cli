@@ -29,7 +29,7 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
 | `src/infrastructure/config/` | `<DM_PLUGIN_HOME>/config.toml` 的 `[log]`/`[update]`/`[output]`/`[plugin]` 四张表的解析与校验、默认值与「环境变量优先」的取值规则 |
 | `src/infrastructure/self_update/` | 宿主 Release 查询、下载、SHA-256 校验、解包和原子自替换 |
 | `crates/dm-plugin-sdk` | `Plugin` / `Context` / `PluginResult` 和协议版本 |
-| `crates/dm-plugin-support` | 内置插件共用的十六进制编码、AES-GCM 字节格式、安全文件写入；内部 crate，不属于公开协议 SDK |
+| `crates/dm-plugin-support` | 内置插件共用的十六进制编码、AES-GCM 字节格式、安全文件写入；宿主内部 crate，不独立发版；插件通过固定宿主提交的 Git 依赖引用，不属于公开协议 SDK |
 | `plugins/{db,ssh}/src/cli/` | 参数定义与命令处理；导入导出命令处理单独集中在 `transfer.rs` |
 | `plugins/{db,ssh}/src/domain/` | 数据库驱动接口、SQL 与连接串，或 SSH 认证与进程构建 |
 | `plugins/{db,ssh}/src/storage/` | 插件配置、SQLite 记录、插件自己的机器密钥与错误上下文 |
@@ -93,3 +93,5 @@ SDK 使用 Rust trait 统一开发接口；跨进程只约定参数、环境变�
 宿主更新检查使用固定工作池（默认 4 个，最多 16 个），保留插件排序；Git 与下载辅助进程有输出及运行时间限制。共享的 `dm-plugin-support::bounded` 统一限制配置、SQL 与连接导入的在内存中读取大小，Release 校验逐块计算 SHA-256。插件列表通过一个数据库查询取回元数据；结果输出按行写入。第三方插件执行仍保留自身生命周期与交互行为，不提供进程树级 CPU/RSS 强制配额。
 
 `scripts/check_resource_memory.py` 用同一个校验探针比较整包读取和流式读取 128 MiB 文件，要求流式探针峰值 RSS 不超过 32 MiB，并至少比整包读取低 64 MiB；Linux CI 持续执行该检查。这是校验路径的回归门槛，不代表整个应用或插件进程树的总内存限制。
+
+SDK、db、ssh 和 hello 模板的目录是固定提交的 git submodule，仍属于集成 workspace；各组件的独立构建、版本和发布流程见 [组件开发](components.html)。
