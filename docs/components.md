@@ -5,7 +5,7 @@ title: 组件开发与独立发版
 
 # 组件开发与独立发版
 
-宿主通过 git submodule 接入 SDK、db、ssh 和 hello 模板。SDK 与插件独立管理版本；dm-plugin-support 留在宿主仓库，不独立发版。
+宿主通过 git submodule 接入 SDK、db、ssh、support 和 hello 模板。SDK 与插件独立管理版本；dm-plugin-support 是内部共享库，从宿主目录迁出到独立仓库，但只固定提交引用，不发布。
 
 ## 初始化与构建
 
@@ -18,7 +18,7 @@ cargo test --workspace --locked
 
 已有检出在拉取宿主变更后也执行 submodule update。该命令检出宿主记录的固定提交；不要用 `--remote` 代替它。CI 与 Release 都递归初始化组件。
 
-独立克隆 db、ssh 或模板可直接执行 `cargo test --locked`，不需要宿主目录。SDK 使用独立仓库固定提交的 Git 依赖；db、ssh 的共享库使用 dameng-cli 仓库固定提交的 Git 依赖。主 workspace 通过根 Cargo.toml 的 patch 使用当前 SDK submodule 与本地共享库，所以集成检查覆盖当前源码而非历史依赖。
+独立克隆 db、ssh 或模板可直接执行 `cargo test --locked`，不需要宿主目录。SDK 使用独立仓库固定提交的 Git 依赖；db、ssh 的共享库使用 dm-plugin-support 仓库固定提交的 Git 依赖。主 workspace 通过根 Cargo.toml 的 patch 使用当前 SDK submodule 与本地共享库，所以集成检查覆盖当前源码而非历史依赖。
 
 ## 修改组件与更新宿主引用
 
@@ -34,6 +34,6 @@ cargo test --workspace --locked
 - SDK：在 dm-plugin-sdk 仓库更新包版本，通过 PR 后创建匹配的 vX.Y.Z 标签。Release workflow 运行 CI、验证标签并发布 crates.io，需要仓库 Secret `CARGO_REGISTRY_TOKEN`。
 - db、ssh：各自仓库同步 Cargo.toml、dm-plugin.toml 和 Cargo.lock，通过 PR 后创建匹配标签。发布六个平台归档和 SHA-256，GNU Linux 检查 glibc 2.28 符号与 Debian 10 运行。另发布仓库安装方式使用的原始二进制和 SHA-256；musl 仅发布独立目标归档。
 - hello：dm-plugin-template 是 GitHub template，Use this template 创建自己的插件。同步清单、binary 名、构建脚本和 README 后，即可复用测试与独立 Release workflow。
-- support：保持宿主内部 crate。修改走宿主 PR；需要它的插件通过自己的 PR 更新固定宿主 Git 提交，保留 lockfile。
+- support：独立仓库 dm-plugin-support，但保持宿主内部共享库的定位，不发布：不发布 crates.io 包、不创建标签、不产出 Release 产物，CI 只做质量与测试检查。宿主以 submodule 固定提交接入，db、ssh 以固定提交的 Git 依赖引用；修改走该仓库 PR，再由宿主与插件的 PR 更新固定提交并刷新 lockfile。
 
 宿主 Release 保留当前安装协议，继续附带固定组件提交构建的 db、ssh。额外的 SHA-256 校验来源清单记录独立仓库和插件标签，安装后更新跟随独立插件 Release。来源仓库尚未发布正式 Release 时，更新检查会报告查询失败；配置完成、PR 通过和实际 Release 发布是不同阶段。

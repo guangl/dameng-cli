@@ -23,7 +23,7 @@
 
 Linux GNU x86_64 和 ARM64 产物的最低 glibc 版本固定为 2.28。CI 与发布使用 cargo-zigbuild 及显式 `.2.28` 目标构建宿主和所有内置插件，检查 ELF 符号版本并在 Debian 10 容器中启动验证；任何超过基线的符号要求或启动失败均阻止发布。Rust 构建使用 stable，可继续升级，最低源码编译版本为 1.99.0；升级工具链不得提高 glibc 基线。musl 产物不依赖 glibc。当前仍不发布 aarch64 musl、aarch64 Windows 或 Linux ARMv7 产物。
 
-本工作流发布 GitHub 宿主与固定组件提交的插件二进制，不发布 crates.io 包。SDK 在独立仓库配置 tag 触发的 crates.io 发布流程，需要配置 `CARGO_REGISTRY_TOKEN`；共享库 dm-plugin-support 不独立发版。db、ssh 和模板在各自仓库发布 GitHub Release。主仓库或插件发布依赖 SDK 的 crates.io 包前，应先确认 SDK 已发布；首次发布前使用源码/path 或固定提交的 Git 依赖。
+本工作流发布 GitHub 宿主与固定组件提交的插件二进制，不发布 crates.io 包。SDK 在独立仓库配置 tag 触发的 crates.io 发布流程，需要配置 `CARGO_REGISTRY_TOKEN`；共享库 dm-plugin-support 有独立仓库但不发布（保持 `publish = false`，不创建标签、不产出 Release）。db、ssh 和模板在各自仓库发布 GitHub Release。主仓库或插件发布依赖 SDK 的 crates.io 包前，应先确认 SDK 已发布；首次发布前使用源码/path 或固定提交的 Git 依赖。
 
 二进制宿主运行只需要系统运行环境；SQLite 已静态编译进宿主，不要求系统预装 SQLite。`dm install` 只安装预编译插件，不需要 Rust/Cargo；远程插件来源需要 Git，下载预编译产物在所有平台都需要 `curl`（Windows 也一样，`PowerShell` 用于宿主自更新及 Release 插件 zip 包解包）。只有 `scripts/install-local.sh` 才需要 Rust/Cargo，因为它要构建宿主和两个内置插件。
 
