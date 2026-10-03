@@ -83,8 +83,8 @@ pub(super) fn uninstall(store: &PluginStore, name: &str, purge: bool, yes: bool)
         for path in store.removal_paths(name) {
             eprintln!("  {}", path.display());
         }
-        dm_plugin_support::interaction::confirm(
-            dm_plugin_support::interaction::terminal_prompter(),
+        crate::support::interaction::confirm(
+            crate::support::interaction::terminal_prompter(),
             yes,
             &format!("彻底卸载 {name}？"),
         )?;
@@ -127,7 +127,7 @@ pub(super) fn run_plugin(store: &PluginStore, args: &[OsString]) -> Result<i32> 
         );
         anyhow::bail!(
             "Plugin '{name}' is not installed；相近命令或插件：{}",
-            dm_plugin_support::interaction::suggestions(name, &candidates)
+            crate::support::interaction::suggestions(name, &candidates)
         );
     }
     store.run(name, &args[1..])

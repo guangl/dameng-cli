@@ -15,7 +15,7 @@ fn update_helpers_validate_repository_and_versions() {
 fn update_checksum_verification_rejects_tampering() {
     let digest = format!(
         "{}  archive\n",
-        dm_plugin_support::codec::hex(&Sha256::digest(b"archive"))
+        dameng_cli::support::codec::hex(&Sha256::digest(b"archive"))
     );
     assert!(verify_checksum(b"archive", digest.as_bytes()).is_ok());
     assert!(verify_checksum(b"changed", digest.as_bytes()).is_err());
@@ -92,7 +92,7 @@ fn archive_checksums_stream_large_files_and_bound_sidecars() {
         &checksum,
         format!(
             "{}  archive",
-            dm_plugin_support::codec::hex(&hasher.finalize())
+            dameng_cli::support::codec::hex(&hasher.finalize())
         ),
     )
     .unwrap();
@@ -110,7 +110,7 @@ fn archive_checksums_stream_large_files_and_bound_sidecars() {
     assert!(verify_checksum_file(&archive, &temp.path().join("missing")).is_err());
     std::fs::write(
         &checksum,
-        dm_plugin_support::codec::hex(&Sha256::digest(b"")),
+        dameng_cli::support::codec::hex(&Sha256::digest(b"")),
     )
     .unwrap();
     assert!(verify_checksum_file(&temp.path().join("missing"), &checksum).is_err());

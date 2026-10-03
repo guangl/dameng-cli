@@ -3,7 +3,7 @@ use log::debug;
 use std::{fs, path::Path, process::Command};
 
 use crate::Manifest;
-use dm_plugin_support::process::capture;
+use crate::support::process::capture;
 use std::time::Duration;
 
 use super::{
@@ -79,7 +79,7 @@ fn verify_optional_prebuilt_checksum(binary_url: &str, binary: &Path) -> Result<
         eprintln!("dm: prebuilt plugin has no SHA-256 sidecar; trusting HTTPS transport");
         return Ok(());
     }
-    let expected = dm_plugin_support::bounded::text(&checksum_path, 4096)?;
+    let expected = crate::support::bounded::text(&checksum_path, 4096)?;
     let _ = fs::remove_file(&checksum_path);
     let expected = expected
         .split_whitespace()

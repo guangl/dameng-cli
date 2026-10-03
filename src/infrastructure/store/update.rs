@@ -74,7 +74,7 @@ impl PluginStore {
 
     pub fn outdated(&self) -> Result<Vec<UpdateStatus>> {
         let infos = self.list_info()?;
-        dm_plugin_support::parallel::map(infos, self.update_check_concurrency, |info| {
+        crate::support::parallel::map(infos, self.update_check_concurrency, |info| {
             self.outdated_one(info)
         })?
         .into_iter()

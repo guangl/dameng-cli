@@ -16,7 +16,7 @@
 - `tests/integration/`：进程级测试（真实安装、生命周期、恢复、自更新），由 `tests/integration/main.rs` 汇总；
 - 每个插件在自己的 `tests/` 下按同样方式组织（例如 `plugins/db/tests/unit/main.rs`）。
 
-两个内置插件统一使用 `cli/`、`domain/`、`storage/`、`transfer/`、`ui/` 目录，并在各自的 `support/` 内维护有界读取、十六进制编码、AES-GCM 字节格式、终端交互、配置展示、诊断与补全工具：插件是独立仓库，不与其他插件共享内部工具代码。宿主自己的同类工具放在 `crates/dm-plugin-support/`（独立仓库的 submodule，不发布）。插件自己的数据字段和校验仍留在插件内；不要为消除少量相似代码而给公开 SDK 添加业务依赖。新增功能按职责放入现有目录，详细边界见 [架构说明](docs/architecture.md)。
+两个内置插件统一使用 `cli/`、`domain/`、`storage/`、`transfer/`、`ui/` 目录，并在各自的 `support/` 内维护有界读取、十六进制编码、AES-GCM 字节格式、终端交互、配置展示、诊断与补全工具：插件是独立仓库，不与其他插件共享内部工具代码。宿主自己的同类工具放在 `src/support/`，随宿主仓库版本化。插件自己的数据字段和校验仍留在插件内；不要为消除少量相似代码而给公开 SDK 添加业务依赖。新增功能按职责放入现有目录，详细边界见 [架构说明](docs/architecture.md)。
 
 共享测试夹具放在同一个 `common` 模块里，用 `use crate::common::*;` 引用，不要复制。
 

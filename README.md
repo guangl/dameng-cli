@@ -145,7 +145,7 @@ fn main() {
 | 宿主设置、自更新 | `src/infrastructure/config/`、`self_update/` |
 | 插件协议与清单 | `crates/dm-plugin-sdk/`、`src/plugin/` |
 | 数据库、SSH 功能 | `plugins/db/`、`plugins/ssh/` |
-| 宿主内部工具（编码、有界读取、子进程、并发、交互、补全） | `crates/dm-plugin-support/` |
+| 宿主内部工具（编码、有界读取、子进程、并发、交互、补全） | `src/support/` |
 
 两个插件使用相同的源码目录：`cli/` 处理命令，`domain/` 放业务行为，`storage/` 保存设置与记录，`transfer/` 处理导入导出，`ui/` 管理提示和渲染。现有公开 Rust 接口、配置文件和数据格式保持兼容。详细边界见[架构说明](docs/architecture.md)。每个 `.rs` 文件不超过 200 行，测试全部放在各 crate 的 `tests/` 下。
 
@@ -190,7 +190,7 @@ Linux GNU x86_64/ARM64 发布产物要求 glibc 2.28 或更新版本；musl 产�
 
 ## 独立组件仓库
 
-SDK、db、ssh、support 和 hello 模板以 git submodule 固定提交；其中 dm-plugin-support 是宿主自己使用的内部工具库（内置插件各自维护 `src/support/`，不再依赖它），不发布版本。
+SDK、db、ssh 和 hello 模板以 git submodule 固定提交。宿主自己的工具代码留在 `src/support/`，不再是独立仓库；内置插件各自维护自己的 `src/support/`，两边不共享。
 
 ```sh
 git clone --recurse-submodules https://github.com/guangl/dameng-cli.git
@@ -201,11 +201,10 @@ git submodule update --init --recursive
 | 目录 | 仓库 | 版本与发布 |
 | --- | --- | --- |
 | crates/dm-plugin-sdk | [dm-plugin-sdk](https://github.com/guangl/dm-plugin-sdk) | 独立 SDK 版本，配置 crates.io 发布流程 |
-| crates/dm-plugin-support | [dm-plugin-support](https://github.com/guangl/dm-plugin-support) | 宿主内部工具库，固定提交引用，不发布；插件各自维护自己的实现 |
 | plugins/db | [dm-plugin-db](https://github.com/guangl/dm-plugin-db) | 独立插件版本与 GitHub Release |
 | plugins/ssh | [dm-plugin-ssh](https://github.com/guangl/dm-plugin-ssh) | 独立插件版本与 GitHub Release |
 | examples/hello | [dm-plugin-template](https://github.com/guangl/dm-plugin-template) | 点击 Use this template 创建新插件 |
 
-主仓库保留 Cargo workspace 和集成检查。组件修改在各自仓库经 PR 合入后，再通过宿主 PR 更新固定提交；dm-plugin-support 走同样的流程，但只固定提交、不发布，且内置插件不再跨仓库共享内部工具。宿主 Release 继续附带已验证提交的插件安装包，插件后续更新来源由发布的 SHA-256 校验来源清单指向各自仓库。发布流程的存在不表示已发布对应版本。
+主仓库保留 Cargo workspace 和集成检查。组件修改在各自仓库经 PR 合入后，再通过宿主 PR 更新固定提交；宿主与插件都不再跨仓库共享内部工具代码。宿主 Release 继续附带已验证提交的插件安装包，插件后续更新来源由发布的 SHA-256 校验来源清单指向各自仓库。发布流程的存在不表示已发布对应版本。
 
 详细步骤见 [组件开发与 submodule 更新](docs/components.md)。

@@ -17,7 +17,7 @@ pub fn complete(store: &PluginStore, words: &[String]) -> Result<()> {
             .complete_plugin(&words[0], &words[1..])
             .unwrap_or_default()
     } else {
-        let mut values = dm_plugin_support::completion::candidates(Cli::command(), words, &names);
+        let mut values = crate::support::completion::candidates(Cli::command(), words, &names);
         if words.len() <= 1 {
             values.extend(names);
         }

@@ -1,9 +1,6 @@
 [submodule "crates/dm-plugin-sdk"]
 	path = crates/dm-plugin-sdk
 	url = https://github.com/guangl/dm-plugin-sdk.git
-[submodule "crates/dm-plugin-support"]
-	path = crates/dm-plugin-support
-	url = https://github.com/guangl/dm-plugin-support.git
 [submodule "plugins/db"]
 	path = plugins/db
 	url = https://github.com/guangl/dm-plugin-db.git

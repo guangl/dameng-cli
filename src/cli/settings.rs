@@ -1,6 +1,6 @@
+use crate::support::config::{ConfigCommand, Setting, initialize, setting, show};
 use crate::{Config, home_from_env};
 use anyhow::Result;
-use dm_plugin_support::config::{ConfigCommand, Setting, initialize, setting, show};
 
 pub(super) fn run(config: &Config, command: ConfigCommand) -> Result<()> {
     let path = Config::path_in(&home_from_env()?);
@@ -12,7 +12,7 @@ pub(super) fn run(config: &Config, command: ConfigCommand) -> Result<()> {
         }
         ConfigCommand::Show { json } => {
             let environment_configured =
-                dm_plugin_support::bounded::text(&path, dm_plugin_support::bounded::CONFIG_LIMIT)
+                crate::support::bounded::text(&path, crate::support::bounded::CONFIG_LIMIT)
                     .ok()
                     .and_then(|text| toml::from_str::<toml::Value>(&text).ok())
                     .is_some_and(|value| {

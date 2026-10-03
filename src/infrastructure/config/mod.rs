@@ -120,17 +120,16 @@ impl Config {
     /// Load `<home>/config.toml`. A missing file is not an error.
     pub fn load(home: &Path) -> Result<Self> {
         let path = Self::path_in(home);
-        let text =
-            match dm_plugin_support::bounded::text(&path, dm_plugin_support::bounded::CONFIG_LIMIT)
-            {
-                Ok(text) => text,
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                    return Ok(Self::default());
-                }
-                Err(error) => {
-                    return Err(error).with_context(|| format!("Read {}", path.display()));
-                }
-            };
+        let text = match crate::support::bounded::text(&path, crate::support::bounded::CONFIG_LIMIT)
+        {
+            Ok(text) => text,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(Self::default());
+            }
+            Err(error) => {
+                return Err(error).with_context(|| format!("Read {}", path.display()));
+            }
+        };
         Self::from_toml(&text).with_context(|| format!("Invalid configuration {}", path.display()))
     }
 
