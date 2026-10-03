@@ -7,7 +7,7 @@ case "$target" in
   *) echo "Unsupported GNU target: $target" >&2; exit 1 ;;
 esac
 # CI uses a native runner for each architecture, so no emulation is needed.
-docker run --rm --network none --tmpfs /tmp \
+docker run --rm --network none --tmpfs /tmp:rw,exec,nosuid,size=256m \
   -e DM_PLUGIN_HOME=/tmp/dm-home \
   -v "$PWD/target/$target/release:/artifacts:ro" \
   -v "$PWD/plugins:/manifests:ro" \
