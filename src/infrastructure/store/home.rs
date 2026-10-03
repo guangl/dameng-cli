@@ -49,6 +49,9 @@ pub struct PluginStore {
     pub(crate) update_check_concurrency: usize,
     /// Extra environment variable names inherited by plugins and hooks.
     pub(crate) plugin_environment: Vec<String>,
+    /// Effective log directory; the host owns it and never treats it as plugin
+    /// data, not even when the configuration points it somewhere unusual.
+    pub(crate) log_directory: Option<PathBuf>,
 }
 
 impl PluginStore {
@@ -58,7 +61,26 @@ impl PluginStore {
             progress: None,
             update_check_concurrency: 4,
             plugin_environment: Vec::new(),
+            log_directory: None,
         }
+    }
+
+    /// Record where the host writes its daily log file.
+    pub fn with_log_directory(mut self, directory: impl Into<PathBuf>) -> Self {
+        self.log_directory = Some(directory.into());
+        self
+    }
+
+    /// The host data directory this store operates on.
+    pub fn home(&self) -> &std::path::Path {
+        &self.home
+    }
+
+    /// Directory holding the host log files; `<home>/logs` unless configured.
+    pub(crate) fn log_directory(&self) -> PathBuf {
+        self.log_directory
+            .clone()
+            .unwrap_or_else(|| self.home.join("logs"))
     }
 
     /// Limit simultaneous update checks; interactive plugin execution is unaffected.

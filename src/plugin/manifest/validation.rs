@@ -1,17 +1,11 @@
 use anyhow::{Result, ensure};
 
+/// Names that are always refused because the host answers them itself.
 const RESERVED_NAMES: &[&str] = &[
     "doctor",
     "complete",
     "config",
     "completions",
-    // These name directories inside DM_PLUGIN_HOME, so a plugin must not
-    // claim them for its own subtree.
-    "cache",
-    "data",
-    "logs",
-    "plugins",
-    "backups",
     "help",
     "info",
     "install",
@@ -21,6 +15,23 @@ const RESERVED_NAMES: &[&str] = &[
     "update",
     "version",
 ];
+
+/// Names the host already uses for directories inside its home directory.
+///
+/// They are refused when a plugin is installed, but not when an installed
+/// manifest is read: a release before the per-plugin layout could legitimately
+/// contain such a plugin, and refusing to parse it would break `list`,
+/// `info`, `update` and `uninstall` for that installation.
+pub(crate) const RESERVED_HOME_NAMES: &[&str] = &["cache", "data", "logs", "plugins", "backups"];
+
+/// Reject a plugin name that would collide with a host directory.
+pub(crate) fn validate_new_name(name: &str) -> Result<()> {
+    ensure!(
+        !RESERVED_HOME_NAMES.contains(&name),
+        "Plugin name '{name}' is reserved: the host keeps its own '{name}' directory inside DM_PLUGIN_HOME; rename the plugin"
+    );
+    Ok(())
+}
 
 pub fn validate_name(name: &str) -> Result<()> {
     ensure!(

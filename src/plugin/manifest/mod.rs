@@ -53,6 +53,7 @@ pub struct Hooks {
 mod validation;
 use self::validation::validate_hook;
 pub use self::validation::validate_name;
+pub(crate) use self::validation::validate_new_name;
 
 impl Manifest {
     pub fn read(root: &Path) -> Result<Self> {

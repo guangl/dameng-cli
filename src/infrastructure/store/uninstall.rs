@@ -86,12 +86,11 @@ impl PluginStore {
     /// Paths affected by a purge: the plugin's own subtree, directories left
     /// behind by the older layout, and package backups.
     pub fn removal_paths(&self, name: &str) -> Vec<std::path::PathBuf> {
+        // Every path is listed even when it does not exist right now: metadata
+        // can fail (a dangling symlink reports as missing) and a purge must try
+        // each destination instead of reporting success for a leftover.
         let mut paths = vec![self.home.join(name)];
-        paths.extend(
-            self.legacy_per_plugin_directories(name)
-                .into_iter()
-                .filter(|path| path.exists()),
-        );
+        paths.extend(self.legacy_per_plugin_directories(name));
         paths.push(self.backups().join(name));
         paths
     }

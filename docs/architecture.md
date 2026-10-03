@@ -76,7 +76,7 @@ DM_PLUGIN_HOME/
     └── cache/                 # 可再生成缓存
 ```
 
-插件目录按插件名分组：`<DM_PLUGIN_HOME>/<name>/{config,data,cache}`。早期版本按用途分成 `config/<name>`、`data/<name>`、`cache/<name>`；宿主在运行插件前会把旧目录移到新位置（目标已存在时保留新位置，旧目录原样留下），`dm doctor --repair` 会清理由已卸载插件留下的分组目录。
+插件目录按插件名分组：`<DM_PLUGIN_HOME>/<name>/{config,data,cache}`。早期版本按用途分成 `config/<name>`、`data/<name>`、`cache/<name>`；宿主在运行插件前把旧目录移到新位置：目标已有数据时保留新位置、旧目录原样留下，目标只是空占位时把旧内容搬进去，并发首启时迁移的失败方不会中断插件。补全在迁移发生前读取旧目录，保证升级后立即可用；`dm doctor --repair` 清理已卸载插件的分组目录，并把配置指定的日志目录当作宿主数据跳过。
 
 ## 运行边界
 

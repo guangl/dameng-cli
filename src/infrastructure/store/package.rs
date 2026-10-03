@@ -37,6 +37,11 @@ impl PluginStore {
             [&manifest.name],
             |row| row.get::<_, bool>(0),
         )?;
+        // Host directory names are refused for new plugins only; an installed
+        // one stays operable so it can be inspected, migrated or removed.
+        if !installed {
+            crate::plugin::manifest::validate_new_name(&manifest.name)?;
+        }
         let missing_on_disk = fs::symlink_metadata(&destination)
             .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound);
         let present_on_disk =

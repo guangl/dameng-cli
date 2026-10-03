@@ -172,13 +172,19 @@ impl PluginStore {
         // The current layout keeps everything for one plugin below
         // `<DM_PLUGIN_HOME>/<name>`; other directories are leftovers from a
         // plugin that is no longer installed or retained.
+        let log_directory = self.log_directory();
         for entry in fs::read_dir(&self.home)? {
             let entry = entry?;
             if !entry.file_type()?.is_dir() {
                 continue;
             }
             let name = entry.file_name().to_string_lossy().into_owned();
-            if RESERVED_HOME_ENTRIES.contains(&name.as_str()) || installed_names.contains(&name) {
+            if RESERVED_HOME_ENTRIES.contains(&name.as_str())
+                || installed_names.contains(&name)
+                // A configured log directory is host data even when it is not
+                // named `logs`; removing it would delete the running host's logs.
+                || entry.path() == log_directory
+            {
                 continue;
             }
             issues.push(format!("orphaned plugin directory: {name}"));

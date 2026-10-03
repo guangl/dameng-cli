@@ -27,7 +27,7 @@ impl PluginStore {
         } else {
             self.load_completion(name)?
         };
-        let [config_dir, data_dir, cache_dir] = self.per_plugin_directories(name);
+        let [mut config_dir, mut data_dir, mut cache_dir] = self.per_plugin_directories(name);
         if create {
             // Move directories left by the older layout before the plugin can
             // read them, so upgrades keep connections, keys and configuration.
@@ -36,6 +36,17 @@ impl PluginStore {
             }
             for directory in [&config_dir, &data_dir, &cache_dir] {
                 fs::create_dir_all(directory)?;
+            }
+        } else {
+            // Completion must not mutate the store: point an upgraded
+            // installation at its legacy directory until the plugin runs once.
+            for (current, legacy) in [&mut config_dir, &mut data_dir, &mut cache_dir]
+                .into_iter()
+                .zip(self.legacy_per_plugin_directories(name))
+            {
+                if !current.exists() && legacy.is_dir() {
+                    *current = legacy;
+                }
             }
         }
         let home = fs::canonicalize(&self.home)?;

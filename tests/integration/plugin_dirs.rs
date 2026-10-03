@@ -1,30 +1,9 @@
-//! Plugin directory layout and the migration from the older layout.
+//! Plugin directory layout, completion and purge behaviour.
 use crate::common::*;
+use crate::legacy::*;
 use dameng_cli::PluginStore;
 use std::{fs, path::Path};
 use tempfile::TempDir;
-
-const LEGACY: [(&str, &str); 3] = [
-    ("config", "config.toml"),
-    ("data", "connections.sqlite3"),
-    ("cache", "session"),
-];
-
-/// The fixture plugin prints the data directory it was handed.
-fn reported_data_dir(output: &str) -> std::path::PathBuf {
-    let line = output
-        .lines()
-        .find(|line| line.starts_with("data="))
-        .unwrap_or_else(|| panic!("no data directory in {output}"));
-    std::path::PathBuf::from(line.trim_start_matches("data="))
-}
-
-fn legacy_directories(home: &std::path::Path) -> Vec<std::path::PathBuf> {
-    LEGACY
-        .iter()
-        .map(|(kind, _)| home.join(kind).join("probe"))
-        .collect()
-}
 
 #[test]
 fn plugin_directories_are_grouped_per_plugin() {
@@ -56,66 +35,74 @@ fn plugin_directories_are_grouped_per_plugin() {
     );
 }
 
+/// A plugin that reports the directories the host handed it.
+fn reporting_package(root: &Path) -> std::path::PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+    let source = root.join("reporting package");
+    fs::create_dir_all(&source).unwrap();
+    fs::write(
+        source.join("dm-plugin.toml"),
+        format!("{}completion = true\n", manifest("probe")),
+    )
+    .unwrap();
+    let binary = source.join("dm-probe");
+    fs::write(
+        &binary,
+        "#!/bin/sh\necho \"config=$DM_PLUGIN_CONFIG_DIR\"\necho prod\n",
+    )
+    .unwrap();
+    fs::set_permissions(&binary, fs::Permissions::from_mode(0o755)).unwrap();
+    source
+}
+
 #[test]
-fn running_a_plugin_migrates_the_older_layout_once() {
+fn completion_reads_the_legacy_directory_before_migration() {
+    let temp = TempDir::new().unwrap();
+    let home = temp.path().join("home");
+    let store = PluginStore::new(&home);
+    let source = reporting_package(temp.path());
+    store.install(source.to_str().unwrap()).unwrap();
+    let legacy = home.join("config").join("probe");
+    fs::create_dir_all(&legacy).unwrap();
+    fs::write(legacy.join("config.toml"), "greeting = \"hi\"\n").unwrap();
+
+    let candidates = store.complete_plugin("probe", &["".into()]).unwrap();
+    let reported = candidates
+        .iter()
+        .find_map(|line| line.strip_prefix("config="))
+        .unwrap_or_else(|| panic!("no config directory in {candidates:?}"));
+    assert!(
+        Path::new(reported).ends_with(Path::new("config").join("probe")),
+        "{reported}"
+    );
+    // Completion is read-only: it must not migrate while answering.
+    assert!(legacy.is_dir());
+    assert!(!home.join("probe").exists());
+}
+
+#[test]
+fn purge_removes_legacy_directories_without_running_the_plugin() {
     let temp = TempDir::new().unwrap();
     let home = temp.path().join("home");
     let store = PluginStore::new(&home);
     let source = fixture(temp.path());
     store.install(source.to_str().unwrap()).unwrap();
-    for (kind, file) in LEGACY {
+    for (kind, file) in LEGACY_PLUGIN_DIRECTORIES {
         let legacy = home.join(kind).join("probe");
         fs::create_dir_all(&legacy).unwrap();
         fs::write(legacy.join(file), "kept").unwrap();
     }
 
-    let output = ok(dm(&home).args(["probe"]).output().unwrap());
-    let reported = reported_data_dir(&output);
-    assert!(
-        reported.ends_with(Path::new("probe").join("data")),
-        "{reported:?}"
-    );
-    for (kind, file) in LEGACY {
-        let moved = home.join("probe").join(kind).join(file);
-        assert_eq!(
-            fs::read_to_string(&moved).unwrap(),
-            "kept",
-            "{}",
-            moved.display()
-        );
-    }
-    for legacy in legacy_directories(&home) {
+    ok(dm(&home)
+        .args(["uninstall", "probe", "--purge", "--yes"])
+        .output()
+        .unwrap());
+    for legacy in legacy_plugin_directories(&home) {
         assert!(!legacy.exists(), "{}", legacy.display());
     }
-
-    // The migration is idempotent, and later runs only see the new layout.
-    let second = ok(dm(&home).args(["probe"]).output().unwrap());
-    let reported = reported_data_dir(&second);
-    assert!(
-        reported.ends_with(Path::new("probe").join("data")),
-        "{reported:?}"
-    );
-}
-
-#[test]
-fn existing_destinations_win_over_leftover_legacy_directories() {
-    let temp = TempDir::new().unwrap();
-    let home = temp.path().join("home");
-    let store = PluginStore::new(&home);
-    let source = fixture(temp.path());
-    store.install(source.to_str().unwrap()).unwrap();
-    fs::create_dir_all(home.join("probe/data")).unwrap();
-    fs::write(home.join("probe/data/current"), "current").unwrap();
-    let legacy = home.join("data/probe");
-    fs::create_dir_all(&legacy).unwrap();
-    fs::write(legacy.join("stale"), "stale").unwrap();
-
-    ok(dm(&home).args(["probe"]).output().unwrap());
-    assert!(home.join("probe/data/current").is_file());
-    assert!(
-        legacy.join("stale").is_file(),
-        "legacy data is left untouched"
-    );
+    for path in store.removal_paths("probe") {
+        assert!(!path.exists(), "{}", path.display());
+    }
 }
 
 #[test]
