@@ -5,7 +5,8 @@ target=${1:?Usage: build_release.sh TARGET}
 builder=(cargo build)
 build_target=$target
 case "$target" in
-  *-unknown-linux-gnu)
+  # GNU targets, including the armv7 hard-float triple, keep the 2.28 baseline.
+  *-unknown-linux-gnu*)
     builder=(cargo zigbuild)
     build_target="$target.2.28"
     ;;

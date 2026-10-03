@@ -12,7 +12,7 @@ description: dm 命令、环境变量、JSON 输出和常见工作流参考。
 
 | 命令 | 说明 |
 | --- | --- |
-| `dm install <source> [--rev REF] [--replace]` | 从本地预编译目录或 HTTPS Git URL 安装。Git 来源可固定 tag、branch 或 commit；只安装预编译插件，不执行源码编译。`--replace` 允许替换同名已安装插件，保留其 config/data/cache。 |
+| `dm install <source> [--rev REF] [--replace] [--check]` | 从本地预编译目录或 HTTPS Git URL 安装。Git 来源可固定 tag、branch 或 commit；只安装预编译插件，不执行源码编译。`--replace` 允许替换同名已安装插件，保留其 config/data/cache。`--check`（别名 `--dry-run`）预演安装：打印将要安装的插件、来源、方式与可执行文件来源，冲突与产物缺失按安装时的报错处理，但不运行 hook、不写 plugins 目录和 SQLite；远程来源会像安装一样下载并校验产物，不能与安装脚本专用的 `--release-source` 同用。 |
 | `dm update <name>` | 从已记录来源原子升级一个插件。 |
 | `dm update --all` | 逐个升级全部插件，最后汇总失败项。 |
 | `dm uninstall <name> [--purge] [--yes]` | 默认仅卸载程序并保留配置、连接、缓存和备份；`--purge` 清除数据，终端确认或脚本显式 `--yes`。 |
@@ -78,7 +78,7 @@ SSH 插件用同样的两种形式迁移：`dm ssh export [--file PATH] [--inclu
 - `--force` 允许重装当前版本或降级。
 - `--target` 选择已发布的目标产物，主要用于交叉环境。
 
-支持的产物目标为 `x86_64-unknown-linux-gnu`、`aarch64-unknown-linux-gnu`、`x86_64-unknown-linux-musl`、`aarch64-apple-darwin`、`x86_64-apple-darwin` 和 `x86_64-pc-windows-msvc`。Unix 需要 `curl` 与 `tar`，Windows 解压使用 PowerShell。
+支持的产物目标为 `x86_64-unknown-linux-gnu`、`aarch64-unknown-linux-gnu`、`x86_64-unknown-linux-musl`、`aarch64-unknown-linux-musl`、`armv7-unknown-linux-gnueabihf`、`aarch64-apple-darwin`、`x86_64-apple-darwin`、`x86_64-pc-windows-msvc` 和 `aarch64-pc-windows-msvc`。Unix 需要 `curl` 与 `tar`，Windows 解压使用 PowerShell。
 
 ## 配置文件
 

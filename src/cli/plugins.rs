@@ -18,6 +18,39 @@ pub(super) fn install(
     Ok(())
 }
 
+/// Report what installing a source would do, without changing anything.
+pub(super) fn check_install(
+    store: &PluginStore,
+    source: &str,
+    rev: Option<&str>,
+    replace: bool,
+) -> Result<()> {
+    let preview = store.check_install(source, rev, replace)?;
+    println!("可安装 {} {}", preview.name, preview.version);
+    println!("来源： {}", preview.source.as_deref().unwrap_or("unknown"));
+    if let Some(revision) = preview.revision.as_deref() {
+        println!("修订： {revision}");
+    }
+    println!(
+        "方式： {}",
+        if preview.replacing {
+            "覆盖已安装插件，保留其配置、数据与缓存"
+        } else {
+            "首次安装"
+        }
+    );
+    println!(
+        "可执行文件： {}",
+        if preview.prebuilt {
+            "已下载并校验发布产物"
+        } else {
+            "来源包内的可执行文件"
+        }
+    );
+    eprintln!("提示：这是检查，未安装任何文件；去掉 --check 即执行安装。");
+    Ok(())
+}
+
 /// Print installed plugins as a table, or as JSON when asked.
 pub(super) fn list(store: &PluginStore, json: bool) -> Result<()> {
     let plugins = store.list_info()?;

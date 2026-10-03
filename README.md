@@ -13,7 +13,7 @@
 
 ### 安装 `dm`
 
-Linux x86_64/ARM64、macOS（Apple Silicon 与 Intel）可以从最新 GitHub Release 远程安装：
+Linux x86_64/ARM64/ARMv7、macOS（Apple Silicon 与 Intel）可以从最新 GitHub Release 远程安装：
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/guangl/dameng-cli/main/scripts/install.sh | sh
@@ -66,8 +66,8 @@ dm sqllog2db --help
 
 | 命令 | 作用 |
 | --- | --- |
-| `dm install ./path/to/plugin [--replace]` | 从包含预编译二进制和清单的本地目录安装；`--replace` 允许替换同名已安装插件 |
-| `dm install https://github.com/OWNER/REPO.git --rev v1.2.0` | 从 GitHub Release 安装固定版本的预编译插件 |
+| `dm install ./path/to/plugin [--replace] [--check]` | 从包含预编译二进制和清单的本地目录安装；`--replace` 允许替换同名已安装插件；`--check`（别名 `--dry-run`）只报告将要安装的内容，不写入任何文件 |
+| `dm install https://github.com/OWNER/REPO.git --rev v1.2.0` | 从 GitHub Release 安装固定版本的预编译插件；加 `--check` 可先预演 |
 | `dm --version` / `dm -V` | 输出宿主版本，无需加载配置 |
 | `dm list [--json]` | 以带边框表格列出已安装插件的 Name、Version、Description、Source、Revision 与 Installed At；`--json` 输出机器可读 JSON |
 | `dm info <name> [--json]` | 查看来源、revision、校验和，以及该插件自己的 config/data/cache 目录 |
@@ -86,7 +86,7 @@ dm sqllog2db --help
 | `dm doctor <plugin> [--json]` | 检查插件环境；内置插件也支持 `dm ssh doctor`、`dm db doctor` |
 | `dm --help` / `dm --version` | 宿主帮助和版本 |
 
-`dm update` 默认只检查可用版本，`dm update --json` 输出机器可读结果；指定插件名或 `--all` 才执行升级。安装时自动完成清单、可执行文件和下载校验，无需单独运行校验命令。
+`dm update` 默认只检查可用版本，`dm update --json` 输出机器可读结果；指定插件名或 `--all` 才执行升级。安装时自动完成清单、可执行文件和下载校验，无需单独运行校验命令。安装前可用 `dm install <source> --check` 预演：它按安装流程解析来源、校验清单、安装冲突与预编译产物（远程来源同样会下载并校验 SHA-256），但不运行 hook、不写插件目录和 SQLite，可在 CI 里判断某个包能否安装。
 
 完整参数、JSON 输出、环境变量和退出行为见 [CLI 参考](docs/cli.md)。
 
@@ -186,7 +186,7 @@ dm config show --json               # 有效设置及 config/default/env 来源
 
 更新检查默认最多并发 4 个任务，可通过 `[update] check_concurrency` / `DM_UPDATE_CHECK_CONCURRENCY` 调整为 1..16。Release 校验使用固定缓冲，配置、导入与 SQL 输入有大小上限，Git/下载辅助进程有输出限制和超时。详细边界见 [CLI 文档](docs/cli.md#内存与运行开销)。
 
-Linux GNU x86_64/ARM64 发布产物要求 glibc 2.28 或更新版本；musl 产物不依赖 glibc。源码构建要求 Rust 1.99.0 或更新版本，发布时使用 stable 工具链，并通过 glibc 符号与 Debian 10 启动检查。
+Linux GNU x86_64/ARM64/ARMv7 发布产物要求 glibc 2.28 或更新版本；x86_64 与 ARM64 的 musl 产物不依赖 glibc。Windows 提供 x86_64 与 ARM64 归档。源码构建要求 Rust 1.99.0 或更新版本，发布时使用 stable 工具链，并通过 glibc 符号与 Debian 10 启动检查。
 
 ## 独立组件仓库
 

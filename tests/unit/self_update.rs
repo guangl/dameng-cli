@@ -60,8 +60,16 @@ fn prebuilt_target_label_maps_all_targets() {
         Some("aarch64-linux")
     );
     assert_eq!(
+        prebuilt_target_label_for("armv7-unknown-linux-gnueabihf"),
+        Some("armv7-linux")
+    );
+    assert_eq!(
         prebuilt_target_label_for("x86_64-pc-windows-msvc"),
         Some("x86_64-windows")
+    );
+    assert_eq!(
+        prebuilt_target_label_for("aarch64-pc-windows-msvc"),
+        Some("aarch64-windows")
     );
     assert_eq!(prebuilt_target_label_for("unknown-target"), None);
 }

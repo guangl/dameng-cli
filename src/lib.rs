@@ -19,8 +19,9 @@ pub mod self_update {
 
 pub use infrastructure::config::{CONFIG_FILE, Config, DEFAULT_LOG_FILTER, log_filter_from_env};
 pub use infrastructure::store::{
-    DoctorReport, PluginInfo, PluginStore, UpdateStatus, github_repository, home_from_env,
-    prebuilt_target_label_for, progress_bar_for, release_tag_candidates, versions_differ,
+    DoctorReport, InstallPreview, PluginInfo, PluginStore, UpdateStatus, github_repository,
+    home_from_env, prebuilt_target_label_for, progress_bar_for, release_tag_candidates,
+    versions_differ,
 };
 pub use plugin::manifest::{API_VERSION, MANIFEST_FILE, Manifest, SUPPORTED_API_VERSIONS};
 pub use self_update::{

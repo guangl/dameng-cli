@@ -25,7 +25,7 @@ pub enum Command {
     Install {
         source: String,
         /// 为 Release 安装包记录可持续更新的 GitHub owner/repository。
-        #[arg(long, requires = "release_tag", conflicts_with = "rev")]
+        #[arg(long, requires = "release_tag", conflicts_with_all = ["rev", "check"])]
         release_source: Option<String>,
         #[arg(long, requires = "release_source")]
         release_tag: Option<String>,
@@ -38,6 +38,9 @@ pub enum Command {
         /// 保留配置、数据和缓存。
         #[arg(long)]
         replace: bool,
+        /// 只检查来源、清单和可执行文件，不安装任何文件。
+        #[arg(long, visible_alias = "dry-run")]
+        check: bool,
     },
     /// 查看已安装插件。
     List {
