@@ -12,9 +12,9 @@ mod transfer;
 mod ui;
 use dm_plugin_support::private_file;
 
-pub use cli::{run_cli, run_with_prompter};
+pub use cli::{run_cli, run_with_prompter, run_with_validator};
 pub use domain::auth::resolve_auth;
-pub use domain::ssh_command::ssh_command;
+pub use domain::ssh_command::{server_by_name, test_server};
 #[doc(hidden)]
 pub use private_file::{write_private_file, write_private_file_with};
 pub use storage::config::{SshConfig, SshDefaults, SshTestSettings, config_path, load_config};

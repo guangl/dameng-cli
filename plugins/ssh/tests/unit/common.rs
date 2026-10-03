@@ -55,3 +55,12 @@ impl dm_plugin_ssh::Prompter for Script {
         Ok(Self::take(&self.secrets))
     }
 }
+
+// These UI/storage tests inject transport success; native transport is covered
+// by the loopback authentication tests.
+pub fn run_with_prompter(
+    context: &dm_plugin_sdk::Context,
+    prompter: Option<&dyn dm_plugin_ssh::Prompter>,
+) -> anyhow::Result<i32> {
+    dm_plugin_ssh::run_with_validator(context, prompter, &|_, _| Ok(()))
+}

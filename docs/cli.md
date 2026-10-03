@@ -40,7 +40,7 @@ SSH 插件用同样的两种形式迁移：`dm ssh export [--file PATH] [--inclu
 
 | 插件 | 提供的命令 | 职责 |
 | --- | --- | --- |
-| `ssh` | `dm ssh add/edit/list/remove/test/connect`、`dm ssh export/import` | SSH 服务器连接管理，数据保存在插件自己的 `data/ssh/`；`list [--json]` 输出表格或 JSON。密码认证或使用已保存私钥口令需要 `sshpass`；未保存口令的密钥连接直接使用本机 `ssh` 与私钥（远端只需对应公钥）。 |
+| `ssh` | `dm ssh add/edit/list/remove/test/connect`、`dm ssh export/import` | SSH 服务器连接管理，数据保存在插件自己的 `data/ssh/`；`list [--json]` 输出表格或 JSON。SSH 使用内置 Rust 库，无需额外安装客户端；`add` 自动测试连通性与认证，失败不保存或覆盖配置。 |
 | `db` | `dm db add/edit/list/remove/test/exec`、`dm db export/import` | 达梦数据库连接管理，连接保存在 `data/db/`；`list [--json]` 输出表格或 JSON；`test`/`exec` 的驱动仍是占位实现。 |
 
 内置插件与自己安装的插件完全等价：`dm list`、`dm info <name>`、`dm uninstall <name>` 一视同仁，不需要时用 `dm uninstall <name>` 删除（默认保留配置与连接数据）。远程安装脚本只对明确未发布的资产（HTTP 404）提示并跳过，其余网络、HTTP 或校验错误会让整次安装失败，不会静默少装插件。
@@ -165,7 +165,7 @@ dm info ssh
 
 交互添加/编辑保存前展示隐藏密码的摘要并确认，`--yes` 跳过确认；脚本显式传参时无需保存确认。`remove` 在终端下确认，非交互必须显式 `--yes`。端口、必填项和连接名称的无效交互输入原地重试，EOF/取消则退出。
 
-`dm ssh connect [name]` 登录 SSH，`dm ssh ssh [name]` 保留为别名；省略名称时仅一个连接直接使用，多个连接在终端下搜索选择，脚本须指定名称。`dm ssh test [name]` 和 `dm db test [name]` 也支持选择。数据库驱动仍未接入，`db test/exec` 会明确报错；`dm db doctor` 同样报告这个限制。
+`dm ssh connect [name]` 登录 SSH，省略名称时仅一个连接直接使用，多个连接在终端下搜索选择，脚本须指定名称。`dm ssh test [name]` 和 `dm db test [name]` 也支持选择。数据库驱动仍未接入，`db test/exec` 会明确报错；`dm db doctor` 同样报告这个限制。
 
 补全安装方式与开发协议见 [使用体验与自动补全](usability.html)。
 

@@ -66,6 +66,7 @@ dm sqllog2db --help
 | --- | --- |
 | `dm install ./path/to/plugin [--replace]` | 从包含预编译二进制和清单的本地目录安装；`--replace` 允许替换同名已安装插件 |
 | `dm install https://github.com/OWNER/REPO.git --rev v1.2.0` | 从 GitHub Release 安装固定版本的预编译插件 |
+| `dm --version` / `dm -V` | 输出宿主版本，无需加载配置 |
 | `dm list [--json]` | 以带边框表格列出已安装插件的 Name、Version、Description、Source、Revision 与 Installed At；`--json` 输出机器可读 JSON |
 | `dm info <name> [--json]` | 查看来源、revision、校验和，以及该插件自己的 config/data/cache 目录 |
 | `dm <name> [args...]` | 执行插件，原样转发后续参数，包括 `--help` |
@@ -73,7 +74,7 @@ dm sqllog2db --help
 | `dm update [--json]` | 并行检查插件是否有新版本 |
 | `dm doctor [--repair]` | 检查或修复 SQLite、插件目录、残留事务与孤立配置/数据/缓存目录 |
 | `dm uninstall <name> [--purge] [--yes]` | 默认保留配置、连接与缓存；`--purge` 清空数据，需确认或显式 `--yes` |
-| `dm ssh add/edit/list/remove/test/connect` | 由 `plugins/ssh` 插件提供的 SSH 服务器管理；配置写入插件自身的 `data/ssh/servers.sqlite3`，`add` 在终端下省略任意字段时逐项交互式输入，密码/口令隐藏回显；`list [--json]` 输出带边框表格或 JSON，从不回显秘密；插件自己的默认值写在 `config/ssh/config.toml`（`[defaults]`、`[test]`）。密码认证或使用已保存私钥口令的 `test`/`connect` 需要系统安装 `sshpass`；未保存口令的密钥连接直接使用本机 `ssh` 与私钥（远端只需对应公钥） |
+| `dm ssh add/edit/list/remove/test/connect` | 由 `plugins/ssh` 插件提供的 SSH 服务器管理；配置写入插件自身的 `data/ssh/servers.sqlite3`，`add` 在终端下省略任意字段时逐项交互式输入，密码/口令隐藏回显；`list [--json]` 输出带边框表格或 JSON，从不回显秘密；插件自己的默认值写在 `config/ssh/config.toml`（`[defaults]`、`[test]`）。SSH 使用内置 Rust 库，无需额外安装客户端；`add` 自动测试连通性与认证，失败不保存或覆盖配置 |
 | `dm ssh export/import` | 导出或迁移 SSH 服务器配置；普通导出不带密码与私钥口令，需要携带时使用口令加密导出 |
 | `dm db add/edit/list/remove/test/exec` | 由 `plugins/db` 插件提供的达梦数据库连接管理；连接写入插件自身的 `data/db/connections.sqlite3`，密码用本机 AES-GCM 密钥加密，`add` 在终端下省略任意字段时逐项交互式输入，`list [--json]` 输出带边框表格或 JSON；插件自己的默认值写在 `config/db/config.toml`（`[defaults]` 的 port/username/driver/schema 与 `[connect]` 的 timeout/probe）。`test`（探测语句）与 `exec`（输出制表符分隔的结果集）的命令与接口已就位，但驱动仍是占位实现，当前会明确报错 |
 | `dm db export/import` | 导出或迁移连接配置；普通导出不带密码，需要携带密码时使用口令加密导出 |

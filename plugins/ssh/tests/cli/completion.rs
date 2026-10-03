@@ -7,11 +7,12 @@ fn runtime_completion_supports_aliases_names_and_files_without_writes() {
     let output = ssh(&home).args(["__complete", ""]).output().unwrap();
     let candidates = ok(output.clone());
     assert!(candidates.lines().any(|v| v == "connect"));
-    assert!(candidates.lines().any(|v| v == "ssh"));
+    assert!(!candidates.lines().any(|v| v == "ssh"));
     assert!(output.stderr.is_empty());
     assert!(!home.exists());
-    ok(ssh(&home)
-        .args([
+    seed(
+        &home,
+        &[
             "add",
             "prod",
             "--host",
@@ -20,20 +21,11 @@ fn runtime_completion_supports_aliases_names_and_files_without_writes() {
             "root",
             "--password",
             "supersecret",
-        ])
-        .output()
-        .unwrap());
-    assert_eq!(
-        ok(ssh(&home)
-            .args(["__complete", "connect", "pr"])
-            .output()
-            .unwrap())
-        .trim(),
-        "prod"
+        ],
     );
     assert_eq!(
         ok(ssh(&home)
-            .args(["__complete", "ssh", "pr"])
+            .args(["__complete", "connect", "pr"])
             .output()
             .unwrap())
         .trim(),

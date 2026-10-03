@@ -42,3 +42,20 @@ pub fn write_plugin_config(home: &Path, text: &str) {
     fs::create_dir_all(&directory).unwrap();
     fs::write(directory.join("config.toml"), text).unwrap();
 }
+
+/// Seed UI/storage fixtures through the CLI with an injected successful probe.
+/// Native authentication is exercised separately against a real loopback peer.
+#[allow(dead_code)]
+pub fn seed(home: &Path, args: &[&str]) -> String {
+    let context = dm_plugin_sdk::Context {
+        args: args.iter().map(std::ffi::OsString::from).collect(),
+        home: home.into(),
+        plugin_dir: home.join("plugins/ssh"),
+        config_dir: home.join("config/ssh"),
+        data_dir: home.join("data/ssh"),
+        cache_dir: home.join("cache/ssh"),
+        capabilities: vec![],
+    };
+    dm_plugin_ssh::run_with_validator(&context, None, &|_, _| Ok(())).unwrap();
+    format!("已保存 SSH 连接 {}", args[1])
+}

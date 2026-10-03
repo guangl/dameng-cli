@@ -1,139 +1,66 @@
-use dm_plugin_ssh::{Server, encrypt, ssh_command, upsert_server};
+use crate::common::*;
+use dm_plugin_ssh::{
+    Server, encrypt, load_servers, run_with_validator, server_by_name, test_server, upsert_server,
+};
 use tempfile::TempDir;
 
-use crate::common::*;
-
 #[test]
-fn ssh_command_password_uses_sshpass() {
+fn failed_add_and_replace_never_persist_candidate() {
     let temp = TempDir::new().unwrap();
-    let context = context(&temp);
-    let secret = encrypt(&context, b"p@ssw0rd").unwrap();
-    upsert_server(
-        &context,
-        &Server {
-            name: "prod".to_owned(),
-            host: "10.0.0.8".to_owned(),
-            port: 22,
-            username: "root".to_owned(),
-            auth_type: "password".to_owned(),
-            key_path: None,
-            secret: Some(secret),
-        },
-    )
-    .unwrap();
-    let command = ssh_command(&context, "prod", true).unwrap();
-    assert_eq!(command.get_program(), "sshpass");
-    let args: Vec<String> = command
-        .get_args()
-        .map(|arg| arg.to_string_lossy().into_owned())
-        .collect();
-    assert_eq!(&args[..2], ["-e", "ssh"]);
-    assert!(!args.iter().any(|arg| arg.contains("p@ssw0rd")));
-    assert!(command.get_envs().any(|(key, value)| {
-        key == "SSHPASS" && value.is_some_and(|value| value == "p@ssw0rd")
-    }));
-    assert!(args.contains(&"root@10.0.0.8".to_owned()));
-    assert!(args.contains(&"true".to_owned()));
+    let mut context = context(&temp);
+    context.args = [
+        "add",
+        "prod",
+        "--host",
+        "localhost",
+        "--username",
+        "user",
+        "--password",
+        "secret",
+    ]
+    .map(std::ffi::OsString::from)
+    .to_vec();
+    let failure =
+        |_: &dm_plugin_sdk::Context, _: &Server| anyhow::bail!("SSH authentication failed");
+    let error = run_with_validator(&context, None, &failure).unwrap_err();
+    assert!(error.to_string().contains("配置未保存"));
+    assert!(load_servers(&context).unwrap().is_empty());
+    let old = Server {
+        name: "prod".into(),
+        host: "old".into(),
+        port: 22,
+        username: "old".into(),
+        auth_type: "password".into(),
+        key_path: None,
+        secret: Some(encrypt(&context, b"old-password").unwrap()),
+    };
+    upsert_server(&context, &old).unwrap();
+    context.args.push("--replace".into());
+    assert!(run_with_validator(&context, None, &failure).is_err());
+    let saved = server_by_name(&context, "prod").unwrap();
+    assert_eq!(saved.host, old.host);
+    assert_eq!(saved.secret, old.secret);
 }
 
 #[test]
-fn saved_key_passphrase_is_used_for_tests_and_login_without_entering_arguments() {
+fn native_connection_refusal_is_reported_without_saving() {
     let temp = TempDir::new().unwrap();
     let context = context(&temp);
-    upsert_server(
-        &context,
-        &Server {
-            name: "encrypted".into(),
-            host: "example.invalid".into(),
-            port: 2222,
-            username: "user".into(),
-            auth_type: "key".into(),
-            key_path: Some("/tmp/private key".into()),
-            secret: Some(encrypt(&context, b"hidden-passphrase").unwrap()),
-        },
-    )
-    .unwrap();
-    for test in [true, false] {
-        let command = ssh_command(&context, "encrypted", test).unwrap();
-        assert_eq!(command.get_program(), "sshpass");
-        let args: Vec<_> = command
-            .get_args()
-            .map(|arg| arg.to_str().unwrap())
-            .collect();
-        assert_eq!(&args[..4], ["-e", "-P", "Enter passphrase for key", "ssh"]);
-        assert!(args.contains(&"/tmp/private key"));
-        assert!(!args.iter().any(|arg| arg.contains("hidden-passphrase")));
-        if test {
-            assert!(args.contains(&"BatchMode=no"));
-            assert!(args.contains(&"ConnectTimeout=10"));
-        }
-        for (key, expected) in [("SSHPASS", "hidden-passphrase"), ("LC_ALL", "C")] {
-            assert!(command.get_envs().any(|(name, value)| {
-                name == key && value.is_some_and(|value| value == expected)
-            }));
-        }
-    }
-}
-
-#[test]
-fn ssh_command_key_uses_ssh() {
-    let temp = TempDir::new().unwrap();
-    let context = context(&temp);
-    upsert_server(
-        &context,
-        &Server {
-            name: "prod".to_owned(),
-            host: "10.0.0.8".to_owned(),
-            port: 22,
-            username: "root".to_owned(),
-            auth_type: "key".to_owned(),
-            key_path: Some("/tmp/id_ed25519".to_owned()),
-            secret: None,
-        },
-    )
-    .unwrap();
-    let command = ssh_command(&context, "prod", false).unwrap();
-    assert_eq!(command.get_program(), "ssh");
-    let args: Vec<String> = command
-        .get_args()
-        .map(|arg| arg.to_string_lossy().into_owned())
-        .collect();
-    assert!(args.contains(&"-i".to_owned()));
-    assert!(args.contains(&"/tmp/id_ed25519".to_owned()));
-    assert!(args.contains(&"root@10.0.0.8".to_owned()));
-}
-
-#[test]
-fn ssh_command_rejects_missing_key_and_password() {
-    let temp = TempDir::new().unwrap();
-    let context = context(&temp);
-    upsert_server(
-        &context,
-        &Server {
-            name: "nokey".to_owned(),
-            host: "10.0.0.8".to_owned(),
-            port: 22,
-            username: "root".to_owned(),
-            auth_type: "key".to_owned(),
-            key_path: None,
-            secret: None,
-        },
-    )
-    .unwrap();
-    assert!(ssh_command(&context, "nokey", false).is_err());
-
-    upsert_server(
-        &context,
-        &Server {
-            name: "nopass".to_owned(),
-            host: "10.0.0.8".to_owned(),
-            port: 22,
-            username: "root".to_owned(),
-            auth_type: "password".to_owned(),
-            key_path: None,
-            secret: None,
-        },
-    )
-    .unwrap();
-    assert!(ssh_command(&context, "nopass", false).is_err());
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    drop(listener);
+    let server = Server {
+        name: "refused".into(),
+        host: "127.0.0.1".into(),
+        port,
+        username: "user".into(),
+        auth_type: "password".into(),
+        key_path: None,
+        secret: Some(encrypt(&context, b"hidden").unwrap()),
+    };
+    let error = test_server(&context, &server).unwrap_err();
+    assert!(format!("{error:#}").contains("SSH connection failed"));
+    assert!(!format!("{error:#}").contains("hidden"));
+    assert!(load_servers(&context).unwrap().is_empty());
+    assert!(!context.data_dir.join("known_hosts").exists());
 }
