@@ -29,7 +29,7 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
 | `src/infrastructure/config/` | `<DM_PLUGIN_HOME>/config.toml` 的 `[log]`/`[update]`/`[output]`/`[plugin]` 四张表的解析与校验、默认值与「环境变量优先」的取值规则 |
 | `src/infrastructure/self_update/` | 宿主 Release 查询、下载、SHA-256 校验、解包和原子自替换 |
 | `crates/dm-plugin-sdk` | `Plugin` / `Context` / `PluginResult` 和协议版本 |
-| `crates/dm-plugin-support` | 内置插件共用的十六进制编码、AES-GCM 字节格式、安全文件写入；宿主内部 crate，不独立发版；插件通过固定宿主提交的 Git 依赖引用，不属于公开协议 SDK |
+| `crates/dm-plugin-support` | 内置插件共用的十六进制编码、AES-GCM 字节格式、安全文件写入；独立仓库的 submodule，仍是宿主内部 crate，不发布；插件通过固定提交的 Git 依赖引用，不属于公开协议 SDK |
 | `plugins/{db,ssh}/src/cli/` | 参数定义与命令处理；导入导出命令处理单独集中在 `transfer.rs` |
 | `plugins/{db,ssh}/src/domain/` | 数据库驱动接口、SQL 与连接串，或 SSH 认证与进程构建 |
 | `plugins/{db,ssh}/src/storage/` | 插件配置、SQLite 记录、插件自己的机器密钥与错误上下文 |
