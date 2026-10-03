@@ -13,7 +13,10 @@ fn install_legacy_plugin(home: &std::path::Path, name: &str) {
     let root = home.join("plugins").join(name);
     fs::create_dir_all(&root).unwrap();
     fs::write(root.join("dm-plugin.toml"), manifest(name)).unwrap();
-    fs::write(root.join(format!("dm-{name}")), "#!/bin/sh\necho legacy\n").unwrap();
+    let executable = root.join(format!("dm-{name}"));
+    fs::write(&executable, "#!/bin/sh\nprintf '%s\\n' \"$DM_PLUGIN_CONFIG_DIR\" \"$DM_PLUGIN_DATA_DIR\" \"$DM_PLUGIN_CACHE_DIR\"\n").unwrap();
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(executable, fs::Permissions::from_mode(0o755)).unwrap();
     let connection = rusqlite::Connection::open(home.join("store.sqlite3")).unwrap();
     connection
         .execute_batch(
@@ -44,6 +47,31 @@ fn plugins_named_after_host_directories_stay_usable() {
         let home = temp.path().join("home");
         fs::create_dir_all(&home).unwrap();
         install_legacy_plugin(&home, name);
+        let mut protected = Vec::new();
+        for directory in ["config", "data", "cache", "plugins", "backups", "logs"] {
+            let sentinel = home.join(directory).join("other").join("keep");
+            fs::create_dir_all(sentinel.parent().unwrap()).unwrap();
+            fs::write(&sentinel, "other plugin or host data").unwrap();
+            protected.push(sentinel);
+        }
+        for kind in ["config", "data", "cache"] {
+            let directory = home.join(kind).join(name);
+            fs::create_dir_all(&directory).unwrap();
+            fs::write(directory.join("keep"), "legacy plugin data").unwrap();
+        }
+
+        let output = ok(dm(&home).arg(name).output().unwrap());
+        for kind in ["config", "data", "cache"] {
+            let directory = home.join(kind).join(name);
+            assert!(
+                output.contains(directory.to_str().unwrap()),
+                "{name}: {output}"
+            );
+            assert_eq!(
+                fs::read_to_string(directory.join("keep")).unwrap(),
+                "legacy plugin data"
+            );
+        }
 
         let list = ok(dm(&home).args(["list"]).output().unwrap());
         assert!(list.contains(name), "{name}: {list}");
@@ -54,6 +82,12 @@ fn plugins_named_after_host_directories_stay_usable() {
             .output()
             .unwrap());
         assert!(!home.join("plugins").join(name).exists());
+        for sentinel in protected {
+            assert!(sentinel.is_file(), "{name}: lost {}", sentinel.display());
+        }
+        for kind in ["config", "data", "cache"] {
+            assert!(!home.join(kind).join(name).exists());
+        }
     }
 }
 

@@ -13,6 +13,7 @@ mod config_runtime;
 mod doctor;
 mod errors;
 mod hooks;
+mod host_directory_protection;
 mod install;
 mod install_source;
 mod installer;

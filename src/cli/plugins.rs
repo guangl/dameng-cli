@@ -97,7 +97,7 @@ pub(super) fn uninstall(store: &PluginStore, name: &str, purge: bool, yes: bool)
     println!(
         "已卸载 {name}。{}",
         if purge {
-            "已清除数据。"
+            "已完成数据清理，与宿主日志重叠的目录已保留。"
         } else {
             "配置和连接已保留，重新安装后可继续使用。"
         }
