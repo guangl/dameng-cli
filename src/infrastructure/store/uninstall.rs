@@ -27,6 +27,10 @@ impl PluginStore {
         }
         ensure!(installed, "Plugin '{name}' is not installed");
         let path = self.plugins().join(name);
+        ensure!(
+            !self.protects_host_logs(&path),
+            "Plugin '{name}' overlaps the host log directory; move the host log directory before uninstalling"
+        );
         let metadata = fs::symlink_metadata(&path)
             .with_context(|| format!("Plugin '{name}' is not installed"))?;
         ensure!(
@@ -84,14 +88,19 @@ impl PluginStore {
         )?)
     }
     /// Paths affected by a purge: the plugin's own subtree, directories left
-    /// behind by the older layout, and package backups.
+    /// behind by the older layout, and package backups. Host roots and paths
+    /// overlapping the host log directory are excluded.
     pub fn removal_paths(&self, name: &str) -> Vec<std::path::PathBuf> {
         // Every path is listed even when it does not exist right now: metadata
         // can fail (a dangling symlink reports as missing) and a purge must try
         // each destination instead of reporting success for a leftover.
-        let mut paths = vec![self.home.join(name)];
+        let mut paths = Vec::new();
+        if !super::RESERVED_HOME_ENTRIES.contains(&name) {
+            paths.push(self.home.join(name));
+        }
         paths.extend(self.legacy_per_plugin_directories(name));
         paths.push(self.backups().join(name));
+        paths.retain(|path| !self.protects_host_logs(path));
         paths
     }
     fn purge_directories(&self, name: &str) -> Result<()> {

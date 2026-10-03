@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 修复宿主目录清理边界：旧版保留名称插件继续使用旧布局，卸载清理不再删除宿主根目录及其他插件数据；诊断修复与卸载清理保护日志目录、父目录和日志内容，支持嵌套路径、点路径及符号链接。日志位于插件程序目录中时，须先迁出日志再卸载。
+
 - SDK、db、ssh 与 hello 模板迁移为固定提交的 git submodule，独立 CI 与发布流程；共享库保留在宿主仓库。
 - hello 提供 GitHub template；宿主保留集成 workspace 与随宿主安装，发布校验来源清单以支持插件独立更新。
 - 工具库 dm-plugin-support 先迁出为固定提交的 git submodule（独立仓库，保持 `publish = false`，不创建标签、不产出 Release 产物），随后整体移除：宿主工具代码回到 `src/support/`（有界读取、十六进制编码、子进程与并发控制、交互与补全、配置展示），submodule、Cargo 依赖与 lockfile 条目一并删除，独立仓库归档；宿主不再为插件重定向该仓库。

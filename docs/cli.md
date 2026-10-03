@@ -127,7 +127,7 @@ dm info ssh
 # 配置文件： /home/me/.config/dm/config/ssh/config.toml (不存在)
 ```
 
-运行中的插件同时通过 `DM_PLUGIN_CONFIG_DIR`、`DM_PLUGIN_DATA_DIR`、`DM_PLUGIN_CACHE_DIR` 拿到这三个目录（见[运行时协议](plugin-development/runtime-contract.html)）。`dm uninstall <name>` 默认保留它们；`--purge` 才删除。清理失败时保留登记并显示具体路径；修复目录问题后重试 `dm uninstall <name> --purge --yes`，直到全部目录清理成功。`dm doctor --repair` 只清理未登记为主动保留的孤立目录。
+运行中的插件同时通过 `DM_PLUGIN_CONFIG_DIR`、`DM_PLUGIN_DATA_DIR`、`DM_PLUGIN_CACHE_DIR` 拿到这三个目录（见[运行时协议](plugin-development/runtime-contract.html)）。`dm uninstall <name>` 默认保留它们；`--purge` 才删除。清理失败时保留登记并显示具体路径；修复目录问题后重试 `dm uninstall <name> --purge --yes`，直到全部目录清理成功。`dm doctor --repair` 只清理未登记为主动保留的孤立目录。旧版保留名称插件继续使用旧布局，清理时排除宿主根目录。修复与卸载清理均保护配置指定的日志目录、其父目录和日志内容；这些路径即使与插件数据或备份重叠也会保留。若日志位于插件程序目录内，卸载会报错，须先把日志迁出并修改日志配置再重试。
 
 优先级为 命令行参数 > 环境变量 > 配置文件 > 内置默认值，因此临时覆盖不必修改文件。配置文件位于数据目录内，不能通过它迁移数据目录本身；需要更换目录请设置 `DM_PLUGIN_HOME`。插件自身的配置仍由插件管理（见 `<name>/config` 与 `<name>/data`）。
 

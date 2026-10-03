@@ -1,7 +1,10 @@
 //! Where a plugin keeps its own files inside the plugin home directory.
 use anyhow::{Context, Result};
 use log::debug;
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use super::PluginStore;
 
@@ -28,6 +31,11 @@ impl PluginStore {
     /// Per-plugin directories, grouped by plugin: config, data and cache live
     /// below `<DM_PLUGIN_HOME>/<name>/` so one plugin owns one subtree.
     pub(crate) fn per_plugin_directories(&self, name: &str) -> [PathBuf; 3] {
+        // Older releases allowed these names. Their grouped root belongs to
+        // the host, so keep using the original layout for those installations.
+        if RESERVED_HOME_ENTRIES.contains(&name) {
+            return self.legacy_per_plugin_directories(name);
+        }
         let root = self.home.join(name);
         [root.join("config"), root.join("data"), root.join("cache")]
     }
@@ -50,6 +58,9 @@ impl PluginStore {
     /// directory a user pointed at that path) receives the legacy entries so
     /// nothing is shadowed.
     pub(crate) fn migrate_per_plugin_directories(&self, name: &str) -> Result<Vec<String>> {
+        if RESERVED_HOME_ENTRIES.contains(&name) {
+            return Ok(Vec::new());
+        }
         let mut migrated = Vec::new();
         for (old, new) in self
             .legacy_per_plugin_directories(name)
@@ -99,4 +110,36 @@ impl PluginStore {
         }
         Ok(migrated)
     }
+
+    /// Protect the log directory, its ancestors and its contents from cleanup.
+    pub(crate) fn protects_host_logs(&self, path: &Path) -> bool {
+        // Protect both the actual storage and the ancestors containing a
+        // symlink needed to reach it (which may point outside the host home).
+        [false, true].into_iter().any(|resolve_links| {
+            let logs = normalized_path(&self.log_directory(), resolve_links);
+            let candidate = normalized_path(path, resolve_links);
+            logs.starts_with(&candidate) || candidate.starts_with(&logs)
+        })
+    }
+}
+
+/// Resolve existing symlinks and normalize dot components, including paths
+/// whose final components have not been created yet.
+fn normalized_path(path: &Path, resolve_links: bool) -> PathBuf {
+    let mut resolved = if path.is_absolute() {
+        PathBuf::new()
+    } else {
+        std::env::current_dir().unwrap_or_default()
+    };
+    for component in path.components() {
+        if component == std::path::Component::ParentDir {
+            resolved.pop();
+        } else {
+            resolved.push(component);
+            if resolve_links && let Ok(canonical) = fs::canonicalize(&resolved) {
+                resolved = canonical;
+            }
+        }
+    }
+    resolved
 }
