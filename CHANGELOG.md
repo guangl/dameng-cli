@@ -6,6 +6,7 @@
 - hello 提供 GitHub template；宿主保留集成 workspace 与随宿主安装，发布校验来源清单以支持插件独立更新。
 - 工具库 dm-plugin-support 先迁出为固定提交的 git submodule（独立仓库，保持 `publish = false`，不创建标签、不产出 Release 产物），随后整体移除：宿主工具代码回到 `src/support/`（有界读取、十六进制编码、子进程与并发控制、交互与补全、配置展示），submodule、Cargo 依赖与 lockfile 条目一并删除，独立仓库归档；宿主不再为插件重定向该仓库。
 - db、ssh 插件各自在 `src/support/` 内维护有界读取、十六进制编码、AES-GCM 字节格式、终端交互、配置展示、诊断与补全工具，移除对 dm-plugin-support 的 Git 依赖和 lockfile 条目；两个插件仓库独立克隆即可构建，内联代码的单元测试一并迁入各自的 `tests/unit/`。宿主不再需要为插件重定向该仓库的 Cargo patch。
+- 明确插件存储边界：宿主 `store.sqlite3` 只保存 `installed_plugins` 与 `retained_plugin_data`，插件必须在自己的 `DM_PLUGIN_DATA_DIR` 下新建 SQLite 文件，不得在宿主库中建表；`dm doctor` 会把宿主存储中的非宿主表列为问题（只报告、不删除），插件开发文档同步说明该约束。
 - 插件目录从按用途分组改为按插件分组：`<DM_PLUGIN_HOME>/<插件>/{config,data,cache}`（此前为 `config/<插件>`、`data/<插件>`、`cache/<插件>`）。宿主在运行插件前自动迁移旧目录，目标已存在时保留新位置并留下旧目录；`dm uninstall --purge` 同时清理新目录、残留旧目录与备份，`dm doctor --repair` 会移除已卸载插件的分组目录，并把 `data`、`cache`、`logs`、`plugins`、`backups` 加入插件保留名，避免与宿主目录冲突。
 - `dm completions <shell> --install [--dir PATH]` 把补全脚本写入 shell 自动加载的目录（Bash 用 bash-completion/completions，Zsh 用 zsh/site-functions），并打印路径与启用提示；`scripts/install.sh`、`scripts/install-local.sh` 安装后自动为 Bash 与 Zsh 启用补全，旧宿主不支持该参数时只输出提示；不带 `--install` 时命令行为不变。
 - 新增插件列表，记录 db、ssh、sqllog2db 的来源、安装方式和兼容限制，区分开发示例，并在 README、文档首页与导航添加入口。

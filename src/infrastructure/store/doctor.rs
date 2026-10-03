@@ -5,7 +5,21 @@ use std::{collections::BTreeSet, fs};
 
 use crate::Manifest;
 
-use super::{DoctorReport, PluginStore, RESERVED_HOME_ENTRIES, sha256_file};
+use super::{DoctorReport, PluginStore, RESERVED_HOME_ENTRIES, STORE_TABLES, sha256_file};
+
+/// Tables in the host store that the host does not own.
+fn foreign_store_tables(connection: &rusqlite::Connection) -> Result<Vec<String>> {
+    let mut statement = connection.prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+    )?;
+    let names = statement
+        .query_map([], |row| row.get::<_, String>(0))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(names
+        .into_iter()
+        .filter(|name| !STORE_TABLES.contains(&name.as_str()))
+        .collect())
+}
 
 impl PluginStore {
     pub fn doctor(&self, repair: bool) -> Result<DoctorReport> {
@@ -21,6 +35,13 @@ impl PluginStore {
         let mut disk_names = BTreeSet::new();
         let mut issues = Vec::new();
         let mut repairs = Vec::new();
+        // The host store belongs to the host; a plugin that creates tables here
+        // would tie its data to the host version and to other plugins.
+        for table in foreign_store_tables(&connection)? {
+            issues.push(format!(
+                "unexpected table in the host store: {table}; plugins must create their own SQLite file below DM_PLUGIN_DATA_DIR instead"
+            ));
+        }
         for entry in fs::read_dir(self.plugins())? {
             let entry = entry?;
             let name = entry.file_name().to_string_lossy().into_owned();

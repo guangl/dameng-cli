@@ -62,7 +62,7 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
 ```text
 DM_PLUGIN_HOME/
 ├── config.toml                # 可选宿主配置：日志、自更新目标与仓库、进度条、插件环境
-├── store.sqlite3              # 插件元数据
+├── store.sqlite3              # 宿主自己的插件元数据，插件不得在此建表
 ├── store.sqlite3-wal          # SQLite 运行时文件，存在时不要单独移动
 ├── store.sqlite3-shm          # SQLite 运行时文件，存在时不要单独移动
 ├── logs/                      # 按本机日期写入 dm-YYYY-MM-DD.log，保留 30 天

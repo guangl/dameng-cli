@@ -44,6 +44,8 @@ let config = context.config_file();   // <config_dir>/config.toml
 
 数据与缓存同理：需要长期保存的数据放 `DM_PLUGIN_DATA_DIR`，可再生成的放 `DM_PLUGIN_CACHE_DIR`。`dm uninstall` 默认保留这三个目录并登记保留状态，重新安装即可继续使用；`--purge` 才清空。`dm doctor --repair` 不会清理主动保留的数据。
 
+**插件不要占用宿主的数据库**：`<DM_PLUGIN_HOME>/store.sqlite3` 只保存宿主的插件元数据（`installed_plugins`、`retained_plugin_data`）。插件需要表结构时，在 `DM_PLUGIN_DATA_DIR` 下新建自己的 SQLite 文件（内置插件即 db 的 `connections.sqlite3`、ssh 的 `servers.sqlite3`），不要往宿主库里建表或写入。这样插件升级、卸载或迁移数据都不会牵动宿主，也不会和其他插件互相影响；`dm doctor` 会把宿主存储中的非宿主表列为问题，并且不会替你删除它。
+
 生命周期 hook 使用不同的执行契约：工作目录固定为对应插件根目录，phase 名称既写入 `DM_HOOK_PHASE`，也作为第一个参数传入。完整时机与失败语义见[项目结构与清单](manifest.html)。
 
 ## 标准流

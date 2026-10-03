@@ -34,6 +34,13 @@ pub fn home_from_env() -> Result<PathBuf> {
     })
 }
 
+/// Tables the host owns in `store.sqlite3`.
+///
+/// Plugins must never add tables here: a plugin keeps its own SQLite file below
+/// `DM_PLUGIN_DATA_DIR`, so upgrading or removing one plugin cannot affect the
+/// host store or another plugin.
+pub(crate) const STORE_TABLES: [&str; 2] = ["installed_plugins", "retained_plugin_data"];
+
 /// An explicit store path makes embedding and tests independent of user state.
 pub struct PluginStore {
     pub(crate) home: PathBuf,

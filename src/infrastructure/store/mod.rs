@@ -17,7 +17,8 @@ mod update;
 mod util;
 
 pub(crate) use self::{
-    directories::RESERVED_HOME_ENTRIES, download::*, git::checkout_git, types::InstallMode, util::*,
+    directories::RESERVED_HOME_ENTRIES, download::*, git::checkout_git, home::STORE_TABLES,
+    types::InstallMode, util::*,
 };
 pub use self::{
     home::{PluginStore, home_from_env},
