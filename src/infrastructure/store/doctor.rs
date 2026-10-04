@@ -5,21 +5,9 @@ use std::{collections::BTreeSet, fs};
 
 use crate::Manifest;
 
-use super::{DoctorReport, PluginStore, RESERVED_HOME_ENTRIES, STORE_TABLES, sha256_file};
-
-/// Tables in the host store that the host does not own.
-fn foreign_store_tables(connection: &rusqlite::Connection) -> Result<Vec<String>> {
-    let mut statement = connection.prepare(
-        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
-    )?;
-    let names = statement
-        .query_map([], |row| row.get::<_, String>(0))?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
-    Ok(names
-        .into_iter()
-        .filter(|name| !STORE_TABLES.contains(&name.as_str()))
-        .collect())
-}
+use super::{DoctorReport, PluginStore, RESERVED_HOME_ENTRIES, sha256_file};
+mod tables;
+use tables::foreign_store_tables;
 
 impl PluginStore {
     pub fn doctor(&self, repair: bool) -> Result<DoctorReport> {
@@ -35,6 +23,8 @@ impl PluginStore {
         let mut disk_names = BTreeSet::new();
         let mut issues = Vec::new();
         let mut repairs = Vec::new();
+        let grouped_sources =
+            self.reserved_sources_for_doctor(repair, &mut issues, &mut repairs)?;
         // The host store belongs to the host; a plugin that creates tables here
         // would tie its data to the host version and to other plugins.
         for table in foreign_store_tables(&connection)? {
@@ -45,16 +35,16 @@ impl PluginStore {
         for entry in fs::read_dir(self.plugins())? {
             let entry = entry?;
             let name = entry.file_name().to_string_lossy().into_owned();
-            if self.protects_host_logs(&entry.path()) {
-                if database_names.contains(&name) && entry.file_type()?.is_dir() {
-                    disk_names.insert(name);
-                }
+            if grouped_sources.contains(&entry.path()) && !database_names.contains(&name) {
                 continue;
             }
             if name.starts_with(".install-")
                 || name.starts_with(".remove-")
                 || name.starts_with(".rollback-")
             {
+                if self.protects_host_logs(&entry.path()) {
+                    continue;
+                }
                 issues.push(format!("stale transaction directory: {name}"));
                 if repair {
                     let candidate = if name.starts_with(".remove-") {
@@ -69,6 +59,9 @@ impl PluginStore {
                         let stored = self.info(&manifest.name)?;
                         if stored.manifest == manifest {
                             let destination = self.plugins().join(&manifest.name);
+                            if self.protects_host_logs(&destination) {
+                                continue;
+                            }
                             let destination_matches = Manifest::read(&destination)
                                 .is_ok_and(|current| current == stored.manifest);
                             if !destination_matches {
@@ -94,7 +87,11 @@ impl PluginStore {
                 }
                 continue;
             }
-            if entry.file_type()?.is_dir() {
+            if entry.file_type()?.is_dir()
+                && (!self.protects_host_logs(&entry.path())
+                    || database_names.contains(&name)
+                    || Manifest::read(&entry.path()).is_ok())
+            {
                 disk_names.insert(name);
             }
         }
@@ -165,7 +162,10 @@ impl PluginStore {
                     continue;
                 }
                 let name = entry.file_name().to_string_lossy().into_owned();
-                if installed_names.contains(&name) || self.protects_host_logs(&entry.path()) {
+                if installed_names.contains(&name)
+                    || self.protects_host_logs(&entry.path())
+                    || grouped_sources.contains(&entry.path())
+                {
                     continue;
                 }
                 issues.push(format!("orphaned {kind} directory: {name}"));

@@ -12,6 +12,7 @@ mod package;
 mod prebuilt;
 mod query;
 mod release;
+mod reserved_directories;
 mod run;
 mod types;
 mod uninstall;

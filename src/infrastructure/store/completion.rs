@@ -5,7 +5,7 @@ use rusqlite::{Connection, OpenFlags};
 use std::{fs, path::PathBuf};
 
 impl PluginStore {
-    fn completion_connection(&self) -> Result<Connection> {
+    pub(crate) fn completion_connection(&self) -> Result<Connection> {
         let connection = Connection::open_with_flags(
             self.home.join("store.sqlite3"),
             OpenFlags::SQLITE_OPEN_READ_ONLY,
