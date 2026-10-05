@@ -115,14 +115,30 @@ install -m 755 "$work_dir/dm-${version}-${target}/dm" "$install_dir/dm"
 # installed plugins cannot drift apart; tags cut before that list exist fall back
 # to the names below, and a plugin a tag does not publish is skipped with a
 # notice instead of failing the whole installation.
+set -f
 plugins="ssh db"
 if download_asset "$plugin_list"; then
     plugins=$(sed -e 's/[[:space:]]*$//' -e '/^$/d' "$work_dir/${plugin_list}")
 fi
 
+# An unset selection keeps the release defaults; an empty value installs only dm.
+if [ "${DM_INSTALL_PLUGINS+x}" = x ]; then
+    selected_plugins=$(printf '%s' "$DM_INSTALL_PLUGINS" | tr ',' ' ')
+    for selected in $selected_plugins; do
+        case "$selected" in
+            *[!a-z0-9_-]*|'') echo "dm installer: invalid plugin name: $selected" >&2; exit 1 ;;
+        esac
+        case " $(printf '%s' "$plugins" | tr '\n' ' ') " in
+            *" $selected "*) ;;
+            *) echo "dm installer: plugin is not in this release: $selected" >&2; exit 1 ;;
+        esac
+    done
+    plugins=$(printf '%s\n' $selected_plugins | awk 'NF && !seen[$0]++')
+fi
+
 # New releases record independent plugin repositories; old releases retain the
 # host source. The source list is checked with the same SHA-256 policy as assets.
-if download_asset "$plugin_sources"; then
+if [ -n "$plugins" ] && download_asset "$plugin_sources"; then
     has_plugin_sources=true
 else
     has_plugin_sources=false

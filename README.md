@@ -33,6 +33,17 @@ curl -fsSL https://raw.githubusercontent.com/guangl/dameng-cli/main/scripts/inst
 
 两个脚本默认安装到 `$HOME/.local/bin/dm`，可通过 `DM_INSTALL_DIR` 修改。远程脚本会下载与 Release 一起发布的 SHA-256 文件并在安装前校验。Windows 请下载 Release 中的 zip，或执行 `cargo install --path . --locked`。
 
+通过 `DM_INSTALL_PLUGINS` 选择随宿主安装的插件（空格或逗号分隔）；未设置时保留默认插件，空值表示只安装宿主。选择不会卸载已有插件。
+
+```sh
+# 远程安装，只安装 db
+curl -fsSL https://raw.githubusercontent.com/guangl/dameng-cli/main/scripts/install.sh | DM_INSTALL_PLUGINS=db sh
+# 本地安装 ssh 和 db
+DM_INSTALL_PLUGINS="ssh,db" ./scripts/install-local.sh
+# 本地只安装宿主
+DM_INSTALL_PLUGINS="" ./scripts/install-local.sh
+```
+
 官方安装脚本会一并安装内置插件：远程脚本按 Release 插件清单安装并记录持久的发布来源，因此 `dm update ssh`、`dm update db` 可直接检查和升级；本地脚本从检出目录安装，也可直接更新。此前由旧脚本从临时目录安装的插件需重新运行新版安装脚本一次，以刷新更新来源。`dm self-update` 只更新宿主；`cargo install --path .` 或 Windows zip 安装的宿主不带插件。详见 [CLI 参考](docs/cli.md)。
 
 ### 安装插件

@@ -17,7 +17,7 @@ TAG = "v0.4.1"
 
 
 class InstallerTests(unittest.TestCase):
-    def install(self, mode):
+    def install(self, mode, plugins=None):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             previous = Path.cwd()
@@ -79,6 +79,9 @@ else:
                 env = dict(os.environ, PATH=str(tools) + os.pathsep + os.environ["PATH"],
                            DM_INSTALL_DIR=str(root / "bin"), DM_INSTALL_TARGET=TARGET,
                            DM_TEST_LOG=str(log), DM_TEST_ASSETS=str(root / "dist"))
+                env.pop("DM_INSTALL_PLUGINS", None)
+                if plugins is not None:
+                    env["DM_INSTALL_PLUGINS"] = plugins
                 result = subprocess.run(["sh", str(ROOT / "scripts/install.sh"), TAG],
                                         env=env, capture_output=True, text=True, timeout=30)
                 return result, log.read_text() if log.exists() else ""
@@ -92,6 +95,62 @@ else:
         # The installer also installs shell completion for both supported shells.
         self.assertIn("completions bash --install", log)
         self.assertIn("completions zsh --install", log)
+
+    def test_explicit_selection_deduplicates(self):
+        result, log = self.install("independent", "db,db")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(log.count("--release-source"), 1)
+
+    def test_empty_selection_skips_plugins_and_sources(self):
+        result, log = self.install("tampered", "")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("--release-source", log)
+        self.assertIn("completions bash --install", log)
+
+    def test_unknown_or_unsafe_selection_fails(self):
+        for plugins in ("ssh", "../db", "*", "db,unknown"):
+            with self.subTest(plugins=plugins):
+                result, log = self.install("independent", plugins)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(log, "")
+
+    def test_local_selection_controls_build_and_install(self):
+        for selection, expected in (("db,db", ["db"]), ("", []), ("ssh db", ["ssh", "db"]), ("unknown", None)):
+            with self.subTest(selection=selection), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "scripts").mkdir()
+                shutil.copy2(ROOT / "scripts/install-local.sh", root / "scripts/install-local.sh")
+                for component in ("crates/dm-plugin-sdk", "plugins/db", "plugins/ssh"):
+                    path = root / component
+                    path.mkdir(parents=True)
+                    (path / "Cargo.toml").touch()
+                binaries = root / "target/release"
+                binaries.mkdir(parents=True)
+                host = binaries / "dm"
+                host.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$DM_TEST_LOG"\n')
+                host.chmod(0o755)
+                for plugin in ("ssh", "db"):
+                    shutil.copy2(host, binaries / f"dm-{plugin}")
+                tools = root / "tools"
+                tools.mkdir()
+                cargo = tools / "cargo"
+                cargo.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$DM_TEST_LOG"\n')
+                cargo.chmod(0o755)
+                log = root / "log"
+                env = dict(os.environ, PATH=str(tools) + os.pathsep + os.environ["PATH"],
+                           DM_INSTALL_PLUGINS=selection, DM_TEST_LOG=str(log), DM_INSTALL_DIR=str(root / "bin"))
+                result = subprocess.run(["sh", str(root / "scripts/install-local.sh")], env=env,
+                                        capture_output=True, text=True, timeout=30)
+                if expected is None:
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertFalse(log.exists())
+                    continue
+                self.assertEqual(result.returncode, 0, result.stderr)
+                lines = log.read_text().splitlines()
+                for plugin in ("ssh", "db"):
+                    self.assertEqual(f"-p dm-plugin-{plugin}" in lines[0], plugin in expected)
+                    installs = [line for line in lines if line.startswith("install ") and f"plugins/{plugin} " in line]
+                    self.assertEqual(len(installs), int(plugin in expected))
 
     def test_old_release_tracks_host_repository_and_host_tag(self):
         result, log = self.install("legacy")

@@ -34,7 +34,7 @@ SSH 插件用同样的两种形式迁移：`dm ssh export [--file PATH] [--inclu
 | 脚本 | 安装哪些插件 | 记录的来源 |
 | --- | --- | --- |
 | `scripts/install.sh`（远程） | 按 Release 资产 `dm-plugins-<tag>-<target>.txt` 逐行安装插件；清单缺失时回退到 `ssh db` | `github-release:<owner>/<repository>`；另记录 Release tag 与目标平台 |
-| `scripts/install-local.sh`（本地检出） | 固定构建并安装 `ssh` 与 `db` | 检出中的 `plugins/ssh`、`plugins/db` |
+| `scripts/install-local.sh`（本地检出） | 默认构建并安装 `ssh` 与 `db` | 检出中的 `plugins/ssh`、`plugins/db` |
 
 当前内置插件是两个：
 
@@ -176,3 +176,5 @@ dm info ssh
 宿主和内置插件的配置文件最多 1 MiB，连接导入文档及 SQL 输入最多 16 MiB；超出限制会直接报错，不截断输入。Release 元数据最多 1 MiB，SHA-256 文件最多 4 KiB。压缩包校验使用固定 64 KiB 缓冲，不把整个包读入内存；数据库结果逐行写入，避免再次拼接完整输出文本。
 
 Git 和下载辅助进程的 stdout、stderr 分别最多保留 64 KiB，单个进程最多运行 180 秒；下载单次传输最多 120 秒，重试时间预算最多 180 秒。超时或辅助输出超限会终止该辅助进程并报错。交互式 SSH、普通插件执行、生命周期 hook 和插件源码编译不受这些辅助进程限制；第三方插件及其子进程的 CPU、内存由插件和操作系统管理。这些限制控制宿主的主要缓冲及并发开销，并非整个进程树的硬性内存额度或 CPU 限速。
+
+安装脚本支持 `DM_INSTALL_PLUGINS="ssh,db"` 选择插件，空格也可分隔；未设置时使用默认清单，`DM_INSTALL_PLUGINS=""` 只安装宿主。远程选择必须在 Release 清单中，本地支持 `ssh` 与 `db`。未选择的已有插件会保留。
