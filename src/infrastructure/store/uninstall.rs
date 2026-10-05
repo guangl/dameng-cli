@@ -26,6 +26,7 @@ impl PluginStore {
             return self.purge_directories(name);
         }
         ensure!(installed, "Plugin '{name}' is not installed");
+        self.restore_reserved_directories(name)?;
         let path = self.plugins().join(name);
         ensure!(
             !self.protects_host_logs(&path),
@@ -100,10 +101,17 @@ impl PluginStore {
         }
         paths.extend(self.legacy_per_plugin_directories(name));
         paths.push(self.backups().join(name));
+        paths.extend(
+            self.reserved_directory_moves(name)
+                .unwrap_or_default()
+                .into_iter()
+                .map(|(source, _)| source),
+        );
         paths.retain(|path| !self.protects_host_logs(path));
         paths
     }
     fn purge_directories(&self, name: &str) -> Result<()> {
+        self.restore_reserved_directories(name)?;
         let mut cleanup_failures = Vec::new();
         for directory in self.removal_paths(name) {
             if let Err(error) = fs::remove_dir_all(&directory)

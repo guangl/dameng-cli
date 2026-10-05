@@ -11,6 +11,7 @@ mod completion_install;
 mod config;
 mod config_runtime;
 mod doctor;
+mod doctor_logs;
 mod errors;
 mod hooks;
 mod host_directory_protection;
@@ -35,7 +36,10 @@ mod update;
 mod usability;
 
 mod release_plugins;
+mod reserved_plugin_recovery;
 
 mod resources;
 
 mod sqllog2db_release;
+
+mod reserved_review;

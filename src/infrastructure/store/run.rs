@@ -38,6 +38,13 @@ impl PluginStore {
                 fs::create_dir_all(directory)?;
             }
         } else {
+            for (source, target) in self.reserved_directory_moves(name)? {
+                for current in [&mut config_dir, &mut data_dir, &mut cache_dir] {
+                    if *current == target {
+                        *current = source.clone();
+                    }
+                }
+            }
             // Completion must not mutate the store: point an upgraded
             // installation at its legacy directory until the plugin runs once.
             for (current, legacy) in [&mut config_dir, &mut data_dir, &mut cache_dir]

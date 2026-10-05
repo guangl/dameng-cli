@@ -9,7 +9,7 @@ use std::fs;
 use tempfile::TempDir;
 
 /// Write the store row and plugin directory an older `dm` would have left.
-fn install_legacy_plugin(home: &std::path::Path, name: &str) {
+pub(crate) fn install_legacy_plugin(home: &std::path::Path, name: &str) {
     let root = home.join("plugins").join(name);
     fs::create_dir_all(&root).unwrap();
     fs::write(root.join("dm-plugin.toml"), manifest(name)).unwrap();
