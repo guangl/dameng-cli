@@ -115,7 +115,7 @@ else:
                 self.assertEqual(log, "")
 
     def test_local_selection_controls_build_and_install(self):
-        for selection, expected in (("db,db", ["db"]), ("", []), ("ssh db", ["ssh", "db"]), ("unknown", None)):
+        for selection, expected in (("db,db", ["db"]), ("", []), ("ssh db", ["ssh", "db"]), ("sqllog2db", []), ("unknown", None)):
             with self.subTest(selection=selection), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 (root / "scripts").mkdir()
@@ -147,10 +147,18 @@ else:
                     continue
                 self.assertEqual(result.returncode, 0, result.stderr)
                 lines = log.read_text().splitlines()
+                if selection == "sqllog2db":
+                    self.assertIn("install https://github.com/guangl/dm-database-sqllog2db.git --rev v3.0.2 --replace", lines)
                 for plugin in ("ssh", "db"):
                     self.assertEqual(f"-p dm-plugin-{plugin}" in lines[0], plugin in expected)
                     installs = [line for line in lines if line.startswith("install ") and f"plugins/{plugin} " in line]
                     self.assertEqual(len(installs), int(plugin in expected))
+
+    def test_external_sqllog2db_selection(self):
+        result, log = self.install("independent", "db,sqllog2db")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--release-source guangl/dm-plugin-db", log)
+        self.assertIn("install https://github.com/guangl/dm-database-sqllog2db.git --rev v3.0.2 --replace", log)
 
     def test_old_release_tracks_host_repository_and_host_tag(self):
         result, log = self.install("legacy")

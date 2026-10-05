@@ -128,6 +128,7 @@ if [ "${DM_INSTALL_PLUGINS+x}" = x ]; then
         case "$selected" in
             *[!a-z0-9_-]*|'') echo "dm installer: invalid plugin name: $selected" >&2; exit 1 ;;
         esac
+        [ "$selected" != sqllog2db ] || continue
         case " $(printf '%s' "$plugins" | tr '\n' ' ') " in
             *" $selected "*) ;;
             *) echo "dm installer: plugin is not in this release: $selected" >&2; exit 1 ;;
@@ -146,6 +147,10 @@ fi
 
 # Word splitting is intended: the list holds one plugin name per line.
 for plugin in $plugins; do
+    if [ "$plugin" = sqllog2db ]; then
+        "$install_dir/dm" install https://github.com/guangl/dm-database-sqllog2db.git --rev v3.0.2 --replace
+        continue
+    fi
     plugin_archive="dm-${plugin}-${version}-${target}.tar.gz"
     if ! download_asset "$plugin_archive"; then
         echo "dm installer: dm-${plugin} is not published for ${version}; skipping" >&2

@@ -8,8 +8,8 @@ set -f
 plugins=$(printf '%s' "${DM_INSTALL_PLUGINS-ssh db}" | tr ',' ' ')
 for plugin in $plugins; do
     case "$plugin" in
-        ssh|db) ;;
-        *) echo "dm local installer: unknown plugin: $plugin (available: ssh db)" >&2; exit 1 ;;
+        ssh|db|sqllog2db) ;;
+        *) echo "dm local installer: unknown plugin: $plugin (available: ssh db sqllog2db)" >&2; exit 1 ;;
     esac
 done
 plugins=$(printf '%s\n' $plugins | awk 'NF && !seen[$0]++')
@@ -22,6 +22,7 @@ fi
 manifests="crates/dm-plugin-sdk/Cargo.toml"
 packages=""
 for plugin in $plugins; do
+    [ "$plugin" != sqllog2db ] || continue
     manifests="$manifests plugins/$plugin/Cargo.toml"
     packages="$packages -p dm-plugin-$plugin"
 done
@@ -56,6 +57,10 @@ publish_binary() {
 }
 publish_binary "${project_dir}/target/release/dm" "${install_dir}/dm"
 for plugin in $plugins; do
+    if [ "$plugin" = sqllog2db ]; then
+        "${install_dir}/dm" install https://github.com/guangl/dm-database-sqllog2db.git --rev v3.0.2 --replace
+        continue
+    fi
     publish_binary "${project_dir}/target/release/dm-$plugin" "${project_dir}/plugins/$plugin/dm-$plugin"
     "${install_dir}/dm" install "${project_dir}/plugins/$plugin" --replace
 done
