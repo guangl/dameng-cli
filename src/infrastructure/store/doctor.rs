@@ -3,27 +3,20 @@ use log::info;
 use rusqlite::params;
 use std::{collections::BTreeSet, fs};
 
-use crate::Manifest;
-
 use super::{DoctorReport, PluginStore, RESERVED_HOME_ENTRIES, sha256_file};
+use crate::Manifest;
 mod tables;
-use tables::foreign_store_tables;
-
+use tables::{foreign_store_tables, installed_plugin_names};
 impl PluginStore {
     pub fn doctor(&self, repair: bool) -> Result<DoctorReport> {
         info!("running doctor repair={repair}");
         fs::create_dir_all(self.plugins())?;
         let connection = self.connect()?;
-        let database_names = {
-            let mut statement = connection.prepare("SELECT name FROM installed_plugins")?;
-            statement
-                .query_map([], |row| row.get::<_, String>(0))?
-                .collect::<rusqlite::Result<BTreeSet<_>>>()?
-        };
+        let database_names = installed_plugin_names(&connection)?;
         let mut disk_names = BTreeSet::new();
         let mut issues = Vec::new();
         let mut repairs = Vec::new();
-        let grouped_sources =
+        let mut grouped_sources =
             self.reserved_sources_for_doctor(repair, &mut issues, &mut repairs)?;
         // The host store belongs to the host; a plugin that creates tables here
         // would tie its data to the host version and to other plugins.
@@ -60,6 +53,7 @@ impl PluginStore {
                         if stored.manifest == manifest {
                             let destination = self.plugins().join(&manifest.name);
                             if self.protects_host_logs(&destination) {
+                                disk_names.insert(manifest.name.clone());
                                 continue;
                             }
                             let destination_matches = Manifest::read(&destination)
@@ -138,6 +132,14 @@ impl PluginStore {
                 }
                 Err(error) => issues.push(format!("invalid plugin {name}: {error:#}")),
             }
+        }
+        // Metadata recovery may reveal reserved plugins omitted from the first scan.
+        if repair {
+            grouped_sources.extend(self.reserved_sources_for_doctor(
+                true,
+                &mut issues,
+                &mut repairs,
+            )?);
         }
         let installed_names = {
             let mut statement = connection.prepare(

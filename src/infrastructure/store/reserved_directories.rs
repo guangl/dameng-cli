@@ -1,5 +1,6 @@
 //! Recover narrowly scoped plugin directories stranded in a host-owned root.
 use anyhow::{Context, Result, ensure};
+use fs2::FileExt;
 use std::{collections::BTreeSet, fs, path::PathBuf};
 
 use super::{PluginStore, RESERVED_HOME_ENTRIES, directories::is_empty_directory};
@@ -86,9 +87,14 @@ impl PluginStore {
                 "Move the host log directory out of {} before restoring '{name}'",
                 source.display()
             );
-            if target.exists() {
+            let metadata = match fs::symlink_metadata(&target) {
+                Ok(metadata) => Some(metadata),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+                Err(error) => return Err(error.into()),
+            };
+            if let Some(metadata) = metadata {
                 ensure!(
-                    fs::symlink_metadata(&target)?.is_dir(),
+                    metadata.is_dir(),
                     "Refusing to restore into non-directory {}",
                     target.display()
                 );
@@ -108,6 +114,17 @@ impl PluginStore {
     }
 
     pub(crate) fn restore_reserved_directories(&self, name: &str) -> Result<Vec<String>> {
+        if !RESERVED_HOME_ENTRIES.contains(&name) {
+            return Ok(Vec::new());
+        }
+        // Serialize planning and moves so concurrent launches see the completed layout.
+        let lock = fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(self.home.join(".reserved-recovery.lock"))?;
+        lock.lock_exclusive()?;
         let mut restored = Vec::new();
         // Validate the whole plan before moving anything: ambiguous ownership
         // or a populated destination must never lead to overwritten data.

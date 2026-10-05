@@ -41,3 +41,5 @@ mod reserved_plugin_recovery;
 mod resources;
 
 mod sqllog2db_release;
+
+mod reserved_review;

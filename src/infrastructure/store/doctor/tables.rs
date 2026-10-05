@@ -14,3 +14,13 @@ pub(super) fn foreign_store_tables(connection: &rusqlite::Connection) -> Result<
         .filter(|name| !STORE_TABLES.contains(&name.as_str()))
         .collect())
 }
+
+/// Snapshot installation records before comparing packages on disk.
+pub(super) fn installed_plugin_names(
+    connection: &rusqlite::Connection,
+) -> Result<std::collections::BTreeSet<String>> {
+    let mut statement = connection.prepare("SELECT name FROM installed_plugins")?;
+    Ok(statement
+        .query_map([], |row| row.get::<_, String>(0))?
+        .collect::<rusqlite::Result<_>>()?)
+}
