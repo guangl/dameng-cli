@@ -55,7 +55,7 @@ fn prebuilt_release_is_used_before_source_build() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("no SHA-256 sidecar"), "{stderr}");
+    assert!(!stderr.contains("SHA-256 sidecar"), "{stderr}");
     assert!(
         !stderr.contains("Building probe 0.1.0 from source"),
         "{stderr}"

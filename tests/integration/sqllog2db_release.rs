@@ -106,7 +106,7 @@ fn legacy_sqllog2db_release_installs_and_runs() {
         let urls: Vec<_> = requests.lines().collect();
         assert!(urls[0].contains("/dm-sqllog2db-"));
         assert!(urls[1].contains("/sqllog2db-"));
-        assert!(urls[2].ends_with(".sha256"));
+        assert_eq!(urls.len(), 2);
     }
 }
 
@@ -118,16 +118,15 @@ fn native_sqllog2db_asset_has_priority() {
 }
 
 #[test]
-fn legacy_sqllog2db_checksum_mismatch_does_not_install() {
-    assert!(
-        !install(
-            "guangl/dm-database-sqllog2db",
-            "3.0.1",
-            false,
-            &"0".repeat(64)
-        )
-        .0
+fn legacy_sqllog2db_never_requests_checksum_attachments() {
+    let (success, requests) = install(
+        "guangl/dm-database-sqllog2db",
+        "3.0.1",
+        false,
+        &"0".repeat(64),
     );
+    assert!(success);
+    assert!(!requests.contains(".sha256"));
 }
 
 #[test]
