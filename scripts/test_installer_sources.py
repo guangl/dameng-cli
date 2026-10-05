@@ -54,6 +54,9 @@ fi
                     sources.write_text("db attacker/plugin v9.9.9\n")
                 elif mode == "missing-checksum":
                     sources.with_name(sources.name + ".sha256").unlink()
+                elif mode == "missing-list-checksum":
+                    plugin_list = root / "dist" / f"dm-plugins-{TAG}-{TARGET}.txt.sha256"
+                    plugin_list.unlink()
                 elif mode == "missing-plugin":
                     sources.write_text("ssh guangl/dm-plugin-ssh v0.2.0\n")
                     release._write_checksum(sources)
@@ -82,8 +85,13 @@ else:
                 env.pop("DM_INSTALL_PLUGINS", None)
                 if plugins is not None:
                     env["DM_INSTALL_PLUGINS"] = plugins
+                installed_host = root / "bin/dm"
+                installed_host.parent.mkdir()
+                installed_host.write_bytes(b"original host")
                 result = subprocess.run(["sh", str(ROOT / "scripts/install.sh"), TAG],
                                         env=env, capture_output=True, text=True, timeout=30)
+                if result.returncode != 0:
+                    self.assertEqual(installed_host.read_bytes(), b"original host")
                 return result, log.read_text() if log.exists() else ""
             finally:
                 os.chdir(previous)
@@ -102,7 +110,7 @@ else:
         self.assertEqual(log.count("--release-source"), 1)
 
     def test_empty_selection_skips_plugins_and_sources(self):
-        result, log = self.install("tampered", "")
+        result, log = self.install("missing-list-checksum", "")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn("--release-source", log)
         self.assertIn("completions bash --install", log)
@@ -160,13 +168,18 @@ else:
         self.assertIn("--release-source guangl/dm-plugin-db", log)
         self.assertIn("install https://github.com/guangl/dm-database-sqllog2db.git --rev v3.0.2 --replace", log)
 
+    def test_external_only_skips_bundled_metadata(self):
+        result, log = self.install("missing-list-checksum", "sqllog2db")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--rev v3.0.2", log)
+
     def test_old_release_tracks_host_repository_and_host_tag(self):
         result, log = self.install("legacy")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("--release-source guangl/dameng-cli --release-tag v0.4.1", log)
 
     def test_invalid_sources_stop_before_plugin_installation(self):
-        for mode in ("tampered", "missing-checksum", "missing-plugin"):
+        for mode in ("tampered", "missing-checksum", "missing-plugin", "missing-list-checksum"):
             with self.subTest(mode=mode):
                 result, log = self.install(mode)
                 self.assertNotEqual(result.returncode, 0)

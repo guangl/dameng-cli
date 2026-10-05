@@ -108,8 +108,6 @@ if ! download_asset "$archive"; then
     exit 1
 fi
 tar -xzf "$work_dir/${archive}" -C "$work_dir"
-mkdir -p "$install_dir"
-install -m 755 "$work_dir/dm-${version}-${target}/dm" "$install_dir/dm"
 
 # Bundled plugins. The release publishes ${plugin_list}, so packaged and
 # installed plugins cannot drift apart; tags cut before that list exist fall back
@@ -117,7 +115,16 @@ install -m 755 "$work_dir/dm-${version}-${target}/dm" "$install_dir/dm"
 # notice instead of failing the whole installation.
 set -f
 plugins="ssh db"
-if download_asset "$plugin_list"; then
+selected_plugins=$(printf '%s' "${DM_INSTALL_PLUGINS-}" | tr ',' ' ')
+needs_bundled_plugins=false
+if [ "${DM_INSTALL_PLUGINS+x}" != x ]; then
+    needs_bundled_plugins=true
+else
+    for selected in $selected_plugins; do
+        [ "$selected" = sqllog2db ] || needs_bundled_plugins=true
+    done
+fi
+if [ "$needs_bundled_plugins" = true ] && download_asset "$plugin_list"; then
     plugins=$(sed -e 's/[[:space:]]*$//' -e '/^$/d' "$work_dir/${plugin_list}")
 fi
 
@@ -139,11 +146,14 @@ fi
 
 # New releases record independent plugin repositories; old releases retain the
 # host source. The source list is checked with the same SHA-256 policy as assets.
-if [ -n "$plugins" ] && download_asset "$plugin_sources"; then
+if [ "$needs_bundled_plugins" = true ] && download_asset "$plugin_sources"; then
     has_plugin_sources=true
 else
     has_plugin_sources=false
 fi
+
+mkdir -p "$install_dir"
+install -m 755 "$work_dir/dm-${version}-${target}/dm" "$install_dir/dm"
 
 # Word splitting is intended: the list holds one plugin name per line.
 for plugin in $plugins; do
