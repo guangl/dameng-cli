@@ -108,28 +108,68 @@ if ! download_asset "$archive"; then
     exit 1
 fi
 tar -xzf "$work_dir/${archive}" -C "$work_dir"
-mkdir -p "$install_dir"
-install -m 755 "$work_dir/dm-${version}-${target}/dm" "$install_dir/dm"
 
 # Bundled plugins. The release publishes ${plugin_list}, so packaged and
 # installed plugins cannot drift apart; tags cut before that list exist fall back
 # to the names below, and a plugin a tag does not publish is skipped with a
 # notice instead of failing the whole installation.
+set -f
 plugins="ssh db"
-if download_asset "$plugin_list"; then
+selected_plugins=$(printf '%s' "${DM_INSTALL_PLUGINS-}" | tr ',' ' ')
+needs_bundled_plugins=false
+if [ "${DM_INSTALL_PLUGINS+x}" != x ]; then
+    needs_bundled_plugins=true
+else
+    for selected in $selected_plugins; do
+        [ "$selected" = sqllog2db ] || needs_bundled_plugins=true
+    done
+fi
+if [ "$needs_bundled_plugins" = true ] && download_asset "$plugin_list"; then
     plugins=$(sed -e 's/[[:space:]]*$//' -e '/^$/d' "$work_dir/${plugin_list}")
+fi
+
+# An unset selection keeps the release defaults; an empty value installs only dm.
+if [ "${DM_INSTALL_PLUGINS+x}" = x ]; then
+    selected_plugins=$(printf '%s' "$DM_INSTALL_PLUGINS" | tr ',' ' ')
+    for selected in $selected_plugins; do
+        case "$selected" in
+            *[!a-z0-9_-]*|'') echo "dm installer: invalid plugin name: $selected" >&2; exit 1 ;;
+        esac
+        [ "$selected" != sqllog2db ] || continue
+        case " $(printf '%s' "$plugins" | tr '\n' ' ') " in
+            *" $selected "*) ;;
+            *) echo "dm installer: plugin is not in this release: $selected" >&2; exit 1 ;;
+        esac
+    done
+    plugins=$(printf '%s\n' $selected_plugins | awk 'NF && !seen[$0]++')
 fi
 
 # New releases record independent plugin repositories; old releases retain the
 # host source. The source list is checked with the same SHA-256 policy as assets.
-if download_asset "$plugin_sources"; then
+if [ "$needs_bundled_plugins" = true ] && download_asset "$plugin_sources"; then
     has_plugin_sources=true
 else
     has_plugin_sources=false
 fi
 
+# Validate selected source records before replacing an existing host.
+if [ "$has_plugin_sources" = true ]; then
+    for plugin in $plugins; do
+        [ "$plugin" != sqllog2db ] || continue
+        source_record=$(awk -v name="$plugin" '$1 == name {print $2 " " $3}' "$work_dir/$plugin_sources")
+        [ -n "$source_record" ] || { echo "dm installer: missing source for $plugin" >&2; exit 1; }
+    done
+fi
+
+mkdir -p "$install_dir"
+install -m 755 "$work_dir/dm-${version}-${target}/dm" "$install_dir/dm"
+
 # Word splitting is intended: the list holds one plugin name per line.
 for plugin in $plugins; do
+    if [ "$plugin" = sqllog2db ]; then
+        "$install_dir/dm" install https://github.com/guangl/dm-database-sqllog2db.git --rev v3.0.2 --replace
+        continue
+    fi
     plugin_archive="dm-${plugin}-${version}-${target}.tar.gz"
     if ! download_asset "$plugin_archive"; then
         echo "dm installer: dm-${plugin} is not published for ${version}; skipping" >&2

@@ -16,7 +16,7 @@ description: dameng-cli 内置插件、外部兼容工具的用途、安装方�
 | --- | --- | --- | --- | --- |
 | `db` | 保存、编辑、列出达梦连接配置，导入导出连接 | [源码](https://github.com/guangl/dm-plugin-db) · [v0.2.0 Release](https://github.com/guangl/dm-plugin-db/releases/tag/v0.2.0) | 随宿主安装脚本安装；也可从插件自己的 Release 安装 | 当前版本 0.2.0，API 1，要求 `dm >= 0.4.0`；`test`、`exec` 的数据库驱动尚未接入 |
 | `ssh` | 保存、编辑 SSH 服务器，测试连接并通过内置 SSH 库登录 | [源码](https://github.com/guangl/dm-plugin-ssh) · [v0.2.0 Release](https://github.com/guangl/dm-plugin-ssh/releases/tag/v0.2.0) | 随宿主安装脚本安装；也可从插件自己的 Release 安装 | 当前版本 0.2.0，API 1，要求 `dm >= 0.4.0`；当前源码使用内置 Rust SSH 库，无需额外安装客户端；`add` 通过连通性和认证测试后才保存，失败不保存或覆盖配置 |
-| `sqllog2db` | 解析达梦 SQL 日志，导出 Parquet 或 CSV | [仓库](https://github.com/guangl/dm-database-sqllog2db) · [v3.0.1 Release](https://github.com/guangl/dm-database-sqllog2db/releases/tag/v3.0.1) | 使用下文固定版本的仓库安装命令 | v3.0.1 的旧文件名兼容安装要求 `dm >= 0.4.1`；它保留独立程序的帮助与配置行为，不提供 SDK 插件入口 |
+| `sqllog2db` | 解析达梦 SQL 日志，导出 Parquet 或 CSV | [仓库](https://github.com/guangl/dm-database-sqllog2db) · [v3.0.2 Release](https://github.com/guangl/dm-database-sqllog2db/releases/tag/v3.0.2) | 安装脚本选择 `sqllog2db`，或使用下文固定版本命令 | v3.0.2 提供 SDK 插件入口，API 1，要求 `dm >= 0.3.0` |
 
 ### 内置插件：db、ssh
 
@@ -48,14 +48,14 @@ dm install https://github.com/guangl/dm-plugin-ssh.git --rev v0.2.0
 
 ### 外部兼容工具：sqllog2db
 
-当前已确认的兼容版本为 v3.0.1；明确指定版本，避免把后续版本当作已验证兼容版本：
+安装脚本通过 `DM_INSTALL_PLUGINS="ssh,db,sqllog2db"` 可选择安装固定版本 v3.0.2；也可直接安装：
 
 ```sh
-dm install https://github.com/guangl/dm-database-sqllog2db.git --rev v3.0.1
+dm install https://github.com/guangl/dm-database-sqllog2db.git --rev v3.0.2
 dm sqllog2db --help
 ```
 
-该 Release 提供 Linux x86_64/ARM64、macOS Intel/Apple Silicon 和 Windows x86_64 的独立程序产物；没有对应的 musl 产物。`dm` 先寻找标准的 `dm-sqllog2db-<target>`，缺少时仅对此仓库的 v3.0.1 使用 `sqllog2db-<target>` 旧文件名。第三方二进制的 glibc 要求需要由其发布者单独验证，不能沿用宿主的新构建基线。
+v3.0.2 提供 Linux GNU x86_64/ARM64、macOS Apple Silicon 和 Windows x86_64 的 `dm-sqllog2db-*` 插件产物及 SHA-256 校验文件；没有 Intel macOS、ARMv7 或 musl 产物。插件最低宿主版本为 0.3.0。第三方二进制的 glibc 要求需要由其发布者单独验证，不能沿用宿主的新构建基线。
 
 ## 开发示例
 
