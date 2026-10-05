@@ -24,6 +24,14 @@ pub(super) fn run(config: &Config, command: ConfigCommand) -> Result<()> {
             let settings = vec![
                 effective(
                     setting(
+                        "build.toolchain",
+                        config.build_toolchain()?,
+                        config.build.toolchain.is_some(),
+                    ),
+                    &["DM_BUILD_TOOLCHAIN"],
+                ),
+                effective(
+                    setting(
                         "update.check_concurrency",
                         config.update_check_concurrency()?,
                         config.update.check_concurrency.is_some(),

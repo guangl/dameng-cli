@@ -75,6 +75,16 @@ jobs:
       - name: Test all Unix completion adapters
         if: runner.os == 'Linux'
         run: python3 scripts/test_completions.py --require bash,zsh
+  msrv:
+    name: Minimum Rust (1.99.0)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          ref: ${{ inputs.ref || github.ref }}
+      - uses: dtolnay/rust-toolchain@1.99.0
+      - run: cargo check --workspace --all-targets --locked
   coverage:
     name: Coverage (lines >= 95%)
     runs-on: ubuntu-latest

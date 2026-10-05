@@ -64,7 +64,7 @@ dm sqllog2db --help
 ## 如何判断能否安装
 
 - 插件包或仓库根目录必须有合法的 `dm-plugin.toml`，其 API 和最低宿主版本要与当前 `dm` 兼容。
-- 本地包必须包含 `dm-<name>`（Windows 为 `.exe`）；仓库来源需在根目录包含对应二进制，或发布与本机系统、架构相匹配的预编译 Release 产物；推荐通过 Releases 与 SHA-256 校验文件分发。`dm install` 不会编译源码。
+- 本地包必须包含 `dm-<name>`（Windows 为 `.exe`）；仓库来源需在根目录包含对应二进制，或发布与本机系统、架构相匹配的预编译 Release 产物；推荐通过 Releases 与 SHA-256 校验文件分发。`dm install` 默认不会编译源码；显式 `--build` 可编译 Rust 插件，见[源码编译](plugin-development/source-build.html)。
 - 校验安装包并确认来源，再按上面的命令安装，通过 `dm <name> --help` 或插件自己的诊断命令验证运行；例如 `dm ssh doctor`。
 - Linux GNU 的 glibc 版本也必须符合插件二进制的要求。宿主后续发布构建已加入 glibc 2.28 符号与 Debian 10 运行检查；已有 Release 与外部插件仍应分别核实。
 

@@ -101,13 +101,13 @@ fn check_executable(
             &directory.path().join(manifest.executable_name()),
             store.progress_enabled(),
         )
-        .context("Source builds are disabled; install a prebuilt plugin release")?;
+        .context("Source builds are disabled by default; install a prebuilt plugin release or use dm install --build")?;
         return Ok(true);
     }
-    // A local package without a built binary: the host never compiles sources,
+    // A local package without a built binary: default installation never compiles sources,
     // so name the exact file the user has to build and copy.
     anyhow::bail!(
-        "Local plugin package has no {} binary; build the plugin and copy it next to {}",
+        "Local plugin package has no {} binary; use dm install --build or build the plugin and copy it next to {}",
         manifest.executable_name(),
         crate::MANIFEST_FILE
     )

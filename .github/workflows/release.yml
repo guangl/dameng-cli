@@ -52,7 +52,7 @@ jobs:
         with:
           submodules: recursive
           ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.99.0
         with:
           targets: ${{ matrix.target }}
       - uses: actions/setup-python@v7

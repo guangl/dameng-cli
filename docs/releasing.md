@@ -25,7 +25,7 @@ Linux GNU x86_64、ARM64 与 ARMv7 产物的最低 glibc 版本固定为 2.28。
 
 本工作流发布 GitHub 宿主与固定组件提交的插件二进制，不发布 crates.io 包。SDK 在独立仓库配置 tag 触发的 crates.io 发布流程，需要配置 `CARGO_REGISTRY_TOKEN`；宿主与插件共用的工具代码不再独立成库：宿主在 `src/support/`，各插件在自己的 `src/support/`。db、ssh 和模板在各自仓库发布 GitHub Release。主仓库或插件发布依赖 SDK 的 crates.io 包前，应先确认 SDK 已发布；首次发布前使用源码/path 或固定提交的 Git 依赖。
 
-二进制宿主运行只需要系统运行环境；SQLite 已静态编译进宿主，不要求系统预装 SQLite。`dm install` 只安装预编译插件，不需要 Rust/Cargo；远程插件来源需要 Git，下载预编译产物在所有平台都需要 `curl`（Windows 也一样，`PowerShell` 用于宿主自更新及 Release 插件 zip 包解包）。只有 `scripts/install-local.sh` 才需要 Rust/Cargo，因为它要构建宿主和两个内置插件。
+二进制宿主运行只需要系统运行环境；SQLite 已静态编译进宿主，不要求系统预装 SQLite。`dm install` 默认安装预编译插件，不需要 Rust/Cargo；显式 `--build` 则需要 rustup 和所选 Rust 工具链；远程插件来源需要 Git，下载预编译产物在所有平台都需要 `curl`（Windows 也一样，`PowerShell` 用于宿主自更新及 Release 插件 zip 包解包）。`scripts/install-local.sh` 同样需要 Rust/Cargo，因为它要构建宿主和两个内置插件。
 
 仓库提供 `scripts/install.sh`，根据系统选择 Release 归档并校验 SHA-256，随后按 `dm-plugins-<tag>-<target>.txt` 依次安装内置插件（清单缺失时回退到脚本内置名单）；只有明确未发布的资产才提示并跳过，其余网络或 HTTP 错误会直接让安装失败；覆盖 Linux x86_64、Linux ARM64、Linux ARMv7、Apple Silicon macOS 与 Intel macOS，可用 `DM_INSTALL_TARGET` 选择 `x86_64-unknown-linux-musl`、`aarch64-unknown-linux-musl` 等产物。已安装的宿主可运行 `dm self-update --check` 或 `dm self-update`，会校验 SHA-256；Unix 需要系统提供 `curl` 和 `tar`，Windows 解压使用 PowerShell。`scripts/install-local.sh` 从当前检出执行 locked release build，把宿主与 `ssh`、`db` 两个内置插件一起安装（统一用 `dm install <包目录> --replace` 安装或升级）。两者默认写入 `$HOME/.local/bin`，也接受 `DM_INSTALL_DIR`。
 
@@ -44,3 +44,5 @@ Linux GNU x86_64、ARM64 与 ARMv7 产物的最低 glibc 版本固定为 2.28。
 ## 独立组件发布
 
 详见 [组件开发](components.html)。各仓库先经 PR、CI 和合并确认，再在合并提交打对应版本标签。SDK 使用自己的版本；插件 crate 与 dm-plugin.toml 版本必须一致。宿主固定提交更新也必须单独通过集成 CI。GitHub template 必须在模板 PR 合并后才包含完整内容。
+
+宿主 Release 构建固定使用 Rust `1.99.0`；常规测试继续使用最新 stable，CI 另有 Rust `1.99.0` 的工作区最低版本编译检查。提高 MSRV 时同步更新 Cargo 声明、最低版本检查和发布工具链。

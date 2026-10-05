@@ -10,7 +10,7 @@ description: 定位插件清单、构建、安装、运行协议和数据库环�
 
 | 错误或现象 | 原因 | 处理方式 |
 | --- | --- | --- |
-| `Local plugin package has no dm-<name> binary` | 本地包目录里没有编译好的可执行文件，宿主不编译源码。 | 先 `cargo build --release --locked`，把 `target/release/dm-<name>`（Windows 为 `.exe`）放到 `dm-plugin.toml` 同级再安装。 |
+| `Local plugin package has no dm-<name> binary` | 本地包目录里没有编译好的可执行文件，默认安装不编译源码。 | 使用 `dm install <source> --build --toolchain 1.99.0 --install-toolchain`，或先 `cargo build --release --locked`，把 `target/release/dm-<name>`（Windows 为 `.exe`）放到 `dm-plugin.toml` 同级再安装。 |
 | `No prebuilt plugin 'dm-<name>-<target>' found` | 远程仓库 Release 没有与清单版本、本机 target 匹配的资产。 | 按约定发布 `dm-<name>-<target>` 与同名 `.sha256`；也可改用本地包目录安装。 |
 | `Prebuilt plugin SHA-256 mismatch` | 下载的资产与 `.sha256` 侧车不一致。 | 停止安装，核对 Release 资产与网络链路后重试，不要绕过校验。 |
 | `Manifest must be a regular file` / `Invalid manifest` / `Manifest exceeds 64 KiB` | 清单是符号链接、超过 64 KiB，或含未知字段、非法名称与环境变量名。 | 按[项目结构与清单](manifest.html)修正；宿主拒绝一切未知字段。 |

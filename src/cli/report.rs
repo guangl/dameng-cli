@@ -36,6 +36,12 @@ pub fn hint_for(error: &Error) -> String {
         .join("\n")
         .to_lowercase();
 
+    if text.contains("toolchain") || text.contains("rustup") {
+        return "源码编译需要 rustup 与固定 Rust 版本；可用 `--build --toolchain 1.99.0 --install-toolchain` 安装所需工具链，不会修改全局默认值。".into();
+    }
+    if text.contains("source build") || text.contains("cargo did not produce") {
+        return "请检查 Cargo 编译错误、系统依赖、`rust-version`、`Cargo.lock` 和 `dm-<name>` binary target；修复后重试 `dm install <source> --build`。".into();
+    }
     if text.contains("not installed") || text.contains("no recorded source") {
         return "请先运行 `dm install <source>` 安装插件，或用 `dm list` 查看已安装插件。".into();
     }
@@ -48,7 +54,7 @@ pub fn hint_for(error: &Error) -> String {
             .into();
     }
     if text.contains("has no dm-") {
-        return "本地包目录必须同时包含 `dm-plugin.toml` 和构建好的 `dm-<name>`：先 `cargo build --release --locked`，再把 `target/release/dm-<name>` 复制到清单同级后重试。".into();
+        return "可用 `dm install <source> --build` 编译源码；默认安装的本地包目录必须同时包含 `dm-plugin.toml` 和构建好的 `dm-<name>`：先 `cargo build --release --locked`，再把 `target/release/dm-<name>` 复制到清单同级后重试。".into();
     }
     if text.contains("invalid manifest in sqlite store") {
         return "存储中的插件清单来自更早的 `dm` 版本（例如已移除的 `permissions` 字段），当前宿主不再解析：请用 `dm install <包目录> --replace` 重装该插件刷新元数据，配置与数据会保留。".into();

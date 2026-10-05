@@ -16,6 +16,19 @@ impl PluginStore {
         source_ref: Option<String>,
         mode: InstallMode,
     ) -> Result<Manifest> {
+        self.install_prepared(source, recorded_source, revision, source_ref, mode, None)
+    }
+
+    /// Publish either a prebuilt package or an explicitly built executable.
+    pub(crate) fn install_prepared(
+        &self,
+        source: &Path,
+        recorded_source: Option<String>,
+        revision: Option<String>,
+        source_ref: Option<String>,
+        mode: InstallMode,
+        built_binary: Option<&Path>,
+    ) -> Result<Manifest> {
         let source = fs::canonicalize(source)?;
         let manifest = Manifest::read(&source)?;
         info!(
@@ -45,7 +58,9 @@ impl PluginStore {
             .tempdir_in(&plugins)?;
         let package = stage.path().join("package");
         let prebuilt = stage.path().join("prebuilt");
-        let local_binary = source.join(manifest.executable_name());
+        let local_binary = built_binary
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| source.join(manifest.executable_name()));
         if local_binary.is_file() {
             fs::copy(&local_binary, &prebuilt).context("Copy local prebuilt plugin")?;
         } else if recorded_source
@@ -59,12 +74,12 @@ impl PluginStore {
                 &prebuilt,
                 self.progress_enabled(),
             )
-            .context("Source builds are disabled; install a prebuilt plugin release")?;
+            .context("Source builds are disabled by default; install a prebuilt plugin release or use dm install --build")?;
         } else {
-            // A local package that has no built binary: the host never compiles
+            // A local package that has no built binary: default installation never compiles
             // sources, so name the exact file the user has to build and copy.
             bail!(
-                "Local plugin package has no {} binary; build the plugin and copy it next to {}",
+                "Local plugin package has no {} binary; use dm install --build or build the plugin and copy it next to {}",
                 manifest.executable_name(),
                 crate::MANIFEST_FILE
             );
