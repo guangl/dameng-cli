@@ -8,8 +8,8 @@ use std::time::Duration;
 
 use super::{github_repository, prebuilt_target_label, progress_bar_for, release_tag_candidates};
 
-fn download_prebuilt_asset(url: &str, destination: &Path) -> bool {
-    capture(
+fn download_prebuilt_asset(url: &str, destination: &Path) -> Result<()> {
+    let output = capture(
         Command::new("curl")
             .args([
                 "-q",
@@ -28,7 +28,13 @@ fn download_prebuilt_asset(url: &str, destination: &Path) -> bool {
             .arg(url),
         Duration::from_secs(180),
     )
-    .is_ok_and(|output| output.status.success())
+    .context("Download prebuilt plugin requires curl")?;
+    anyhow::ensure!(
+        output.status.success(),
+        "Prebuilt plugin download failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    Ok(())
 }
 
 pub(crate) fn try_download_prebuilt(
@@ -72,7 +78,13 @@ pub(crate) fn try_download_prebuilt(
                 "https://github.com/{owner}/{repository}/releases/download/{tag}/{candidate}"
             );
             debug!("trying prebuilt asset {url}");
-            if download_prebuilt_asset(&url, destination) {
+            if let Some(hash) = crate::support::github_release::asset_digest(
+                &format!("{owner}/{repository}"),
+                &tag,
+                &candidate,
+            )? {
+                download_prebuilt_asset(&url, destination)?;
+                crate::support::github_release::verify_file(destination, &hash)?;
                 if candidate != asset {
                     eprintln!(
                         "dm: installing sqllog2db v3.0.1 standalone release compatibility binary"

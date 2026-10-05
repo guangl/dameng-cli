@@ -28,7 +28,7 @@ dm db --help
 dm ssh --help
 ```
 
-使用 `cargo install` 或直接解压宿主 Windows zip 时，插件不会自动安装。可以下载 [宿主 Release](https://github.com/guangl/dameng-cli/releases) 中与宿主版本和本机平台对应的 `dm-db-*`、`dm-ssh-*` 压缩包，校验随包发布的 SHA-256 文件，解压后将**包含 `dm-plugin.toml` 和插件二进制的目录**传给安装命令：
+使用 `cargo install` 或直接解压宿主 Windows zip 时，插件不会自动安装。可以下载 [宿主 Release](https://github.com/guangl/dameng-cli/releases) 中与宿主版本和本机平台对应的 `dm-db-*`、`dm-ssh-*` 压缩包，依据 GitHub Release API 的 `digest` 校验 SHA-256，解压后将**包含 `dm-plugin.toml` 和插件二进制的目录**传给安装命令：
 
 ```sh
 dm install ./path/to/db-package
@@ -64,7 +64,7 @@ v3.0.2 提供 Linux GNU x86_64/ARM64、macOS Apple Silicon 和 Windows x86_64 �
 ## 如何判断能否安装
 
 - 插件包或仓库根目录必须有合法的 `dm-plugin.toml`，其 API 和最低宿主版本要与当前 `dm` 兼容。
-- 本地包必须包含 `dm-<name>`（Windows 为 `.exe`）；仓库来源需在根目录包含对应二进制，或发布与本机系统、架构相匹配的预编译 Release 产物；推荐通过 Releases 与 SHA-256 校验文件分发。`dm install` 不会编译源码。
+- 本地包必须包含 `dm-<name>`（Windows 为 `.exe`）；仓库来源需在根目录包含对应二进制，或发布与本机系统、架构相匹配的预编译 Release 产物；推荐通过 GitHub Releases 分发并确认资产具有有效的 `digest`。`dm install` 不会编译源码。
 - 校验安装包并确认来源，再按上面的命令安装，通过 `dm <name> --help` 或插件自己的诊断命令验证运行；例如 `dm ssh doctor`。
 - Linux GNU 的 glibc 版本也必须符合插件二进制的要求。宿主后续发布构建已加入 glibc 2.28 符号与 Debian 10 运行检查；已有 Release 与外部插件仍应分别核实。
 
@@ -72,6 +72,6 @@ v3.0.2 提供 Linux GNU x86_64/ARM64、macOS Apple Silicon 和 Windows x86_64 �
 
 ## 把你的插件加入列表
 
-通过 PR 修改本页，提供插件名称、用途、仓库与固定版本 Release、安装命令、API/最低宿主版本、支持的系统与架构，以及 libc 或外部工具要求。发布预编译产物和校验文件，并记录一次真实的安装与调用验证结果。
+通过 PR 修改本页，提供插件名称、用途、仓库与固定版本 Release、安装命令、API/最低宿主版本、支持的系统与架构，以及 libc 或外部工具要求。发布预编译产物并确认 GitHub 资产摘要可用，并记录一次真实的安装与调用验证结果。
 
 源码与产物可继续放在作者自己的 GitHub 仓库和 Releases，无需搭建发布服务器。本列表的维护不代表代码审计或为所有平台作兼容承诺。

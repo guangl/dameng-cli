@@ -52,7 +52,7 @@ GitHub HTTPS 来源的预编译下载使用约定命名：
 https://github.com/OWNER/REPO/releases/download/v<version>/dm-<name>-<target>[.exe]
 ```
 
-`<target>` 映射为 `aarch64-macos`、`x86_64-macos`、`aarch64-linux`、`x86_64-linux`、`armv7-linux`、`x86_64-windows`、`aarch64-windows`；x86_64 与 ARM64 的 musl 产物与同架构 GNU 产物共用标签，只额外发布带 target 的独立归档，避免同名文件互相覆盖。发布工作流应同时构建插件入口 `dm-<name>`（不是独立 CLI），宿主只下载预编译二进制，不请求 `.sha256` 或 JSON 附件；传输使用 HTTPS，安装后计算并保存本地 SHA-256 用于后续完整性诊断。没有匹配产物时安装失败。
+`<target>` 映射为 `aarch64-macos`、`x86_64-macos`、`aarch64-linux`、`x86_64-linux`、`armv7-linux`、`x86_64-windows`、`aarch64-windows`；x86_64 与 ARM64 的 musl 产物与同架构 GNU 产物共用标签，只额外发布带 target 的独立归档，避免同名文件互相覆盖。发布工作流应同时构建插件入口 `dm-<name>`（不是独立 CLI），宿主读取 GitHub Release API 的 `digest`，下载预编译二进制并验证 SHA-256，不请求 `.sha256` 或 JSON 附件；摘要缺失、格式错误或校验不匹配时失败。安装后保存本地 SHA-256 用于后续完整性诊断。没有匹配产物时安装失败。
 
 ## 安装来源
 

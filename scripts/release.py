@@ -1,5 +1,4 @@
 """Version checks and portable release archives; Python 3.11+."""
-import hashlib
 import os
 import re
 from pathlib import Path
@@ -157,11 +156,6 @@ def plugin_contents(
     return [(source, entry) for entry, source in contents.items()]
 
 
-def _write_checksum(archive: Path):
-    digest = hashlib.sha256(archive.read_bytes()).hexdigest()
-    archive.with_name(archive.name + ".sha256").write_text(f"{digest}  {archive.name}\n")
-
-
 def _write_archive(archive: Path, root: str, files, windows: bool):
     if windows:
         with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as output:
@@ -171,7 +165,6 @@ def _write_archive(archive: Path, root: str, files, windows: bool):
         with tarfile.open(archive, "w:gz") as output:
             for source, name in files:
                 output.add(source, arcname=f"{root}/{name}")
-    _write_checksum(archive)
 
 
 def package():
@@ -207,7 +200,6 @@ def package():
     # cannot drift apart.
     listing = dist / PLUGIN_LIST.format(tag=tag, target=target)
     listing.write_text("".join(f"{manifest['name']}\n" for _, manifest in plugins))
-    _write_checksum(listing)
     # Keep bundled installation, but update each plugin from its own repository.
     sources = dist / PLUGIN_SOURCES.format(tag=tag, target=target)
     rows = []
@@ -222,7 +214,6 @@ def package():
             raise SystemExit(f"{directory}: invalid GitHub repository")
         rows.append(f"{manifest['name']} {repository} v{manifest['version']}\n")
     sources.write_text("".join(rows))
-    _write_checksum(sources)
 
 
 if __name__ == "__main__":

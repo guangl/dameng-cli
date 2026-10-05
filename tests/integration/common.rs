@@ -134,7 +134,7 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 case "$url" in
-  *.sha256) cp "$FAKE_SHA256" "$dest";;
+  */releases/tags/*) printf '{"assets":[{"name":"dm-%s-%s.tar.gz","digest":"sha256:%s"}]}' "$FAKE_TAG" "$FAKE_TARGET" "$FAKE_DIGEST" > "$dest"; printf 200;;
   *latest) printf '{"tag_name":"v9.9.9"}' > "$dest";;
   *) cp "$FAKE_ARCHIVE" "$dest";;
 esac
@@ -176,4 +176,11 @@ pub(crate) fn prepend_tools_to_path(tools: &std::path::Path) -> std::ffi::OsStri
             .chain(std::env::split_paths(&std::env::var_os("PATH").unwrap())),
     )
     .unwrap()
+}
+
+pub(crate) fn prebuilt_metadata(path: &Path, name: &str, binary: &[u8]) {
+    use sha2::{Digest, Sha256};
+    let target = dameng_cli::prebuilt_target_label_for(env!("DM_HOST_TARGET")).unwrap();
+    let metadata = serde_json::json!({"assets":[{"name":format!("dm-{name}-{target}{}", std::env::consts::EXE_SUFFIX), "digest":format!("sha256:{}", dameng_cli::support::codec::hex(&Sha256::digest(binary)))}]});
+    fs::write(path, serde_json::to_vec(&metadata).unwrap()).unwrap();
 }

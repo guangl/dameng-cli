@@ -26,10 +26,12 @@ fn prebuilt_release_is_used_before_source_build() {
 
     let fake_bin = temp.path().join("fake-bin");
     fs::write(&fake_bin, "prebuilt-binary").unwrap();
+    let metadata = temp.path().join("release.json");
+    prebuilt_metadata(&metadata, "probe", b"prebuilt-binary");
     let curl = tools.join("curl");
     fs::write(
         &curl,
-        "#!/bin/sh\nout=\nurl=\nwhile [ \"$#\" -gt 0 ]; do\n  case \"$1\" in\n    --output) out=\"$2\"; shift 2;;\n    -w) shift 2;;\n    *) url=\"$1\"; shift;;\n  esac\ndone\ncase \"$url\" in\n  *.sha256) printf 404;;\n  *) cp \"$FAKE_BIN\" \"$out\"; printf 200;;\nesac\n",
+        "#!/bin/sh\nout=\nurl=\nwhile [ \"$#\" -gt 0 ]; do\n  case \"$1\" in\n    --output) out=\"$2\"; shift 2;;\n    -w) shift 2;;\n    *) url=\"$1\"; shift;;\n  esac\ndone\ncase \"$url\" in\n  */releases/tags/*) cp \"$FAKE_RELEASE\" \"$out\"; printf 200;;\n  *) cp \"$FAKE_BIN\" \"$out\"; printf 200;;\nesac\n",
     )
     .unwrap();
     fs::set_permissions(&curl, fs::Permissions::from_mode(0o755)).unwrap();
@@ -43,6 +45,7 @@ fn prebuilt_release_is_used_before_source_build() {
     command
         .env("PATH", &path)
         .env("FAKE_GIT_SOURCE", &source)
+        .env("FAKE_RELEASE", &metadata)
         .env("FAKE_BIN", &fake_bin);
     let output = command
         .args(["install", "https://github.com/example/probe.git"])
@@ -108,7 +111,7 @@ esac
         .unwrap();
     assert!(!output.status.success());
     assert!(
-        String::from_utf8_lossy(&output.stderr).contains("No prebuilt plugin"),
+        String::from_utf8_lossy(&output.stderr).contains("metadata download failed"),
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );

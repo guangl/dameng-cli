@@ -31,7 +31,7 @@ curl -fsSL https://raw.githubusercontent.com/guangl/dameng-cli/main/scripts/inst
 ./scripts/install-local.sh
 ```
 
-两个脚本默认安装到 `$HOME/.local/bin/dm`，可通过 `DM_INSTALL_DIR` 修改。远程脚本会下载与 Release 一起发布的 SHA-256 文件并在安装前校验。Windows 请下载 Release 中的 zip，或执行 `cargo install --path . --locked`。
+两个脚本默认安装到 `$HOME/.local/bin/dm`，可通过 `DM_INSTALL_DIR` 修改。远程脚本需要 `curl` 和 `jq`，读取 GitHub Release 资产的 `digest` 并在安装前校验 SHA-256。Windows 请下载 Release 中的 zip，或执行 `cargo install --path . --locked`。
 
 通过 `DM_INSTALL_PLUGINS` 选择随宿主安装的插件（空格或逗号分隔）；未设置时保留默认插件，空值表示只安装宿主。选择不会卸载已有插件。`sqllog2db` 从独立仓库的固定版本 `v3.0.2` 安装预编译产物，需要 Git 和对应平台的 Release 产物。
 
@@ -64,7 +64,7 @@ dm doctor
 dm uninstall hello
 ```
 
-`dm install` 只安装预编译插件：本地目录需包含 `dm-<name>` 二进制和 `dm-plugin.toml`；GitHub HTTPS 来源会下载该仓库 Release 中与本机 target 匹配的 `dm-<name>` 二进制。没有可用预编译产物时直接报错，不再回退源码编译。插件 Release 应同时发布 `dm-<name>-<target>` 和同名 `.sha256` 文件；缺少 SHA-256 侧车时宿主会提示并信任 HTTPS 传输。
+`dm install` 只安装预编译插件：本地目录需包含 `dm-<name>` 二进制和 `dm-plugin.toml`；GitHub HTTPS 来源会下载该仓库 Release 中与本机 target 匹配的 `dm-<name>` 二进制。没有可用预编译产物时直接报错，不再回退源码编译。插件 Release 发布 `dm-<name>-<target>` 即可；宿主读取 GitHub API 提供的 `sha256:` 摘要并校验下载内容，摘要缺失、格式错误或不匹配时安装失败，不请求 `.sha256` 附件。
 
 兼容 `guangl/dm-database-sqllog2db` 的 v3.0.1：优先下载标准插件文件；缺少时下载同平台的 `sqllog2db-<target>` 独立命令，安装后通过 `dm sqllog2db ...` 调用。此旧版本保留独立命令的帮助文本和配置行为，不提供 SDK 插件入口；其他仓库和版本仍要求标准插件产物。
 
@@ -121,7 +121,7 @@ dm install https://github.com/YOUR_ORG/dm-backup.git --rev v1.2.0
 
 仓库根目录必须包含插件 crate、`Cargo.lock` 和 `dm-plugin.toml`；示例地址不是已发布的插件。生产环境推荐通过 `--rev` 固定 tag 或完整 commit。
 
-宿主 Release 资产附带 SHA-256 校验文件。`dm self-update` 下载并校验 SHA-256 后原子替换宿主；`scripts/install.sh` 同样校验 SHA-256。安装脚本支持 `DM_INSTALL_TARGET` 覆盖产物目标（如 `x86_64-unknown-linux-musl`）。
+GitHub 为宿主 Release 资产提供 SHA-256 `digest`，发布流程不再生成 `.sha256` 附件。`dm self-update` 下载并校验 SHA-256 后原子替换宿主；`scripts/install.sh` 同样校验 SHA-256。安装脚本支持 `DM_INSTALL_TARGET` 覆盖产物目标（如 `x86_64-unknown-linux-musl`）。
 
 ## Rust 插件开发
 
