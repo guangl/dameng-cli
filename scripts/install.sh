@@ -152,6 +152,15 @@ else
     has_plugin_sources=false
 fi
 
+# Validate selected source records before replacing an existing host.
+if [ "$has_plugin_sources" = true ]; then
+    for plugin in $plugins; do
+        [ "$plugin" != sqllog2db ] || continue
+        source_record=$(awk -v name="$plugin" '$1 == name {print $2 " " $3}' "$work_dir/$plugin_sources")
+        [ -n "$source_record" ] || { echo "dm installer: missing source for $plugin" >&2; exit 1; }
+    done
+fi
+
 mkdir -p "$install_dir"
 install -m 755 "$work_dir/dm-${version}-${target}/dm" "$install_dir/dm"
 
