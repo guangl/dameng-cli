@@ -71,7 +71,7 @@ SSH 插件用同样的两种形式迁移：`dm ssh export [--file PATH] [--inclu
 
 ## 宿主更新
 
-`dm self-update [--check] [--version X.Y.Z] [--force] [--target TARGET] [--json]` 查询或安装 GitHub Release。更新会下载归档与 `.sha256`，验证校验和后再原子替换当前程序。
+`dm self-update [--check] [--version X.Y.Z] [--force] [--target TARGET] [--json]` 查询或安装 GitHub Release。更新读取 GitHub Release 资产的 `digest`，下载归档并验证 SHA-256 后再原子替换当前程序；缺少有效摘要时失败。
 
 - `--check` 只报告可用版本。
 - `--version` 选择具体 SemVer，可带或不带 `v`。
@@ -173,7 +173,7 @@ dm info ssh
 
 更新检查使用固定数量的工作线程，默认最多 4 个，可用 `[update] check_concurrency` 或 `DM_UPDATE_CHECK_CONCURRENCY` 在 1..16 内调整。插件列表一次读取安装元数据，避免每个插件重复打开数据库。
 
-宿主和内置插件的配置文件最多 1 MiB，连接导入文档及 SQL 输入最多 16 MiB；超出限制会直接报错，不截断输入。Release 元数据最多 1 MiB，SHA-256 文件最多 4 KiB。压缩包校验使用固定 64 KiB 缓冲，不把整个包读入内存；数据库结果逐行写入，避免再次拼接完整输出文本。
+宿主和内置插件的配置文件最多 1 MiB，连接导入文档及 SQL 输入最多 16 MiB；超出限制会直接报错，不截断输入。Release 元数据最多 1 MiB。压缩包校验使用固定 64 KiB 缓冲，不把整个包读入内存；数据库结果逐行写入，避免再次拼接完整输出文本。
 
 Git 和下载辅助进程的 stdout、stderr 分别最多保留 64 KiB，单个进程最多运行 180 秒；下载单次传输最多 120 秒，重试时间预算最多 180 秒。超时或辅助输出超限会终止该辅助进程并报错。交互式 SSH、普通插件执行、生命周期 hook 和插件源码编译不受这些辅助进程限制；第三方插件及其子进程的 CPU、内存由插件和操作系统管理。这些限制控制宿主的主要缓冲及并发开销，并非整个进程树的硬性内存额度或 CPU 限速。
 

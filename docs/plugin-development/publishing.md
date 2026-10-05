@@ -36,7 +36,7 @@ dm install ./dm-plugin-backup
 dm install https://github.com/your-org/dm-plugin-backup.git
 ```
 
-宿主浅克隆远程默认分支以读取清单，然后下载该仓库 GitHub Release 中与本机 target 匹配的 `dm-<name>` 预编译二进制；没有可用产物时直接报错。注意检出目录根下如果已经存在 `dm-<name>`（例如仓库里提交了二进制），宿主会直接使用它而不下载 Release 资产，也不校验 `.sha256` 侧车，因此仓库不要提交该文件。生产安装应固定 tag 或完整 commit：
+宿主浅克隆远程默认分支以读取清单，然后下载该仓库 GitHub Release 中与本机 target 匹配的 `dm-<name>` 预编译二进制；没有可用产物时直接报错。注意检出目录根下如果已经存在 `dm-<name>`（例如仓库里提交了二进制），宿主会直接使用它而不下载 Release 资产，因此仓库不要提交该文件。生产安装应固定 tag 或完整 commit：
 
 ```sh
 dm install https://github.com/your-org/dm-plugin-backup.git --rev v1.2.0
@@ -52,7 +52,7 @@ GitHub HTTPS 来源的预编译下载使用约定命名：
 https://github.com/OWNER/REPO/releases/download/v<version>/dm-<name>-<target>[.exe]
 ```
 
-`<target>` 映射为 `aarch64-macos`、`x86_64-macos`、`aarch64-linux`、`x86_64-linux`、`armv7-linux`、`x86_64-windows`、`aarch64-windows`；x86_64 与 ARM64 的 musl 产物与同架构 GNU 产物共用标签，只额外发布带 target 的独立归档，避免同名文件互相覆盖。发布工作流应同时构建插件入口 `dm-<name>`（不是独立 CLI），并发布同名 `.sha256` 文件；宿主发现 `.sha256` 时会强制校验，缺失时警告并信任 HTTPS。没有匹配产物时安装失败。
+`<target>` 映射为 `aarch64-macos`、`x86_64-macos`、`aarch64-linux`、`x86_64-linux`、`armv7-linux`、`x86_64-windows`、`aarch64-windows`；x86_64 与 ARM64 的 musl 产物与同架构 GNU 产物共用标签，只额外发布带 target 的独立归档，避免同名文件互相覆盖。发布工作流应同时构建插件入口 `dm-<name>`（不是独立 CLI），宿主读取 GitHub Release API 的 `digest`，下载预编译二进制并验证 SHA-256，不请求 `.sha256` 或 JSON 附件；摘要缺失、格式错误或校验不匹配时失败。安装后保存本地 SHA-256 用于后续完整性诊断。没有匹配产物时安装失败。
 
 ## 安装来源
 

@@ -21,6 +21,11 @@ else
     esac
 fi
 
+if ! command -v jq >/dev/null 2>&1; then
+    echo "dm installer: jq is required to read GitHub Release digests" >&2
+    exit 1
+fi
+
 if ! command -v curl >/dev/null 2>&1; then
     echo "dm installer: curl is required" >&2
     exit 1
@@ -53,22 +58,27 @@ base_url="https://github.com/${repository}/releases/download/${version}"
 work_dir=$(mktemp -d "${TMPDIR:-/tmp}/dm-install.XXXXXXXX")
 trap 'rm -rf "$work_dir"' EXIT HUP INT TERM
 
-# Verify one downloaded file against the SHA-256 sidecar published with it.
+# GitHub computes the digest for each uploaded Release asset.
+curl -q -fsSL "https://api.github.com/repos/${repository}/releases/tags/${version}" > "$work_dir/release.json"
+jq -e '.assets | type == "array"' "$work_dir/release.json" >/dev/null
 verify_sha256() {
     checked=$1
+    expected=$(jq -er --arg name "$checked" '[.assets[] | select(.name == $name)] | if length == 1 then .[0].digest else error("missing or duplicate asset") end | select(type == "string") | select(test("^sha256:[0-9a-fA-F]{64}$")) | ltrimstr("sha256:") | ascii_downcase' "$work_dir/release.json") || {
+        echo "dm installer: missing or invalid GitHub SHA-256 digest for ${checked}" >&2
+        exit 1
+    }
     if command -v sha256sum >/dev/null 2>&1; then
-        (cd "$work_dir" && sha256sum -c "${checked}.sha256")
+        actual=$(sha256sum "$work_dir/$checked" | cut -d ' ' -f 1)
     elif command -v shasum >/dev/null 2>&1; then
-        expected=$(sed 's/[[:space:]].*$//' "$work_dir/${checked}.sha256")
-        actual=$(shasum -a 256 "$work_dir/${checked}" | sed 's/[[:space:]].*$//')
-        [ "$expected" = "$actual" ] || {
-            echo "dm installer: checksum verification failed for ${checked}" >&2
-            exit 1
-        }
+        actual=$(shasum -a 256 "$work_dir/$checked" | cut -d ' ' -f 1)
     else
         echo "dm installer: sha256sum or shasum is required" >&2
         exit 1
     fi
+    [ "$expected" = "$actual" ] || {
+        echo "dm installer: checksum verification failed for ${checked}" >&2
+        exit 1
+    }
 }
 
 # Download one release asset into the work directory and verify its checksum.
@@ -91,14 +101,6 @@ download_asset() {
             exit 1
             ;;
     esac
-    status=$(curl -q -sSL -o "$work_dir/${asset}.sha256" -w '%{http_code}' "${base_url}/${asset}.sha256") || {
-        echo "dm installer: cannot download ${asset}.sha256" >&2
-        exit 1
-    }
-    [ "$status" = 200 ] || {
-        echo "dm installer: ${asset}.sha256 is missing (HTTP ${status})" >&2
-        exit 1
-    }
     verify_sha256 "$asset" || exit 1
     return 0
 }

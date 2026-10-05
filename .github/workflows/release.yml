@@ -90,7 +90,7 @@ jobs:
         run: |
           python scripts/check_glibc.py "${{ matrix.target }}"
           bash scripts/test_glibc_runtime.sh "${{ matrix.target }}"
-      - name: Package binary, license and checksums
+      - name: Package binary and license
         env:
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
           RELEASE_TARGET: ${{ matrix.target }}

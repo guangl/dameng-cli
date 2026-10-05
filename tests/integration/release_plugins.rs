@@ -21,6 +21,7 @@ while [ "$#" -gt 0 ]; do
     shift
 done
 case "$url" in
+    */releases/tags/*) cp "$DM_RELEASE_FIXTURE/release.json" "$output"; printf 200 ;;
     */releases/latest) echo 'https://github.com/test/repo/releases/tag/v0.3.1' ;;
     *) file=${url##*/}; cp "$DM_RELEASE_FIXTURE/$file" "$output" ;;
 esac
@@ -66,7 +67,12 @@ esac
             "{}\n",
             dameng_cli::support::codec::hex(&Sha256::digest(fs::read(&asset).unwrap()))
         );
-        fs::write(asset.with_extension("gz.sha256"), checksum).unwrap();
+        let metadata = serde_json::json!({"assets":[{"name": asset.file_name().unwrap().to_str().unwrap(), "digest":format!("sha256:{}", checksum.trim())}]});
+        fs::write(
+            root.join("release.json"),
+            serde_json::to_vec(&metadata).unwrap(),
+        )
+        .unwrap();
         root.to_path_buf()
     }
     #[test]
@@ -122,11 +128,7 @@ esac
                 .success()
         );
         let target = env!("DM_HOST_TARGET");
-        fs::write(
-            assets.join(format!("dm-probe-v0.3.1-{target}.tar.gz.sha256")),
-            "0".repeat(64),
-        )
-        .unwrap();
+        fs::write(assets.join("release.json"), serde_json::to_vec(&serde_json::json!({"assets":[{"name":format!("dm-probe-v0.3.1-{target}.tar.gz"),"digest":format!("sha256:{}", "0".repeat(64))}]})).unwrap()).unwrap();
         let output = run(&["update", "probe"]);
         assert!(!output.status.success());
         assert!(String::from_utf8_lossy(&output.stderr).contains("SHA-256 mismatch"));

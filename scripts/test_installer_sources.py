@@ -1,6 +1,8 @@
 """Offline installer tests for independent sources and old release fallback."""
 import contextlib
 import io
+import json
+import hashlib
 import os
 from pathlib import Path
 import shutil
@@ -46,20 +48,25 @@ fi
                 (binaries / "dm-db").write_bytes(b"fixture")
                 with patch.dict(os.environ, RELEASE_TAG=TAG, RELEASE_TARGET=TARGET), contextlib.redirect_stdout(io.StringIO()):
                     release.package()
+                hashes = {asset.name: hashlib.sha256(asset.read_bytes()).hexdigest() for asset in (root / "dist").iterdir()}
                 sources = root / "dist" / f"dm-plugin-sources-{TAG}-{TARGET}.txt"
                 if mode == "legacy":
                     sources.unlink()
-                    sources.with_name(sources.name + ".sha256").unlink()
                 elif mode == "tampered":
                     sources.write_text("db attacker/plugin v9.9.9\n")
-                elif mode == "missing-checksum":
-                    sources.with_name(sources.name + ".sha256").unlink()
-                elif mode == "missing-list-checksum":
-                    plugin_list = root / "dist" / f"dm-plugins-{TAG}-{TARGET}.txt.sha256"
-                    plugin_list.unlink()
                 elif mode == "missing-plugin":
                     sources.write_text("ssh guangl/dm-plugin-ssh v0.2.0\n")
-                    release._write_checksum(sources)
+                    hashes[sources.name] = hashlib.sha256(sources.read_bytes()).hexdigest()
+                records = []
+                for asset in (root / "dist").iterdir():
+                    if not asset.name.endswith(".sha256"):
+                        digest = "sha256:" + hashes[asset.name]
+                        if (mode == "missing-digest" and asset == sources) or (mode == "missing-list-digest" and asset.name.startswith("dm-plugins-")):
+                            digest = None
+                        if mode == "invalid-digest" and asset == sources:
+                            digest = "sha256:invalid"
+                        records.append({"name": asset.name, "digest": digest})
+                (root / "dist/release.json").write_text(json.dumps({"assets": records}))
                 tools = root / "tools"
                 tools.mkdir()
                 curl = tools / "curl"
@@ -68,12 +75,17 @@ from pathlib import Path
 import shutil
 import sys
 args = sys.argv[1:]
-asset = Path(args[-1]).name
+if args[-1].endswith(".sha256"):
+    raise SystemExit("unexpected checksum attachment download")
+asset = "release.json" if "api.github.com" in args[-1] else Path(args[-1]).name
 source = Path(os.environ["DM_TEST_ASSETS"]) / asset
-destination = Path(args[args.index("-o") + 1])
+destination = Path(args[args.index("-o") + 1]) if "-o" in args else None
 if source.exists():
-    shutil.copy2(source, destination)
-    print("200", end="")
+    if destination is None:
+        print(source.read_text(), end="")
+    else:
+        shutil.copy2(source, destination)
+        print("200", end="")
 else:
     print("404", end="")
 ''')
@@ -110,7 +122,7 @@ else:
         self.assertEqual(log.count("--release-source"), 1)
 
     def test_empty_selection_skips_plugins_and_sources(self):
-        result, log = self.install("missing-list-checksum", "")
+        result, log = self.install("missing-list-digest", "")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn("--release-source", log)
         self.assertIn("completions bash --install", log)
@@ -169,7 +181,7 @@ else:
         self.assertIn("install https://github.com/guangl/dm-database-sqllog2db.git --rev v3.0.2 --replace", log)
 
     def test_external_only_skips_bundled_metadata(self):
-        result, log = self.install("missing-list-checksum", "sqllog2db")
+        result, log = self.install("missing-list-digest", "sqllog2db")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("--rev v3.0.2", log)
 
@@ -179,7 +191,7 @@ else:
         self.assertIn("--release-source guangl/dameng-cli --release-tag v0.4.1", log)
 
     def test_invalid_sources_stop_before_plugin_installation(self):
-        for mode in ("tampered", "missing-checksum", "missing-plugin", "missing-list-checksum"):
+        for mode in ("tampered", "missing-digest", "missing-plugin", "missing-list-digest", "invalid-digest"):
             with self.subTest(mode=mode):
                 result, log = self.install(mode)
                 self.assertNotEqual(result.returncode, 0)

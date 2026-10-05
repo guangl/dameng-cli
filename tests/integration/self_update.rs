@@ -45,7 +45,7 @@ fn self_update_replaces_binary_from_release() {
             .env("PATH", prepend_tools_to_path(&tools))
             .env("DM_UPDATE_REPOSITORY", "example.invalid/repo")
             .env("FAKE_ARCHIVE", &archive)
-            .env("FAKE_SHA256", &checksum)
+            .env("FAKE_DIGEST", digest.split_whitespace().next().unwrap())
             .env("FAKE_TAG", "v0.1.0")
             .env("FAKE_TARGET", target)
             .args([
