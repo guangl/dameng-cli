@@ -43,3 +43,8 @@ mod resources;
 mod sqllog2db_release;
 
 mod reserved_review;
+
+mod source_build;
+mod source_build_common;
+mod source_build_remote;
+mod source_build_validation;

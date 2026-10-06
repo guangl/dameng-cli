@@ -8,6 +8,12 @@ fn hint_for_message(message: &str) -> String {
 
 #[test]
 fn known_failures_get_specific_hints() {
+    assert!(
+        hint_for_message("Rust toolchain must be a fixed stable version")
+            .contains("--install-toolchain")
+    );
+    assert!(hint_for_message("Plugin source build failed").contains("Cargo.lock"));
+    assert!(hint_for_message("Cargo did not produce dm-probe").contains("--build"));
     assert!(hint_for_message("Plugin 'x' is not installed").contains("dm install"));
     assert!(
         hint_for_message("Plugin 'x' is already installed; run dm update").contains("--replace")

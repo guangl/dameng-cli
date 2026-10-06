@@ -21,9 +21,18 @@ pub struct Cli {
 /// Every subcommand the host implements.
 #[derive(Subcommand)]
 pub enum Command {
-    /// 从本地包目录或 HTTPS Git 仓库安装预编译插件。
+    /// 从本地目录或 HTTPS Git 仓库安装插件；--build 启用源码编译。
     Install {
         source: String,
+        /// 使用 Rust 源码构建，不下载预编译产物。
+        #[arg(long, conflicts_with_all = ["release_source", "check"])]
+        build: bool,
+        /// 指定固定 Rust 版本，例如 1.99.0；需要 --build。
+        #[arg(long, requires = "build")]
+        toolchain: Option<String>,
+        /// 自动安装缺少的 Rust 工具链，不修改全局默认值。
+        #[arg(long, requires = "build")]
+        install_toolchain: bool,
         /// 为 Release 安装包记录可持续更新的 GitHub owner/repository。
         #[arg(long, requires = "release_tag", conflicts_with_all = ["rev", "check"])]
         release_source: Option<String>,

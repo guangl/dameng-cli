@@ -10,7 +10,7 @@ description: dameng-cli 插件清单、构建校验和运行时协议规范。
 
 ## 最小插件
 
-宿主只安装预编译插件，因此验证流程是「构建 → 把产物放进包目录 → 安装」。在仓库根目录：
+宿主默认安装预编译插件，因此验证流程是「构建 → 把产物放进包目录 → 安装」。在仓库根目录：
 
 ```sh
 cargo build --release --locked -p dm-plugin-hello
@@ -69,7 +69,7 @@ dm-plugin-sdk = { path = "../dameng-cli/crates/dm-plugin-sdk" }
 
 将 path 调整为 SDK 的实际相对路径。这适用于本地开发；独立发布前将 SDK 改为可访问的 Git 依赖并固定到实际提交，或在 SDK 正式发布后使用 crates.io 版本。不要将本机绝对路径提交为公开插件的依赖。
 
-实现方式见 [hello](https://github.com/guangl/dm-plugin-template/blob/main/src/main.rs)。执行 `cargo generate-lockfile` 并提交 `Cargo.lock`，构建后把 `dm-<name>` 放到 `dm-plugin.toml` 同级，再 `dm install ./my-plugin`；宿主不会替你编译。远程插件仓库的根目录就是该 crate，所有依赖必须能在独立克隆后解析；不初始化 Git 子模块，并需在 Release 里发布 `dm-<name>-<target>` 预编译资产。
+实现方式见 [hello](https://github.com/guangl/dm-plugin-template/blob/main/src/main.rs)。执行 `cargo generate-lockfile` 并提交 `Cargo.lock`，构建后把 `dm-<name>` 放到 `dm-plugin.toml` 同级，再 `dm install ./my-plugin`；也可显式执行 `dm install ./my-plugin --build --toolchain 1.99.0 --install-toolchain` 由宿主编译，见[源码编译](plugin-development/source-build.html)。远程插件仓库的根目录就是该 crate，所有依赖必须能在独立克隆后解析；不初始化 Git 子模块，并需在 Release 里发布 `dm-<name>-<target>` 预编译资产。
 
 ## 校验规则
 
@@ -81,9 +81,9 @@ dm-plugin-sdk = { path = "../dameng-cli/crates/dm-plugin-sdk" }
 - `min_host_version` 可选，使用 SemVer；宿主版本不足时拒绝安装。
 - `license` 与 `homepage` 可选，用于来源与许可展示。
 - `environment` 是插件需要继承的环境变量白名单，只接受大写 ASCII 名称。默认不会把数据库密码等用户环境传给插件；用户可以在宿主的 `config.toml` 中用 `[plugin] environment` 为所有插件全局补充白名单。
-- `[hooks]` 中的路径必须指向插件根目录内的相对可执行文件。`pre_install` 在包目录根（本地目录或 Git 检出）、插件文件发布前运行；其余 hook 在已安装或待卸载的插件根目录运行。宿主设置 `DM_HOOK_PHASE`、`DM_PLUGIN_HOME` 和 `DM_PLUGIN_DIR`，以 `DM_PLUGIN_DIR` 作为工作目录，并把 phase 名称作为第一个参数传入。hook 失败会阻止或回滚对应事务。宿主只接受预编译插件，不会构建 Rust 源码。
+- `[hooks]` 中的路径必须指向插件根目录内的相对可执行文件。`pre_install` 在包目录根（本地目录或 Git 检出）、插件文件发布前运行；其余 hook 在已安装或待卸载的插件根目录运行。宿主设置 `DM_HOOK_PHASE`、`DM_PLUGIN_HOME` 和 `DM_PLUGIN_DIR`，以 `DM_PLUGIN_DIR` 作为工作目录，并把 phase 名称作为第一个参数传入。hook 失败会阻止或回滚对应事务。默认使用预编译插件；指定 `--build` 时先编译，再执行安装 hook。
 - 入口名称是硬约定：包目录里必须是名为 `dm-<name>` 的可执行文件（Windows 为 `dm-<name>.exe`），远程来源则要求 Release 中存在 `dm-<name>-<target>` 资产。对应的 `[dependencies] dm-plugin-sdk` 与 `[[bin]] name = "dm-<name>"` 是仓库侧约定，宿主不检查 `Cargo.toml`。
-- 不接受脚本入口或自定义 `executable` 清单字段；宿主只安装预编译产物，不会在你的机器上编译源码。
+- 不接受脚本入口或自定义 `executable` 清单字段；默认安装预编译产物，只有显式指定 `--build` 才编译 Rust 源码。
 - 安装的就是你提供的那份预编译 binary；运行时需要的资源必须嵌入，插件应自带说明文件与许可证。
 
 ## 运行协议

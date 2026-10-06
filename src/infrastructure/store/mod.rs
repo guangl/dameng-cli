@@ -1,3 +1,4 @@
+mod build;
 mod check;
 mod completion;
 mod conflict;
@@ -20,6 +21,7 @@ mod update;
 mod util;
 
 pub use self::{
+    build::BuildOptions,
     check::InstallPreview,
     home::{PluginStore, home_from_env},
     prebuilt::*,

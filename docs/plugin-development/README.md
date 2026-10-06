@@ -24,7 +24,7 @@ permalink: /plugin-development/
 - 宿主负责安装、发现、调用和卸载，不提供数据库连接或业务 API。
 - 插件自行选择数据库驱动、参数解析器、日志库和配置格式。
 - 宿主与插件不共享 Rust ABI；公共契约只有进程参数、环境变量、标准流和退出码。
-- 宿主只安装预编译产物，不编译插件源码；但插件 binary 与生命周期 hook 都以当前用户权限运行，用户只应安装可信来源。
+- 宿主默认安装预编译产物，显式 `--build` 可[编译插件源码](source-build.html)；但插件 binary 与生命周期 hook 都以当前用户权限运行，用户只应安装可信来源。
 
 ## 参考资料
 
@@ -33,3 +33,5 @@ permalink: /plugin-development/
 - [宿主架构](../architecture.html)
 - [可运行 hello 示例](https://github.com/guangl/dm-plugin-template)
 - [SDK 源码](https://github.com/guangl/dm-plugin-sdk/blob/main/src/lib.rs)
+
+需要从源码安装时，阅读[源码编译与 Rust 版本](source-build.html)。

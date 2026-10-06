@@ -2,7 +2,7 @@
 //!
 //! The file lives next to the plugin store as `<DM_PLUGIN_HOME>/config.toml`
 //! and groups settings into one TOML table per concern: `[log]`, `[update]`,
-//! `[output]` and `[plugin]`. Every key has an environment-variable equivalent
+//! `[output]`, `[plugin]` and `[build]`. Every key has an environment-variable equivalent
 //! and documented precedence: command-line arguments, then the environment,
 //! then this file, then the built-in default. The file cannot relocate the data
 //! directory it lives in; use `DM_PLUGIN_HOME` for that.
@@ -51,7 +51,13 @@ pub struct Config {
     /// `[plugin]`: how plugin processes are started.
     #[serde(default)]
     pub plugin: PluginSettings,
+    /// `[build]`: default Rust version for explicit source builds.
+    #[serde(default)]
+    pub build: BuildSettings,
 }
+
+pub(crate) mod build;
+pub use build::BuildSettings;
 
 mod logging;
 pub use logging::LogSettings;
@@ -111,6 +117,7 @@ impl Config {
                 *value = Some(trimmed);
             }
         }
+        config.build.validate()?;
         config.log.validate()?;
         resources::validate_workers(config.update.check_concurrency.unwrap_or(4))?;
         config.plugin.environment = valid_environment_names(&config.plugin.environment)?;

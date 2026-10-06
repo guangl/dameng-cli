@@ -64,7 +64,19 @@ dm doctor
 dm uninstall hello
 ```
 
-`dm install` 只安装预编译插件：本地目录需包含 `dm-<name>` 二进制和 `dm-plugin.toml`；GitHub HTTPS 来源会下载该仓库 Release 中与本机 target 匹配的 `dm-<name>` 二进制。没有可用预编译产物时直接报错，不再回退源码编译。插件 Release 发布 `dm-<name>-<target>` 即可；宿主读取 GitHub API 提供的 `sha256:` 摘要并校验下载内容，摘要缺失、格式错误或不匹配时安装失败，不请求 `.sha256` 附件。
+`dm install` 默认安装预编译插件：本地目录需包含 `dm-<name>` 二进制和 `dm-plugin.toml`；GitHub HTTPS 来源会下载该仓库 Release 中与本机 target 匹配的 `dm-<name>` 二进制。没有可用预编译产物时直接报错，不再回退源码编译。插件 Release 发布 `dm-<name>-<target>` 即可；宿主读取 GitHub API 提供的 `sha256:` 摘要并校验下载内容，摘要缺失、格式错误或不匹配时安装失败，不请求 `.sha256` 附件。
+
+### 从源码编译插件
+
+显式使用 `--build` 可从本地目录或 HTTPS Git 仓库编译 Rust 插件；需要根目录的 `Cargo.toml`、`Cargo.lock`、`dm-plugin.toml`，以及 rustup 和所选工具链。
+
+```sh
+dm install ./my-plugin --build --toolchain 1.99.0 --install-toolchain
+# 修改源码后重新构建，保留配置和数据
+dm install ./my-plugin --build --toolchain 1.99.0 --replace
+```
+
+Rust 版本按 `--toolchain` → 插件 `rust-toolchain.toml` → 宿主默认值选择，仅接受固定版本号。宿主默认值为 `DM_BUILD_TOOLCHAIN` → `[build] toolchain` → 宿主 MSRV（当前 `1.99.0`）。`Cargo.toml` 的 `rust-version` 是最低支持版本，由 Cargo 校验。构建使用 `--release --locked` 和临时产物目录，成功后复用安装事务；工具链缺失时只有 `--install-toolchain` 才会自动安装。`--build` 不与 `--check` 同用；`dm update` 仍使用预编译更新流程，源码重建请使用 `install --build --replace`。完整约定见[源码编译文档](docs/plugin-development/source-build.md)。
 
 兼容 `guangl/dm-database-sqllog2db` 的 v3.0.1：优先下载标准插件文件；缺少时下载同平台的 `sqllog2db-<target>` 独立命令，安装后通过 `dm sqllog2db ...` 调用。此旧版本保留独立命令的帮助文本和配置行为，不提供 SDK 插件入口；其他仓库和版本仍要求标准插件产物。
 
@@ -113,7 +125,7 @@ dm sqllog2db --help
 - Windows：`%LOCALAPPDATA%\dm`。
 - Linux / macOS：`$HOME/.config/dm`。
 
-该目录内的 `store.sqlite3` 保存插件清单、来源、Git revision 和 SHA-256。可选的 `config.toml` 只保存**宿主**设置，按用途分成 `[log]`、`[update]`、`[output]`、`[plugin]` 四张表，分别对应日志级别、目录与每日大小上限，自更新仓库与产物目标、进度条开关、额外继承给插件的环境变量；优先级为 命令行 > 环境变量 > 配置文件 > 默认值。**插件由各自的目录配置**：`<name>/config/config.toml`（插件自定义格式，宿主不读写），路径可用 `dm info <name>` 查看。插件也不得在这个 `store.sqlite3` 中建表：需要 SQLite 的插件在自己的 `data/` 下新建数据库文件（内置 db 的 `connections.sqlite3`、ssh 的 `servers.sqlite3`），`dm doctor` 会把宿主库中的非宿主表报为问题。模板见 [examples/config.toml](examples/config.toml)，复制到该目录即可生效。`plugins/` 保存可执行文件；每个插件的数据按插件名分组放在 `<name>/{config,data,cache}`（早期版本的 `config/<name>` 等目录会在插件运行时自动迁移过去）。诊断日志按本机日期写入 `logs/dm-YYYY-MM-DD.log`，保留当天及前 29 天；每个文件默认不超过 5 MiB，满额时淘汰旧内容并保留新日志。`[log] directory` / `DM_LOG_DIR` 设置目录，`[log] max_size_mb` / `DM_LOG_MAX_SIZE_MB` 设置大小上限，可用 `DM_LOG` 调整级别（`off`/`error`/`warn`/`info`/`debug`/`trace`，默认 `info`；设为 `off` 时不创建日志文件）；写入失败时静默跳过诊断日志，不回退到终端。stdout 始终保留给命令结果与 JSON，stderr 只保留进度条、插件输出和用户可见的 `错误`/`详情`/`提示`。使用自己的真实插件仓库地址：
+该目录内的 `store.sqlite3` 保存插件清单、来源、Git revision 和 SHA-256。可选的 `config.toml` 只保存**宿主**设置，按用途分成 `[log]`、`[update]`、`[output]`、`[plugin]`、`[build]` 五张表，分别对应日志级别、目录与每日大小上限，自更新仓库与产物目标、进度条开关、额外继承给插件的环境变量、源码构建的默认 Rust 版本；优先级为 命令行 > 环境变量 > 配置文件 > 默认值。**插件由各自的目录配置**：`<name>/config/config.toml`（插件自定义格式，宿主不读写），路径可用 `dm info <name>` 查看。插件也不得在这个 `store.sqlite3` 中建表：需要 SQLite 的插件在自己的 `data/` 下新建数据库文件（内置 db 的 `connections.sqlite3`、ssh 的 `servers.sqlite3`），`dm doctor` 会把宿主库中的非宿主表报为问题。模板见 [examples/config.toml](examples/config.toml)，复制到该目录即可生效。`plugins/` 保存可执行文件；每个插件的数据按插件名分组放在 `<name>/{config,data,cache}`（早期版本的 `config/<name>` 等目录会在插件运行时自动迁移过去）。诊断日志按本机日期写入 `logs/dm-YYYY-MM-DD.log`，保留当天及前 29 天；每个文件默认不超过 5 MiB，满额时淘汰旧内容并保留新日志。`[log] directory` / `DM_LOG_DIR` 设置目录，`[log] max_size_mb` / `DM_LOG_MAX_SIZE_MB` 设置大小上限，可用 `DM_LOG` 调整级别（`off`/`error`/`warn`/`info`/`debug`/`trace`，默认 `info`；设为 `off` 时不创建日志文件）；写入失败时静默跳过诊断日志，不回退到终端。stdout 始终保留给命令结果与 JSON，stderr 只保留进度条、插件输出和用户可见的 `错误`/`详情`/`提示`。使用自己的真实插件仓库地址：
 
 ```sh
 dm install https://github.com/YOUR_ORG/dm-backup.git --rev v1.2.0
@@ -197,7 +209,7 @@ dm config show --json               # 有效设置及 config/default/env 来源
 
 更新检查默认最多并发 4 个任务，可通过 `[update] check_concurrency` / `DM_UPDATE_CHECK_CONCURRENCY` 调整为 1..16。Release 校验使用固定缓冲，配置、导入与 SQL 输入有大小上限，Git/下载辅助进程有输出限制和超时。详细边界见 [CLI 文档](docs/cli.md#内存与运行开销)。
 
-Linux GNU x86_64/ARM64/ARMv7 发布产物要求 glibc 2.28 或更新版本；x86_64 与 ARM64 的 musl 产物不依赖 glibc。Windows 提供 x86_64 与 ARM64 归档。源码构建要求 Rust 1.99.0 或更新版本，发布时使用 stable 工具链，并通过 glibc 符号与 Debian 10 启动检查。
+Linux GNU x86_64/ARM64/ARMv7 发布产物要求 glibc 2.28 或更新版本；x86_64 与 ARM64 的 musl 产物不依赖 glibc。Windows 提供 x86_64 与 ARM64 归档。源码构建要求 Rust 1.99.0 或更新版本，发布时使用固定 Rust 1.99.0 工具链，并通过 glibc 符号与 Debian 10 启动检查。
 
 ## 独立组件仓库
 

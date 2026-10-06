@@ -449,7 +449,7 @@
       <div class="section-heading">
         <span class="eyebrow">Four clear steps</span>
         <h2>从空目录到可调用插件</h2>
-        <p>插件仓库保持独立。宿主安装时校验清单，并复制本地包目录里的 <code>dm-&lt;name&gt;</code> 或下载 Release 中的预编译资产，全程不编译源码。</p>
+        <p>插件仓库保持独立。宿主安装时校验清单，并复制本地包目录里的 <code>dm-&lt;name&gt;</code> 或下载 Release 中的预编译资产，默认不编译源码；显式使用 <code>dm install --build</code> 可按固定 Rust 工具链编译插件。</p>
       </div>
       <div class="steps">
         <article class="step"><span class="step-number">01</span><h3>创建 crate</h3><p>新建 binary crate，并添加 dm-plugin-sdk 依赖。</p></article>
@@ -535,7 +535,7 @@ environment = [<span class="token-string">"DM_DATABASE_URL"</span>]</code></pre>
           <div class="section-heading">
             <span class="eyebrow">Before publishing</span>
             <h2>交付前检查</h2>
-            <p>宿主安装的是预编译二进制，不会执行 Cargo 构建；但插件与 hook 以当前用户权限运行，用户仍只应安装可信来源。插件仓库需要能够独立解析所有依赖，并按约定命名产物。</p>
+            <p>宿主默认安装预编译二进制；显式 <code>--build</code> 支持源码编译，详见 <a href="plugin-development/source-build.html">Rust 版本约定</a>；但插件与 hook 以当前用户权限运行，用户仍只应安装可信来源。插件仓库需要能够独立解析所有依赖，并按约定命名产物。</p>
           </div>
           <div class="check-list">
             <div class="check-item"><span class="check-mark">✓</span><div><strong>清单与 crate 版本一致</strong><span>Release 资产按清单版本命名，保持一致才不会找错产物。</span></div></div>
