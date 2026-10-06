@@ -18,6 +18,7 @@ permalink: /plugin-development/
 5. [测试与调试](testing.html)：从业务单元测试到真实安装生命周期测试。
 6. [发布与分发](publishing.html)：准备独立仓库并支持本地和 Git URL 安装。
 7. [故障排查](troubleshooting.html)：定位常见的清单、构建、安装、hook 和运行错误。
+8. [连接能力（提案）](connections.html)：让备份、部署等插件复用 ssh 与 db 连接的设计提案。
 
 ## 核心边界
 
