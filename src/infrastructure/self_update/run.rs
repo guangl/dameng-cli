@@ -8,7 +8,7 @@ use super::{
     DEFAULT_REPOSITORY,
     archive::{extract_binary, replace_current_executable},
     options::{SUPPORTED_TARGETS, SelfUpdateOptions, SelfUpdateResult},
-    verify::{normalize_tag, validate_repository, verify_checksum_file},
+    verify::{normalize_tag, validate_repository},
 };
 
 #[derive(Deserialize)]
@@ -79,10 +79,10 @@ pub fn self_update_with_options(options: SelfUpdateOptions<'_>) -> Result<SelfUp
     let archive_name = format!("dm-{tag}-{target}{suffix}");
     let base = format!("https://github.com/{repository}/releases/download/{tag}");
     let archive = temp.path().join(&archive_name);
-    let checksum = temp.path().join(format!("{archive_name}.sha256"));
+    let hash = crate::support::github_release::asset_digest(&repository, &tag, &archive_name)?
+        .context("Self-update Release asset is missing")?;
     download(&format!("{base}/{archive_name}"), &archive)?;
-    download(&format!("{base}/{archive_name}.sha256"), &checksum)?;
-    verify_checksum_file(&archive, &checksum)?;
+    crate::support::github_release::verify_file(&archive, &hash)?;
     let replacement = extract_binary(&archive, temp.path(), &tag, &target)?;
     info!("installing dm {available}");
     replace_current_executable(&replacement)?;

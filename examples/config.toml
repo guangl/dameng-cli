@@ -6,7 +6,7 @@
 #
 # 说明：
 #   - 该文件是可选的；不存在时宿主使用同样的默认值，一切行为与未启用配置文件时一致。
-#   - 设置按用途分成四张表：log、update、output、plugin，本文档列出全部支持的键。
+#   - 设置按用途分成五张表：log、update、output、plugin、build，本文档列出全部支持的键。
 #   - 取值优先级：命令行参数 > 环境变量 > 本文件 > 内置默认值。
 #   - 未知表、未知键、空值、类型错误或非法 TOML 都会让命令直接失败并打印该文件路径。
 #   - 文件位于数据目录内，因此不能在这里修改数据目录本身；请用 DM_PLUGIN_HOME 改变它。
@@ -48,3 +48,9 @@ repository = "guangl/dameng-cli"
 # 宿主默认清理环境，只保留基础变量和插件清单里 environment 声明的变量；
 # 宿主自身设置的 DM_PLUGIN_* 与 DM_HOME 仍然优先。
 # environment = ["DM_DATABASE_URL"]
+
+# 显式 dm install --build 的默认工具链。
+[build]
+# CLI --toolchain > 插件 rust-toolchain.toml > DM_BUILD_TOOLCHAIN > 本项 > 宿主 MSRV。
+# 只接受完整的固定 stable 版本，不接受 stable/nightly/自定义路径。
+# toolchain = "1.99.0"

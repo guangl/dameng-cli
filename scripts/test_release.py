@@ -203,14 +203,14 @@ class PackagingTests(TempRepoTest):
         for name in (f"dm-v0.2.0-{self.target}", f"dm-alpha-v0.2.0-{self.target}"):
             archive = dist / f"{name}.tar.gz"
             self.assertTrue(archive.is_file(), name)
-            self.assertTrue(archive.with_name(archive.name + ".sha256").is_file(), name)
+            self.assertFalse(archive.with_name(archive.name + ".sha256").exists(), name)
         listing = dist / f"dm-plugins-v0.2.0-{self.target}.txt"
         self.assertEqual(listing.read_text(), "alpha\nbeta\n")
-        self.assertTrue(listing.with_name(listing.name + ".sha256").is_file())
+        self.assertFalse(listing.with_name(listing.name + ".sha256").exists())
         sources = dist / f"dm-plugin-sources-v0.2.0-{self.target}.txt"
         self.assertEqual(sources.read_text(),
                          "alpha example/dm-plugin-alpha v0.1.0\nbeta example/dm-plugin-beta v0.1.0\n")
-        self.assertTrue(sources.with_name(sources.name + ".sha256").is_file())
+        self.assertFalse(sources.with_name(sources.name + ".sha256").exists())
 
         with tarfile.open(dist / f"dm-alpha-v0.2.0-{self.target}.tar.gz") as archive:
             names = archive.getnames()

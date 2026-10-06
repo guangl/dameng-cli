@@ -10,12 +10,12 @@ description: dm-plugin.toml、Cargo target、锁文件和资源文件规范。
 
 | 文件 | 用途 |
 | --- | --- |
-| `Cargo.toml` | 声明 Rust package、固定名称的 binary target 和 SDK 依赖。宿主不读取它，只用于构建。 |
-| `Cargo.lock` | 锁定完整依赖图，保证 `cargo build --release --locked` 可复现；宿主不读取它。 |
+| `Cargo.toml` | 声明 Rust package、固定名称的 binary target 和 SDK 依赖。默认安装不读取它；`--build` 时由 Cargo 读取。 |
+| `Cargo.lock` | 锁定完整依赖图，保证 `cargo build --release --locked` 可复现；默认安装不读取它；`--build` 要求它存在并传递 `--locked`。 |
 | `dm-plugin.toml` | 宿主读取的严格插件清单。 |
 | `src/main.rs` | 调用 `dm_plugin_sdk::run` 的可执行入口。 |
 
-远程插件仓库的根目录必须就是该 crate。宿主不会搜索子目录，也不会初始化 Git submodule。仓库本身不是安装包：本地安装用的包目录必须**额外**包含构建好的 `dm-<name>` 可执行文件，远程安装则要求仓库 Release 提供对应的预编译资产。
+远程插件仓库的根目录必须就是该 crate。宿主不会搜索子目录，也不会初始化 Git submodule。仓库本身不是安装包：默认本地安装用的包目录必须**额外**包含构建好的 `dm-<name>` 可执行文件，默认远程安装则要求仓库 Release 提供对应的预编译资产。显式指定 `--build` 时直接编译根目录 crate，无需 Release 资产，见[源码编译](source-build.html)。
 
 ## `dm-plugin.toml`
 
@@ -56,7 +56,7 @@ hook 路径必须是插件根目录内的相对路径，不允许绝对路径、
 
 | hook | 工作目录与时机 |
 | --- | --- |
-| `pre_install` | 包目录根（本地目录或 Git 检出）；插件文件发布前运行。宿主只接受预编译插件，不会构建 Rust 源码。 |
+| `pre_install` | 包目录根（本地目录或 Git 检出）；插件文件发布前运行。默认安装使用预编译插件；`--build` 在此 hook 前完成 Cargo 构建。 |
 | `post_install` | 新安装目录；文件发布后、SQLite 元数据提交前。失败会触发安装/升级回滚。 |
 | `pre_uninstall` | 当前安装目录；移除前。失败会阻止卸载。 |
 | `post_uninstall` | 暂存的待删除目录；成功后才永久删除。失败会恢复插件。 |
@@ -67,7 +67,7 @@ hook 路径必须是插件根目录内的相对路径，不允许绝对路径、
 
 ## Cargo 约定
 
-宿主**不解析** `Cargo.toml`、`Cargo.lock` 或 `[[bin]]`：它安装的是已经构建好的产物，只要求包目录里存在 `dm-<name>`（本地来源）或仓库 Release 提供同名资产（远程来源）。下面这些是发布者自己的责任，用来保证产物名称正确、构建可复现：
+默认安装时宿主**不解析** `Cargo.toml`、`Cargo.lock` 或 `[[bin]]`：它安装的是已经构建好的产物，只要求包目录里存在 `dm-<name>`（本地来源）或仓库 Release 提供同名资产（远程来源）。下面这些是发布者自己的责任，用来保证产物名称正确、构建可复现：
 
 - `[package].version` 与 `dm-plugin.toml` 的 `version` 一致，Release 标签也以该版本命名。
 - `[dependencies]` 中显式使用键 `dm-plugin-sdk`。

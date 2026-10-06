@@ -5,6 +5,52 @@ use std::fs;
 use tempfile::TempDir;
 
 #[test]
+fn doctor_recovers_metadata_for_packages_under_the_log_directory() {
+    let temp = TempDir::new().unwrap();
+    let source = fixture(temp.path());
+    for (index, directory) in ["plugins", ".", "plugins/probe/logs"]
+        .into_iter()
+        .enumerate()
+    {
+        let home = temp.path().join(format!("home-{index}"));
+        let store = PluginStore::new(&home).with_log_directory(home.join(directory));
+        store.install(source.to_str().unwrap()).unwrap();
+        rusqlite::Connection::open(home.join("store.sqlite3"))
+            .unwrap()
+            .execute("DELETE FROM installed_plugins WHERE name = 'probe'", [])
+            .unwrap();
+        let logs = home.join(directory).join("keep");
+        fs::create_dir_all(logs.parent().unwrap()).unwrap();
+        fs::write(&logs, "host log").unwrap();
+        let transaction = home.join("plugins/.install-log-protected");
+        if directory != "plugins/probe/logs" {
+            fs::create_dir_all(&transaction).unwrap();
+            fs::write(transaction.join("keep"), "protected log").unwrap();
+        }
+        let report = store.doctor(false).unwrap();
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|issue| issue.contains("plugin directory without database entry: probe"))
+        );
+        assert!(store.info("probe").is_err());
+        let report = store.doctor(true).unwrap();
+        assert!(
+            report
+                .repairs
+                .iter()
+                .any(|repair| repair.contains("recovered plugin metadata for probe"))
+        );
+        store.verify(Some("probe")).unwrap();
+        assert!(logs.is_file());
+        if directory != "plugins/probe/logs" {
+            assert!(transaction.join("keep").is_file());
+        }
+    }
+}
+
+#[test]
 fn doctor_protects_nested_logs_in_current_legacy_and_package_layouts() {
     for directory in [
         "diagnostics/nested",

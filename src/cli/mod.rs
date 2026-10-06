@@ -44,8 +44,20 @@ pub fn run(config: &Config) -> Result<i32> {
             rev,
             replace,
             check,
+            build,
+            toolchain,
+            install_toolchain,
         } => {
-            if check {
+            if build {
+                let options = crate::BuildOptions {
+                    toolchain,
+                    default_toolchain: config.default_build_toolchain(),
+                    install_toolchain,
+                };
+                let manifest =
+                    store.install_from_source(&source, rev.as_deref(), replace, &options)?;
+                println!("已安装 {} {}", manifest.name, manifest.version);
+            } else if check {
                 plugins::check_install(&store, &source, rev.as_deref(), replace)?;
             } else if let Some(repository) = release_source {
                 let manifest = store.install_release_package(

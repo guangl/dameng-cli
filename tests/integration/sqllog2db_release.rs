@@ -21,6 +21,33 @@ fn install(repository: &str, version: &str, native: bool, checksum: &str) -> (bo
     let binary = temp.path().join("binary");
     fs::write(&binary, "#!/bin/sh\nprintf '%s\\n' \"$@\"\n").unwrap();
     let requests = temp.path().join("requests");
+    let target = dameng_cli::prebuilt_target_label_for(env!("DM_HOST_TARGET")).unwrap();
+    let hash = if checksum == "valid" {
+        Some(format!(
+            "sha256:{}",
+            dameng_cli::support::codec::hex(&Sha256::digest(fs::read(&binary).unwrap()))
+        ))
+    } else if checksum == "missing" {
+        None
+    } else {
+        Some(format!("sha256:{checksum}"))
+    };
+    let metadata = temp.path().join("release.json");
+    let asset = format!(
+        "{}{target}{}",
+        if native {
+            "dm-sqllog2db-"
+        } else {
+            "sqllog2db-"
+        },
+        std::env::consts::EXE_SUFFIX
+    );
+    fs::write(
+        &metadata,
+        serde_json::to_vec(&serde_json::json!({"assets":[{"name":asset,"digest":hash}]})).unwrap(),
+    )
+    .unwrap();
+
     let git = tools.join("git");
     fs::write(
         &git,
@@ -46,9 +73,7 @@ while [ "$#" -gt 0 ]; do
 done
 printf '%s\n' "$url" >> "$REQUESTS"
 case "$url" in
-  *.sha256)
-    if [ "$CHECKSUM" = missing ]; then printf 404;
-    else printf '%s' "$CHECKSUM" > "$out"; printf 200; fi;;
+  */releases/tags/*) cp "$FAKE_METADATA" "$out"; printf 200;;
   */dm-sqllog2db-*)
     if [ "$NATIVE" = true ]; then cp "$FAKE_BINARY" "$out"; else exit 22; fi;;
   */sqllog2db-*) cp "$FAKE_BINARY" "$out";;
@@ -68,6 +93,7 @@ esac
     let output = dm(&home)
         .env("PATH", path)
         .env("FAKE_SOURCE", source)
+        .env("FAKE_METADATA", &metadata)
         .env("FAKE_BINARY", &binary)
         .env("REQUESTS", &requests)
         .env("NATIVE", native.to_string())
@@ -100,14 +126,13 @@ esac
 
 #[test]
 fn legacy_sqllog2db_release_installs_and_runs() {
-    for checksum in ["missing", "valid"] {
-        let (success, requests) = install("guangl/dm-database-sqllog2db", "3.0.1", false, checksum);
-        assert!(success);
-        let urls: Vec<_> = requests.lines().collect();
-        assert!(urls[0].contains("/dm-sqllog2db-"));
-        assert!(urls[1].contains("/sqllog2db-"));
-        assert!(urls[2].ends_with(".sha256"));
-    }
+    let (success, requests) = install("guangl/dm-database-sqllog2db", "3.0.1", false, "valid");
+    assert!(success);
+    let urls: Vec<_> = requests.lines().collect();
+    assert!(urls[0].contains("api.github.com"));
+    assert!(urls[1].contains("api.github.com"));
+    assert!(urls[2].contains("/sqllog2db-"));
+    assert_eq!(urls.len(), 3);
 }
 
 #[test]
@@ -118,16 +143,15 @@ fn native_sqllog2db_asset_has_priority() {
 }
 
 #[test]
-fn legacy_sqllog2db_checksum_mismatch_does_not_install() {
-    assert!(
-        !install(
-            "guangl/dm-database-sqllog2db",
-            "3.0.1",
-            false,
-            &"0".repeat(64)
-        )
-        .0
+fn legacy_sqllog2db_rejects_mismatched_digest_without_checksum_attachments() {
+    let (success, requests) = install(
+        "guangl/dm-database-sqllog2db",
+        "3.0.1",
+        false,
+        &"0".repeat(64),
     );
+    assert!(!success);
+    assert!(!requests.contains(".sha256"));
 }
 
 #[test]

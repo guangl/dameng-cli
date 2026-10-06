@@ -18,7 +18,7 @@ pub(crate) const RESERVED_HOME_ENTRIES: &[&str] =
 
 /// Whether a directory exists and holds no entry; unreadable directories count
 /// as non-empty so migration never moves data on top of unknown content.
-fn is_empty_directory(path: &std::path::Path) -> bool {
+pub(super) fn is_empty_directory(path: &std::path::Path) -> bool {
     fs::read_dir(path).is_ok_and(|mut entries| entries.next().is_none())
 }
 
@@ -59,7 +59,7 @@ impl PluginStore {
     /// nothing is shadowed.
     pub(crate) fn migrate_per_plugin_directories(&self, name: &str) -> Result<Vec<String>> {
         if RESERVED_HOME_ENTRIES.contains(&name) {
-            return Ok(Vec::new());
+            return self.restore_reserved_directories(name);
         }
         let mut migrated = Vec::new();
         for (old, new) in self
@@ -119,6 +119,13 @@ impl PluginStore {
             let logs = normalized_path(&self.log_directory(), resolve_links);
             let candidate = normalized_path(path, resolve_links);
             logs.starts_with(&candidate) || candidate.starts_with(&logs)
+        })
+    }
+
+    pub(crate) fn contains_host_log_directory(&self, path: &Path) -> bool {
+        [false, true].into_iter().any(|resolve_links| {
+            normalized_path(&self.log_directory(), resolve_links)
+                .starts_with(normalized_path(path, resolve_links))
         })
     }
 }

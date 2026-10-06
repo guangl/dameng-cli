@@ -19,13 +19,13 @@
 2. 从功能分支创建 PR，完成本地检查并确认 PR 的 CI 全绿；获得确认后再合并，不直接推送 `main`。
 3. 创建并推送与 Cargo package version 一致的 `vX.Y.Z` 标签。
 4. Release workflow 先运行完整 CI，再为 Linux x86_64 GNU/musl、Linux ARM64 GNU/musl、Linux ARMv7 GNU、macOS Apple Silicon、macOS Intel、Windows x86_64 与 Windows ARM64 编译宿主，并按 `plugins/*/dm-plugin.toml` 为每个内置插件编译 `dm-<name>`。
-5. 全部成功后创建 GitHub Release：宿主与每个内置插件各自一个压缩包，普通发行提供 tar.gz、Windows 提供 zip，并附带 SHA-256 校验文件；另有 `dm-plugins-<tag>-<target>.txt` 列出随本次发布的内置插件，安装脚本按它安装。插件归档包含 `dm-<name>`、`dm-plugin.toml`，以及插件自己的 README/`config.example.toml`（缺失时回退到宿主根目录的 LICENSE 与 README）。带 `-` 的版本标签标记为预发布。归档命名和目录结构也是 `dm self-update` 的稳定协议，不得在同一主版本中随意改变；`scripts/release.py` 会在打包前校验宿主标签、插件清单与 crate 版本、API 和 `min_host_version`，不要求 SDK 版本等于宿主版本。
+5. 全部成功后创建 GitHub Release：宿主与每个内置插件各自一个压缩包，普通发行提供 tar.gz、Windows 提供 zip，由 GitHub 自动提供 SHA-256 `digest`（不再生成 `.sha256` 附件）；另有 `dm-plugins-<tag>-<target>.txt` 列出随本次发布的内置插件，安装脚本按它安装。插件归档包含 `dm-<name>`、`dm-plugin.toml`，以及插件自己的 README/`config.example.toml`（缺失时回退到宿主根目录的 LICENSE 与 README）。带 `-` 的版本标签标记为预发布。归档命名和目录结构也是 `dm self-update` 的稳定协议，不得在同一主版本中随意改变；`scripts/release.py` 会在打包前校验宿主标签、插件清单与 crate 版本、API 和 `min_host_version`，不要求 SDK 版本等于宿主版本。
 
 Linux GNU x86_64、ARM64 与 ARMv7 产物的最低 glibc 版本固定为 2.28。CI 与发布使用 cargo-zigbuild 及显式 `.2.28` 目标构建宿主和所有内置插件，检查 ELF 符号版本并在 Debian 10 容器中启动验证（ARMv7 由 QEMU 运行）；任何超过基线的符号要求或启动失败均阻止发布。Rust 构建使用 stable，可继续升级，最低源码编译版本为 1.99.0；升级工具链不得提高 glibc 基线。musl 产物不依赖 glibc。当前不发布 Linux ARMv7 musl、Windows ARM32 或 Linux ARMv6 产物。
 
 本工作流发布 GitHub 宿主与固定组件提交的插件二进制，不发布 crates.io 包。SDK 在独立仓库配置 tag 触发的 crates.io 发布流程，需要配置 `CARGO_REGISTRY_TOKEN`；宿主与插件共用的工具代码不再独立成库：宿主在 `src/support/`，各插件在自己的 `src/support/`。db、ssh 和模板在各自仓库发布 GitHub Release。主仓库或插件发布依赖 SDK 的 crates.io 包前，应先确认 SDK 已发布；首次发布前使用源码/path 或固定提交的 Git 依赖。
 
-二进制宿主运行只需要系统运行环境；SQLite 已静态编译进宿主，不要求系统预装 SQLite。`dm install` 只安装预编译插件，不需要 Rust/Cargo；远程插件来源需要 Git，下载预编译产物在所有平台都需要 `curl`（Windows 也一样，`PowerShell` 用于宿主自更新及 Release 插件 zip 包解包）。只有 `scripts/install-local.sh` 才需要 Rust/Cargo，因为它要构建宿主和两个内置插件。
+二进制宿主运行只需要系统运行环境；SQLite 已静态编译进宿主，不要求系统预装 SQLite。`dm install` 默认安装预编译插件，不需要 Rust/Cargo；显式 `--build` 则需要 rustup 和所选 Rust 工具链；远程插件来源需要 Git，下载预编译产物在所有平台都需要 `curl`（Windows 也一样，`PowerShell` 用于宿主自更新及 Release 插件 zip 包解包）。`scripts/install-local.sh` 同样需要 Rust/Cargo，因为它要构建宿主和两个内置插件。
 
 仓库提供 `scripts/install.sh`，根据系统选择 Release 归档并校验 SHA-256，随后按 `dm-plugins-<tag>-<target>.txt` 依次安装内置插件（清单缺失时回退到脚本内置名单）；只有明确未发布的资产才提示并跳过，其余网络或 HTTP 错误会直接让安装失败；覆盖 Linux x86_64、Linux ARM64、Linux ARMv7、Apple Silicon macOS 与 Intel macOS，可用 `DM_INSTALL_TARGET` 选择 `x86_64-unknown-linux-musl`、`aarch64-unknown-linux-musl` 等产物。已安装的宿主可运行 `dm self-update --check` 或 `dm self-update`，会校验 SHA-256；Unix 需要系统提供 `curl` 和 `tar`，Windows 解压使用 PowerShell。`scripts/install-local.sh` 从当前检出执行 locked release build，把宿主与 `ssh`、`db` 两个内置插件一起安装（统一用 `dm install <包目录> --replace` 安装或升级）。两者默认写入 `$HOME/.local/bin`，也接受 `DM_INSTALL_DIR`。
 
@@ -44,3 +44,5 @@ Linux GNU x86_64、ARM64 与 ARMv7 产物的最低 glibc 版本固定为 2.28。
 ## 独立组件发布
 
 详见 [组件开发](components.html)。各仓库先经 PR、CI 和合并确认，再在合并提交打对应版本标签。SDK 使用自己的版本；插件 crate 与 dm-plugin.toml 版本必须一致。宿主固定提交更新也必须单独通过集成 CI。GitHub template 必须在模板 PR 合并后才包含完整内容。
+
+宿主 Release 构建固定使用 Rust `1.99.0`；常规测试继续使用最新 stable，CI 另有 Rust `1.99.0` 的工作区最低版本编译检查。提高 MSRV 时同步更新 Cargo 声明、最低版本检查和发布工具链。

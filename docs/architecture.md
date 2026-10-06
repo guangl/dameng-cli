@@ -26,7 +26,7 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
 | `src/cli/`（属于库） | 命令解析、内置命令、外部子命令路由、错误展示与表格渲染；放在库里，测试可以直接调用 |
 | `src/plugin/` | 严格清单解析、名称限制、API 版本和固定入口命名 |
 | `src/infrastructure/store/` | SQLite 元数据、来源与 revision、预编译安装、原子更新、校验修复、卸载、进程调用 |
-| `src/infrastructure/config/` | `<DM_PLUGIN_HOME>/config.toml` 的 `[log]`/`[update]`/`[output]`/`[plugin]` 四张表的解析与校验、默认值与「环境变量优先」的取值规则 |
+| `src/infrastructure/config/` | `<DM_PLUGIN_HOME>/config.toml` 的 `[log]`/`[update]`/`[output]`/`[plugin]`/`[build]` 五张表的解析与校验、默认值与「环境变量优先」的取值规则 |
 | `src/infrastructure/self_update/` | 宿主 Release 查询、下载、SHA-256 校验、解包和原子自替换 |
 | `crates/dm-plugin-sdk` | `Plugin` / `Context` / `PluginResult` 和协议版本 |
 | `src/support/` | 宿主内部工具：十六进制编码、有界读取、子进程与并发控制、交互与补全、配置展示；随宿主仓库版本化，不属于公开协议 SDK |
@@ -54,7 +54,7 @@ description: dameng-cli 模块职责、安装事务、运行边界和扩展位�
 
 ## 安装事务
 
-宿主只安装预编译插件，从不编译 Rust 源码：本地来源必须是同时包含 `dm-plugin.toml` 和 `dm-<name>` 可执行文件的包目录，直接复制该二进制；HTTPS Git 来源会浅克隆仓库（固定 `--rev` 时完整克隆后检出）读取清单，再从该仓库 GitHub Release 下载与本机 target 匹配的 `dm-<name>` 资产与可选的 `.sha256` 侧车；如果检出目录根下已经存在同名可执行文件，则直接使用它、不再访问 Release。包目录里没有二进制、或 Release 没有对应产物时，安装直接失败。
+宿主默认安装预编译插件：本地来源必须是同时包含 `dm-plugin.toml` 和 `dm-<name>` 可执行文件的包目录，直接复制该二进制；HTTPS Git 来源会浅克隆仓库（固定 `--rev` 时完整克隆后检出）读取清单，再从该仓库 GitHub Release 下载与本机 target 匹配的 `dm-<name>` 资产，读取 GitHub API 的 `digest` 并校验 SHA-256，缺少有效摘要或校验不匹配时失败；如果检出目录根下已经存在同名可执行文件，则直接使用它、不再访问 Release。包目录里没有二进制、或 Release 没有对应产物时，安装直接失败。
 只将规范化清单、`dm-<name>` 二进制和清单声明的 hook 装入最终目录；源文件、构建目录和 Git 元数据不会进入安装结果。资源应通过 Rust 的 `include_str!` / `include_bytes!` 嵌入。
 安装/升级会把清单里的 `environment` 白名单一并记录，不再要求用户交互确认；清单声明的 hook 会在对应阶段以当前用户权限运行。复制或下载失败时清理暂存目录；成功后使用同文件系统目录重命名发布，再将经过校验的清单、来源、revision 和 SHA-256 写入 SQLite。数据库写入失败时恢复旧插件。拒绝同名直接覆盖，并发安装只有一个成功；进程被强制杀死时可能留下隐藏事务目录，`dm doctor --repair` 会识别安装和卸载事务，并根据 SQLite 中已提交的清单协调活动目录。
 不支持安装过程中修改源码或同时卸载正在运行的插件。
@@ -76,7 +76,9 @@ DM_PLUGIN_HOME/
     └── cache/                 # 可再生成缓存
 ```
 
-插件目录按插件名分组：`<DM_PLUGIN_HOME>/<name>/{config,data,cache}`。早期版本按用途分成 `config/<name>`、`data/<name>`、`cache/<name>`；宿主在运行插件前把旧目录移到新位置：目标已有数据时保留新位置、旧目录原样留下，目标只是空占位时把旧内容搬进去，并发首启时迁移的失败方不会中断插件。补全在迁移发生前读取旧目录，保证升级后立即可用；`dm doctor --repair` 清理已卸载插件的分组目录，并把配置指定的日志目录、父目录和目录内容当作宿主数据跳过（路径规范化后比较，包含符号链接）。旧版已安装的 `data`、`cache`、`logs`、`plugins`、`backups` 插件继续使用旧布局，不向宿主同名根目录迁移；卸载清理只删除该插件的旧布局目录和备份，不删除宿主根目录。
+插件目录按插件名分组：`<DM_PLUGIN_HOME>/<name>/{config,data,cache}`。早期版本按用途分成 `config/<name>`、`data/<name>`、`cache/<name>`；宿主在运行插件前把旧目录移到新位置：目标已有数据时保留新位置、旧目录原样留下，目标只是空占位时把旧内容搬进去，并发首启时迁移的失败方不会中断插件。补全在迁移发生前读取旧目录，保证升级后立即可用；`dm doctor --repair` 清理已卸载插件的分组目录，并把配置指定的日志目录、父目录和目录内容当作宿主数据跳过（路径规范化后比较，包含符号链接）。旧版已安装的 `data`、`cache`、`logs`、`plugins`、`backups` 插件继续使用旧布局，不向宿主同名根目录迁移；若前一版本已迁入分组布局，运行、诊断修复和卸载会先把该插件的三个子目录移回旧布局，补全在恢复前只读现有分组目录。属于其他插件的目录或程序包会跳过，新旧目录都有数据时保留两边并报错，不自动覆盖；卸载清理只删除该插件的旧布局目录和备份，不删除宿主根目录。
+
+日志路径覆盖插件程序目录时，诊断仍可恢复有效插件丢失的安装记录，但不会清理受日志保护的事务目录。
 
 ## 运行边界
 
@@ -99,3 +101,5 @@ SDK 使用 Rust trait 统一开发接口；跨进程只约定参数、环境变�
 `scripts/check_resource_memory.py` 用同一个校验探针比较整包读取和流式读取 128 MiB 文件，要求流式探针峰值 RSS 不超过 32 MiB，并至少比整包读取低 64 MiB；Linux CI 持续执行该检查。这是校验路径的回归门槛，不代表整个应用或插件进程树的总内存限制。
 
 SDK、db、ssh 和 hello 模板的目录是固定提交的 git submodule，仍属于集成 workspace；各组件的独立构建、版本和发布流程见 [组件开发](components.html)。
+
+显式 `dm install --build` 走独立源码构建入口：先校验清单与安装冲突，再选择固定 Rust 工具链，以隔离的临时 target 目录执行锁定依赖的 release 构建，最后把指定产物交给同一安装事务。不会复用源目录中已有的二进制，不下载 Release 资产，也不自动回退到预编译模式。工具链与升级约定见[源码编译](plugin-development/source-build.html)。

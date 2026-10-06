@@ -12,7 +12,7 @@ description: dm 命令、环境变量、JSON 输出和常见工作流参考。
 
 | 命令 | 说明 |
 | --- | --- |
-| `dm install <source> [--rev REF] [--replace] [--check]` | 从本地预编译目录或 HTTPS Git URL 安装。Git 来源可固定 tag、branch 或 commit；只安装预编译插件，不执行源码编译。`--replace` 允许替换同名已安装插件，保留其 config/data/cache。`--check`（别名 `--dry-run`）预演安装：打印将要安装的插件、来源、方式与可执行文件来源，冲突与产物缺失按安装时的报错处理，但不运行 hook、不写 plugins 目录和 SQLite；远程来源会像安装一样下载并校验产物，不能与安装脚本专用的 `--release-source` 同用。 |
+| `dm install <source> [--rev REF] [--replace] [--check]` | 从本地预编译目录或 HTTPS Git URL 安装。Git 来源可固定 tag、branch 或 commit；默认安装预编译插件；`--build` 显式编译源码，`--toolchain VERSION` 指定固定 Rust 版本，`--install-toolchain` 允许安装缺少的工具链，见[源码编译](plugin-development/source-build.html)。`--build` 不与 `--check` 或 `--release-source` 同用。`--replace` 允许替换同名已安装插件，保留其 config/data/cache。`--check`（别名 `--dry-run`）预演安装：打印将要安装的插件、来源、方式与可执行文件来源，冲突与产物缺失按安装时的报错处理，但不运行 hook、不写 plugins 目录和 SQLite；远程来源会像安装一样下载并校验产物，不能与安装脚本专用的 `--release-source` 同用。 |
 | `dm update <name>` | 从已记录来源原子升级一个插件。 |
 | `dm update --all` | 逐个升级全部插件，最后汇总失败项。 |
 | `dm uninstall <name> [--purge] [--yes]` | 默认仅卸载程序并保留配置、连接、缓存和备份；`--purge` 清除数据，终端确认或脚本显式 `--yes`。 |
@@ -34,7 +34,7 @@ SSH 插件用同样的两种形式迁移：`dm ssh export [--file PATH] [--inclu
 | 脚本 | 安装哪些插件 | 记录的来源 |
 | --- | --- | --- |
 | `scripts/install.sh`（远程） | 按 Release 资产 `dm-plugins-<tag>-<target>.txt` 逐行安装插件；清单缺失时回退到 `ssh db` | `github-release:<owner>/<repository>`；另记录 Release tag 与目标平台 |
-| `scripts/install-local.sh`（本地检出） | 固定构建并安装 `ssh` 与 `db` | 检出中的 `plugins/ssh`、`plugins/db` |
+| `scripts/install-local.sh`（本地检出） | 默认构建并安装 `ssh` 与 `db` | 检出中的 `plugins/ssh`、`plugins/db` |
 
 当前内置插件是两个：
 
@@ -71,7 +71,7 @@ SSH 插件用同样的两种形式迁移：`dm ssh export [--file PATH] [--inclu
 
 ## 宿主更新
 
-`dm self-update [--check] [--version X.Y.Z] [--force] [--target TARGET] [--json]` 查询或安装 GitHub Release。更新会下载归档与 `.sha256`，验证校验和后再原子替换当前程序。
+`dm self-update [--check] [--version X.Y.Z] [--force] [--target TARGET] [--json]` 查询或安装 GitHub Release。更新读取 GitHub Release 资产的 `digest`，下载归档并验证 SHA-256 后再原子替换当前程序；缺少有效摘要时失败。
 
 - `--check` 只报告可用版本。
 - `--version` 选择具体 SemVer，可带或不带 `v`。
@@ -82,7 +82,7 @@ SSH 插件用同样的两种形式迁移：`dm ssh export [--file PATH] [--inclu
 
 ## 配置文件
 
-宿主读取 `<DM_PLUGIN_HOME>/config.toml`（默认 `~/.config/dm/config.toml`，Windows 为 `%LOCALAPPDATA%\dm\config.toml`）。**这里只写宿主自己的设置，不写插件设置**——每个插件由自己的目录配置，见下文「插件配置」。宿主设置按用途分成四张表：`log`、`update`、`output`、`plugin`。可直接复制仓库中的示例：[examples/config.toml](https://github.com/guangl/dameng-cli/blob/main/examples/config.toml)。文件不存在时全部使用默认值；文件存在但不是合法 TOML、出现未知表/未知键、空值或类型错误时，命令直接失败，并在 `提示` 中给出该文件路径。
+宿主读取 `<DM_PLUGIN_HOME>/config.toml`（默认 `~/.config/dm/config.toml`，Windows 为 `%LOCALAPPDATA%\dm\config.toml`）。**这里只写宿主自己的设置，不写插件设置**——每个插件由自己的目录配置，见下文「插件配置」。宿主设置按用途分成五张表：`log`、`update`、`output`、`plugin`、`build`。可直接复制仓库中的示例：[examples/config.toml](https://github.com/guangl/dameng-cli/blob/main/examples/config.toml)。文件不存在时全部使用默认值；文件存在但不是合法 TOML、出现未知表/未知键、空值或类型错误时，命令直接失败，并在 `提示` 中给出该文件路径。
 
 ```toml
 # <DM_PLUGIN_HOME>/config.toml
@@ -112,6 +112,7 @@ environment = ["DM_DATABASE_URL"]     # 等价于 DM_PLUGIN_ENVIRONMENT
 | `[update]` | `repository` | string | `DM_UPDATE_REPOSITORY` | `dm self-update` 使用的 `owner/repository`。 |
 | `[update]` | `check_concurrency` | integer | `DM_UPDATE_CHECK_CONCURRENCY` | 同时进行的更新检查数量，默认 4，允许 1..16；设为 1 降低并发资源占用。 |
 | `[update]` | `target` | string | `DM_UPDATE_TARGET` | 自更新取用 Release 产物的 target triple，默认跟随本机平台；取值见 `dm self-update`。 |
+| `[build]` | `toolchain` | string | `DM_BUILD_TOOLCHAIN` | 源码构建的默认固定 Rust 版本；CLI 与插件工具链声明优先于它。 |
 | `[output]` | `progress` | boolean | `DM_PROGRESS` | 默认 `true`。设为 `false` 彻底关闭进度条（CI、重定向日志时使用）；任何取值下，进度条都只在 stderr 是终端时绘制。 |
 | `[plugin]` | `environment` | string 数组 | `DM_PLUGIN_ENVIRONMENT` | 除插件清单的 `environment` 之外，额外允许继承给插件进程与 hook 的环境变量名。宿主设置的 `DM_PLUGIN_*` 与 `DM_HOME` 优先。 |
 
@@ -127,7 +128,7 @@ dm info ssh
 # 配置文件： /home/me/.config/dm/config/ssh/config.toml (不存在)
 ```
 
-运行中的插件同时通过 `DM_PLUGIN_CONFIG_DIR`、`DM_PLUGIN_DATA_DIR`、`DM_PLUGIN_CACHE_DIR` 拿到这三个目录（见[运行时协议](plugin-development/runtime-contract.html)）。`dm uninstall <name>` 默认保留它们；`--purge` 才删除。清理失败时保留登记并显示具体路径；修复目录问题后重试 `dm uninstall <name> --purge --yes`，直到全部目录清理成功。`dm doctor --repair` 只清理未登记为主动保留的孤立目录。旧版保留名称插件继续使用旧布局，清理时排除宿主根目录。修复与卸载清理均保护配置指定的日志目录、其父目录和日志内容；这些路径即使与插件数据或备份重叠也会保留。若日志位于插件程序目录内，卸载会报错，须先把日志迁出并修改日志配置再重试。
+运行中的插件同时通过 `DM_PLUGIN_CONFIG_DIR`、`DM_PLUGIN_DATA_DIR`、`DM_PLUGIN_CACHE_DIR` 拿到这三个目录（见[运行时协议](plugin-development/runtime-contract.html)）。`dm uninstall <name>` 默认保留它们；`--purge` 才删除。清理失败时保留登记并显示具体路径；修复目录问题后重试 `dm uninstall <name> --purge --yes`，直到全部目录清理成功。`dm doctor --repair` 只清理未登记为主动保留的孤立目录。旧版保留名称插件继续使用旧布局，清理时排除宿主根目录。此前已迁入分组布局的数据会在运行、修复或卸载时移回；新旧位置同时有数据时会报出路径，须先核对整理再重试，宿主不会覆盖任何一边。修复与卸载清理均保护配置指定的日志目录、其父目录和日志内容；这些路径即使与插件数据或备份重叠也会保留。若日志位于插件程序目录内，卸载会报错，须先把日志迁出并修改日志配置再重试。
 
 优先级为 命令行参数 > 环境变量 > 配置文件 > 内置默认值，因此临时覆盖不必修改文件。配置文件位于数据目录内，不能通过它迁移数据目录本身；需要更换目录请设置 `DM_PLUGIN_HOME`。插件自身的配置仍由插件管理（见 `<name>/config` 与 `<name>/data`）。
 
@@ -142,6 +143,7 @@ dm info ssh
 | `DM_INSTALL_REPO` | 远程安装脚本使用的 `owner/repository`；面向镜像或私有分发。 |
 | `DM_UPDATE_REPOSITORY` | 自更新使用的 `owner/repository`；面向测试或自建分发。 |
 | `DM_UPDATE_TARGET` | 自更新取用 Release 产物的 target triple；覆盖本机默认平台。 |
+| `DM_BUILD_TOOLCHAIN` | 源码构建的默认固定 Rust 版本；CLI 与插件工具链声明优先于它。 |
 | `DM_PROGRESS` | `true`/`false` 开关进度条，默认 `true`；仅在 stderr 是终端时绘制。 |
 | `DM_PLUGIN_ENVIRONMENT` | 逗号分隔的额外环境变量名，会**替换**配置文件中的 `plugin_environment` 列表。 |
 | `DM_LOG_DIR` | 日志目录；默认 `<DM_PLUGIN_HOME>/logs`，支持绝对路径和相对宿主数据目录的路径。 |
@@ -173,6 +175,10 @@ dm info ssh
 
 更新检查使用固定数量的工作线程，默认最多 4 个，可用 `[update] check_concurrency` 或 `DM_UPDATE_CHECK_CONCURRENCY` 在 1..16 内调整。插件列表一次读取安装元数据，避免每个插件重复打开数据库。
 
-宿主和内置插件的配置文件最多 1 MiB，连接导入文档及 SQL 输入最多 16 MiB；超出限制会直接报错，不截断输入。Release 元数据最多 1 MiB，SHA-256 文件最多 4 KiB。压缩包校验使用固定 64 KiB 缓冲，不把整个包读入内存；数据库结果逐行写入，避免再次拼接完整输出文本。
+宿主和内置插件的配置文件最多 1 MiB，连接导入文档及 SQL 输入最多 16 MiB；超出限制会直接报错，不截断输入。Release 元数据最多 1 MiB。压缩包校验使用固定 64 KiB 缓冲，不把整个包读入内存；数据库结果逐行写入，避免再次拼接完整输出文本。
 
 Git 和下载辅助进程的 stdout、stderr 分别最多保留 64 KiB，单个进程最多运行 180 秒；下载单次传输最多 120 秒，重试时间预算最多 180 秒。超时或辅助输出超限会终止该辅助进程并报错。交互式 SSH、普通插件执行、生命周期 hook 和插件源码编译不受这些辅助进程限制；第三方插件及其子进程的 CPU、内存由插件和操作系统管理。这些限制控制宿主的主要缓冲及并发开销，并非整个进程树的硬性内存额度或 CPU 限速。
+
+`[build] toolchain`（环境变量 `DM_BUILD_TOOLCHAIN`）设置源码构建的固定 Rust 默认版本；默认是宿主声明的最低 Rust 版本，当前为 `1.99.0`。命令行 `--toolchain` 和插件的 `rust-toolchain.toml` 都优先于这个宿主默认值。
+
+安装脚本支持 `DM_INSTALL_PLUGINS="ssh,db"` 选择插件，空格也可分隔；未设置时使用默认清单，`DM_INSTALL_PLUGINS=""` 只安装宿主。远程内置插件必须在 Release 清单中，本地内置插件支持 `ssh` 与 `db`；两者还可选择 `sqllog2db`，从独立仓库按 `v3.0.2` 安装预编译产物（需要 Git）。未选择的已有插件会保留。

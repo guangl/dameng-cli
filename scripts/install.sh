@@ -21,6 +21,11 @@ else
     esac
 fi
 
+if ! command -v jq >/dev/null 2>&1; then
+    echo "dm installer: jq is required to read GitHub Release digests" >&2
+    exit 1
+fi
+
 if ! command -v curl >/dev/null 2>&1; then
     echo "dm installer: curl is required" >&2
     exit 1
@@ -53,22 +58,27 @@ base_url="https://github.com/${repository}/releases/download/${version}"
 work_dir=$(mktemp -d "${TMPDIR:-/tmp}/dm-install.XXXXXXXX")
 trap 'rm -rf "$work_dir"' EXIT HUP INT TERM
 
-# Verify one downloaded file against the SHA-256 sidecar published with it.
+# GitHub computes the digest for each uploaded Release asset.
+curl -q -fsSL "https://api.github.com/repos/${repository}/releases/tags/${version}" > "$work_dir/release.json"
+jq -e '.assets | type == "array"' "$work_dir/release.json" >/dev/null
 verify_sha256() {
     checked=$1
+    expected=$(jq -er --arg name "$checked" '[.assets[] | select(.name == $name)] | if length == 1 then .[0].digest else error("missing or duplicate asset") end | select(type == "string") | select(test("^sha256:[0-9a-fA-F]{64}$")) | ltrimstr("sha256:") | ascii_downcase' "$work_dir/release.json") || {
+        echo "dm installer: missing or invalid GitHub SHA-256 digest for ${checked}" >&2
+        exit 1
+    }
     if command -v sha256sum >/dev/null 2>&1; then
-        (cd "$work_dir" && sha256sum -c "${checked}.sha256")
+        actual=$(sha256sum "$work_dir/$checked" | cut -d ' ' -f 1)
     elif command -v shasum >/dev/null 2>&1; then
-        expected=$(sed 's/[[:space:]].*$//' "$work_dir/${checked}.sha256")
-        actual=$(shasum -a 256 "$work_dir/${checked}" | sed 's/[[:space:]].*$//')
-        [ "$expected" = "$actual" ] || {
-            echo "dm installer: checksum verification failed for ${checked}" >&2
-            exit 1
-        }
+        actual=$(shasum -a 256 "$work_dir/$checked" | cut -d ' ' -f 1)
     else
         echo "dm installer: sha256sum or shasum is required" >&2
         exit 1
     fi
+    [ "$expected" = "$actual" ] || {
+        echo "dm installer: checksum verification failed for ${checked}" >&2
+        exit 1
+    }
 }
 
 # Download one release asset into the work directory and verify its checksum.
@@ -91,14 +101,6 @@ download_asset() {
             exit 1
             ;;
     esac
-    status=$(curl -q -sSL -o "$work_dir/${asset}.sha256" -w '%{http_code}' "${base_url}/${asset}.sha256") || {
-        echo "dm installer: cannot download ${asset}.sha256" >&2
-        exit 1
-    }
-    [ "$status" = 200 ] || {
-        echo "dm installer: ${asset}.sha256 is missing (HTTP ${status})" >&2
-        exit 1
-    }
     verify_sha256 "$asset" || exit 1
     return 0
 }
@@ -108,28 +110,68 @@ if ! download_asset "$archive"; then
     exit 1
 fi
 tar -xzf "$work_dir/${archive}" -C "$work_dir"
-mkdir -p "$install_dir"
-install -m 755 "$work_dir/dm-${version}-${target}/dm" "$install_dir/dm"
 
 # Bundled plugins. The release publishes ${plugin_list}, so packaged and
 # installed plugins cannot drift apart; tags cut before that list exist fall back
 # to the names below, and a plugin a tag does not publish is skipped with a
 # notice instead of failing the whole installation.
+set -f
 plugins="ssh db"
-if download_asset "$plugin_list"; then
+selected_plugins=$(printf '%s' "${DM_INSTALL_PLUGINS-}" | tr ',' ' ')
+needs_bundled_plugins=false
+if [ "${DM_INSTALL_PLUGINS+x}" != x ]; then
+    needs_bundled_plugins=true
+else
+    for selected in $selected_plugins; do
+        [ "$selected" = sqllog2db ] || needs_bundled_plugins=true
+    done
+fi
+if [ "$needs_bundled_plugins" = true ] && download_asset "$plugin_list"; then
     plugins=$(sed -e 's/[[:space:]]*$//' -e '/^$/d' "$work_dir/${plugin_list}")
+fi
+
+# An unset selection keeps the release defaults; an empty value installs only dm.
+if [ "${DM_INSTALL_PLUGINS+x}" = x ]; then
+    selected_plugins=$(printf '%s' "$DM_INSTALL_PLUGINS" | tr ',' ' ')
+    for selected in $selected_plugins; do
+        case "$selected" in
+            *[!a-z0-9_-]*|'') echo "dm installer: invalid plugin name: $selected" >&2; exit 1 ;;
+        esac
+        [ "$selected" != sqllog2db ] || continue
+        case " $(printf '%s' "$plugins" | tr '\n' ' ') " in
+            *" $selected "*) ;;
+            *) echo "dm installer: plugin is not in this release: $selected" >&2; exit 1 ;;
+        esac
+    done
+    plugins=$(printf '%s\n' $selected_plugins | awk 'NF && !seen[$0]++')
 fi
 
 # New releases record independent plugin repositories; old releases retain the
 # host source. The source list is checked with the same SHA-256 policy as assets.
-if download_asset "$plugin_sources"; then
+if [ "$needs_bundled_plugins" = true ] && download_asset "$plugin_sources"; then
     has_plugin_sources=true
 else
     has_plugin_sources=false
 fi
 
+# Validate selected source records before replacing an existing host.
+if [ "$has_plugin_sources" = true ]; then
+    for plugin in $plugins; do
+        [ "$plugin" != sqllog2db ] || continue
+        source_record=$(awk -v name="$plugin" '$1 == name {print $2 " " $3}' "$work_dir/$plugin_sources")
+        [ -n "$source_record" ] || { echo "dm installer: missing source for $plugin" >&2; exit 1; }
+    done
+fi
+
+mkdir -p "$install_dir"
+install -m 755 "$work_dir/dm-${version}-${target}/dm" "$install_dir/dm"
+
 # Word splitting is intended: the list holds one plugin name per line.
 for plugin in $plugins; do
+    if [ "$plugin" = sqllog2db ]; then
+        "$install_dir/dm" install https://github.com/guangl/dm-database-sqllog2db.git --rev v3.0.2 --replace
+        continue
+    fi
     plugin_archive="dm-${plugin}-${version}-${target}.tar.gz"
     if ! download_asset "$plugin_archive"; then
         echo "dm installer: dm-${plugin} is not published for ${version}; skipping" >&2

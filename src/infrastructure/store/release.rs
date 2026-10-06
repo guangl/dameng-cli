@@ -1,7 +1,7 @@
 //! Persistent sources for plugin archives published alongside the host.
 use super::{InstallMode, PluginStore, github_repository};
 use crate::Manifest;
-use crate::infrastructure::self_update::{normalize_tag, verify_checksum_file};
+use crate::infrastructure::self_update::normalize_tag;
 use crate::support::process::capture;
 use anyhow::{Context, Result, ensure};
 use std::time::Duration;
@@ -130,11 +130,11 @@ pub(super) fn package(
         }
     );
     let archive = temp.path().join(&asset);
-    let checksum = temp.path().join("checksum");
+    let hash = crate::support::github_release::asset_digest(repository, &tag, &asset)?
+        .context("Release plugin asset is missing")?;
     let url = format!("https://github.com/{repository}/releases/download/{tag}/{asset}");
     download(&url, &archive)?;
-    download(&format!("{url}.sha256"), &checksum)?;
-    verify_checksum_file(&archive, &checksum)?;
+    crate::support::github_release::verify_file(&archive, &hash)?;
     let root = temp.path().join("package");
     extract_file(
         &archive,

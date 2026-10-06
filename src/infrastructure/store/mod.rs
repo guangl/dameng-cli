@@ -1,3 +1,4 @@
+mod build;
 mod check;
 mod completion;
 mod conflict;
@@ -12,6 +13,7 @@ mod package;
 mod prebuilt;
 mod query;
 mod release;
+mod reserved_directories;
 mod run;
 mod types;
 mod uninstall;
@@ -19,6 +21,7 @@ mod update;
 mod util;
 
 pub use self::{
+    build::BuildOptions,
     check::InstallPreview,
     home::{PluginStore, home_from_env},
     prebuilt::*,

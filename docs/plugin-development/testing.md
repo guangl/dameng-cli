@@ -33,7 +33,7 @@ CI 应在插件支持的每个操作系统上运行测试，并使用提交的 `
 
 ```sh
 cargo build --release --locked
-cp target/release/dm-backup .          # 宿主只安装预编译产物，包目录里必须有它
+cp target/release/dm-backup .          # 默认安装使用预编译产物，包目录里必须有它
 plugin_test_home=$(mktemp -d)
 DM_PLUGIN_HOME="$plugin_test_home" dm install .
 DM_PLUGIN_HOME="$plugin_test_home" dm list

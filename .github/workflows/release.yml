@@ -24,6 +24,9 @@ jobs:
       ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
   build:
     needs: checks
+    env:
+      # Keep Cargo and rustc on the explicitly installed release toolchain.
+      RUSTUP_TOOLCHAIN: 1.99.0
     strategy:
       fail-fast: false
       matrix:
@@ -52,7 +55,7 @@ jobs:
         with:
           submodules: recursive
           ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.99.0
         with:
           targets: ${{ matrix.target }}
       - uses: actions/setup-python@v7
@@ -90,7 +93,7 @@ jobs:
         run: |
           python scripts/check_glibc.py "${{ matrix.target }}"
           bash scripts/test_glibc_runtime.sh "${{ matrix.target }}"
-      - name: Package binary, license and checksums
+      - name: Package binary and license
         env:
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
           RELEASE_TARGET: ${{ matrix.target }}
