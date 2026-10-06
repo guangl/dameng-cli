@@ -48,6 +48,10 @@ fn verify_digest(actual: &str, checksum: &[u8]) -> Result<()> {
 /// Verify an archive using a fixed 64 KiB buffer instead of loading it in memory.
 pub fn verify_checksum_file(archive: &Path, checksum: &Path) -> Result<()> {
     let checksum = crate::support::bounded::file(checksum, 4096)?;
+    verify_checksum_hash(archive, std::str::from_utf8(&checksum)?)
+}
+
+pub(crate) fn verify_checksum_hash(archive: &Path, checksum: &str) -> Result<()> {
     let mut file = std::fs::File::open(archive)?;
     let mut hasher = Sha256::new();
     let mut buffer = [0_u8; 64 * 1024];
@@ -58,5 +62,8 @@ pub fn verify_checksum_file(archive: &Path, checksum: &Path) -> Result<()> {
         }
         hasher.update(&buffer[..count]);
     }
-    verify_digest(&crate::support::codec::hex(&hasher.finalize()), &checksum)
+    verify_digest(
+        &crate::support::codec::hex(&hasher.finalize()),
+        checksum.as_bytes(),
+    )
 }

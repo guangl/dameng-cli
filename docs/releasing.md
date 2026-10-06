@@ -19,7 +19,7 @@
 2. 从功能分支创建 PR，完成本地检查并确认 PR 的 CI 全绿；获得确认后再合并，不直接推送 `main`。
 3. 创建并推送与 Cargo package version 一致的 `vX.Y.Z` 标签。
 4. Release workflow 先运行完整 CI，再为 Linux x86_64 GNU/musl、Linux ARM64 GNU/musl、Linux ARMv7 GNU、macOS Apple Silicon、macOS Intel、Windows x86_64 与 Windows ARM64 编译宿主，并按 `plugins/*/dm-plugin.toml` 为每个内置插件编译 `dm-<name>`。
-5. 全部成功后创建 GitHub Release：宿主与每个内置插件各自一个压缩包，普通发行提供 tar.gz、Windows 提供 zip，并附带 SHA-256 校验文件；另有 `dm-plugins-<tag>-<target>.txt` 列出随本次发布的内置插件，安装脚本按它安装。插件归档包含 `dm-<name>`、`dm-plugin.toml`，以及插件自己的 README/`config.example.toml`（缺失时回退到宿主根目录的 LICENSE 与 README）。带 `-` 的版本标签标记为预发布。归档命名和目录结构也是 `dm self-update` 的稳定协议，不得在同一主版本中随意改变；`scripts/release.py` 会在打包前校验宿主标签、插件清单与 crate 版本、API 和 `min_host_version`，不要求 SDK 版本等于宿主版本。
+5. 全部成功后创建 GitHub Release：宿主与每个内置插件各自一个压缩包，普通发行提供 tar.gz、Windows 提供 zip，由 GitHub 自动提供 SHA-256 `digest`（不再生成 `.sha256` 附件）；另有 `dm-plugins-<tag>-<target>.txt` 列出随本次发布的内置插件，安装脚本按它安装。插件归档包含 `dm-<name>`、`dm-plugin.toml`，以及插件自己的 README/`config.example.toml`（缺失时回退到宿主根目录的 LICENSE 与 README）。带 `-` 的版本标签标记为预发布。归档命名和目录结构也是 `dm self-update` 的稳定协议，不得在同一主版本中随意改变；`scripts/release.py` 会在打包前校验宿主标签、插件清单与 crate 版本、API 和 `min_host_version`，不要求 SDK 版本等于宿主版本。
 
 Linux GNU x86_64、ARM64 与 ARMv7 产物的最低 glibc 版本固定为 2.28。CI 与发布使用 cargo-zigbuild 及显式 `.2.28` 目标构建宿主和所有内置插件，检查 ELF 符号版本并在 Debian 10 容器中启动验证（ARMv7 由 QEMU 运行）；任何超过基线的符号要求或启动失败均阻止发布。Rust 构建使用 stable，可继续升级，最低源码编译版本为 1.99.0；升级工具链不得提高 glibc 基线。musl 产物不依赖 glibc。当前不发布 Linux ARMv7 musl、Windows ARM32 或 Linux ARMv6 产物。
 

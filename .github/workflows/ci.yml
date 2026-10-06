@@ -84,7 +84,8 @@ jobs:
           submodules: recursive
           ref: ${{ inputs.ref || github.ref }}
       - uses: dtolnay/rust-toolchain@1.99.0
-      - run: cargo check --workspace --all-targets --locked
+      # The repository toolchain file overrides rustup default; pin Cargo explicitly.
+      - run: cargo +1.99.0 check --workspace --all-targets --locked
   coverage:
     name: Coverage (lines >= 95%)
     runs-on: ubuntu-latest

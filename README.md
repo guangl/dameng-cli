@@ -31,7 +31,18 @@ curl -fsSL https://raw.githubusercontent.com/guangl/dameng-cli/main/scripts/inst
 ./scripts/install-local.sh
 ```
 
-两个脚本默认安装到 `$HOME/.local/bin/dm`，可通过 `DM_INSTALL_DIR` 修改。远程脚本会下载与 Release 一起发布的 SHA-256 文件并在安装前校验。Windows 请下载 Release 中的 zip，或执行 `cargo install --path . --locked`。
+两个脚本默认安装到 `$HOME/.local/bin/dm`，可通过 `DM_INSTALL_DIR` 修改。远程脚本需要 `curl` 和 `jq`，读取 GitHub Release 资产的 `digest` 并在安装前校验 SHA-256。Windows 请下载 Release 中的 zip，或执行 `cargo install --path . --locked`。
+
+通过 `DM_INSTALL_PLUGINS` 选择随宿主安装的插件（空格或逗号分隔）；未设置时保留默认插件，空值表示只安装宿主。选择不会卸载已有插件。`sqllog2db` 从独立仓库的固定版本 `v3.0.2` 安装预编译产物，需要 Git 和对应平台的 Release 产物。
+
+```sh
+# 远程安装，只安装 db
+curl -fsSL https://raw.githubusercontent.com/guangl/dameng-cli/main/scripts/install.sh | DM_INSTALL_PLUGINS=db sh
+# 本地安装 ssh、db 和 sqllog2db
+DM_INSTALL_PLUGINS="ssh,db,sqllog2db" ./scripts/install-local.sh
+# 本地只安装宿主
+DM_INSTALL_PLUGINS="" ./scripts/install-local.sh
+```
 
 官方安装脚本会一并安装内置插件：远程脚本按 Release 插件清单安装并记录持久的发布来源，因此 `dm update ssh`、`dm update db` 可直接检查和升级；本地脚本从检出目录安装，也可直接更新。此前由旧脚本从临时目录安装的插件需重新运行新版安装脚本一次，以刷新更新来源。`dm self-update` 只更新宿主；`cargo install --path .` 或 Windows zip 安装的宿主不带插件。详见 [CLI 参考](docs/cli.md)。
 
@@ -53,7 +64,7 @@ dm doctor
 dm uninstall hello
 ```
 
-`dm install` 默认安装预编译插件：本地目录需包含 `dm-<name>` 二进制和 `dm-plugin.toml`；GitHub HTTPS 来源会下载该仓库 Release 中与本机 target 匹配的 `dm-<name>` 二进制。没有可用预编译产物时直接报错，不再回退源码编译。插件 Release 应同时发布 `dm-<name>-<target>` 和同名 `.sha256` 文件；缺少 SHA-256 侧车时宿主会提示并信任 HTTPS 传输。
+`dm install` 默认安装预编译插件：本地目录需包含 `dm-<name>` 二进制和 `dm-plugin.toml`；GitHub HTTPS 来源会下载该仓库 Release 中与本机 target 匹配的 `dm-<name>` 二进制。没有可用预编译产物时直接报错，不再回退源码编译。插件 Release 发布 `dm-<name>-<target>` 即可；宿主读取 GitHub API 提供的 `sha256:` 摘要并校验下载内容，摘要缺失、格式错误或不匹配时安装失败，不请求 `.sha256` 附件。
 
 ### 从源码编译插件
 
@@ -122,7 +133,7 @@ dm install https://github.com/YOUR_ORG/dm-backup.git --rev v1.2.0
 
 仓库根目录必须包含插件 crate、`Cargo.lock` 和 `dm-plugin.toml`；示例地址不是已发布的插件。生产环境推荐通过 `--rev` 固定 tag 或完整 commit。
 
-宿主 Release 资产附带 SHA-256 校验文件。`dm self-update` 下载并校验 SHA-256 后原子替换宿主；`scripts/install.sh` 同样校验 SHA-256。安装脚本支持 `DM_INSTALL_TARGET` 覆盖产物目标（如 `x86_64-unknown-linux-musl`）。
+GitHub 为宿主 Release 资产提供 SHA-256 `digest`，发布流程不再生成 `.sha256` 附件。`dm self-update` 下载并校验 SHA-256 后原子替换宿主；`scripts/install.sh` 同样校验 SHA-256。安装脚本支持 `DM_INSTALL_TARGET` 覆盖产物目标（如 `x86_64-unknown-linux-musl`）。
 
 ## Rust 插件开发
 

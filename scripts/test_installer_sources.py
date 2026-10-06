@@ -1,6 +1,8 @@
 """Offline installer tests for independent sources and old release fallback."""
 import contextlib
 import io
+import json
+import hashlib
 import os
 from pathlib import Path
 import shutil
@@ -17,7 +19,7 @@ TAG = "v0.4.1"
 
 
 class InstallerTests(unittest.TestCase):
-    def install(self, mode):
+    def install(self, mode, plugins=None):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             previous = Path.cwd()
@@ -46,17 +48,25 @@ fi
                 (binaries / "dm-db").write_bytes(b"fixture")
                 with patch.dict(os.environ, RELEASE_TAG=TAG, RELEASE_TARGET=TARGET), contextlib.redirect_stdout(io.StringIO()):
                     release.package()
+                hashes = {asset.name: hashlib.sha256(asset.read_bytes()).hexdigest() for asset in (root / "dist").iterdir()}
                 sources = root / "dist" / f"dm-plugin-sources-{TAG}-{TARGET}.txt"
                 if mode == "legacy":
                     sources.unlink()
-                    sources.with_name(sources.name + ".sha256").unlink()
                 elif mode == "tampered":
                     sources.write_text("db attacker/plugin v9.9.9\n")
-                elif mode == "missing-checksum":
-                    sources.with_name(sources.name + ".sha256").unlink()
                 elif mode == "missing-plugin":
                     sources.write_text("ssh guangl/dm-plugin-ssh v0.2.0\n")
-                    release._write_checksum(sources)
+                    hashes[sources.name] = hashlib.sha256(sources.read_bytes()).hexdigest()
+                records = []
+                for asset in (root / "dist").iterdir():
+                    if not asset.name.endswith(".sha256"):
+                        digest = "sha256:" + hashes[asset.name]
+                        if (mode == "missing-digest" and asset == sources) or (mode == "missing-list-digest" and asset.name.startswith("dm-plugins-")):
+                            digest = None
+                        if mode == "invalid-digest" and asset == sources:
+                            digest = "sha256:invalid"
+                        records.append({"name": asset.name, "digest": digest})
+                (root / "dist/release.json").write_text(json.dumps({"assets": records}))
                 tools = root / "tools"
                 tools.mkdir()
                 curl = tools / "curl"
@@ -65,12 +75,17 @@ from pathlib import Path
 import shutil
 import sys
 args = sys.argv[1:]
-asset = Path(args[-1]).name
+if args[-1].endswith(".sha256"):
+    raise SystemExit("unexpected checksum attachment download")
+asset = "release.json" if "api.github.com" in args[-1] else Path(args[-1]).name
 source = Path(os.environ["DM_TEST_ASSETS"]) / asset
-destination = Path(args[args.index("-o") + 1])
+destination = Path(args[args.index("-o") + 1]) if "-o" in args else None
 if source.exists():
-    shutil.copy2(source, destination)
-    print("200", end="")
+    if destination is None:
+        print(source.read_text(), end="")
+    else:
+        shutil.copy2(source, destination)
+        print("200", end="")
 else:
     print("404", end="")
 ''')
@@ -79,8 +94,16 @@ else:
                 env = dict(os.environ, PATH=str(tools) + os.pathsep + os.environ["PATH"],
                            DM_INSTALL_DIR=str(root / "bin"), DM_INSTALL_TARGET=TARGET,
                            DM_TEST_LOG=str(log), DM_TEST_ASSETS=str(root / "dist"))
+                env.pop("DM_INSTALL_PLUGINS", None)
+                if plugins is not None:
+                    env["DM_INSTALL_PLUGINS"] = plugins
+                installed_host = root / "bin/dm"
+                installed_host.parent.mkdir()
+                installed_host.write_bytes(b"original host")
                 result = subprocess.run(["sh", str(ROOT / "scripts/install.sh"), TAG],
                                         env=env, capture_output=True, text=True, timeout=30)
+                if result.returncode != 0:
+                    self.assertEqual(installed_host.read_bytes(), b"original host")
                 return result, log.read_text() if log.exists() else ""
             finally:
                 os.chdir(previous)
@@ -93,13 +116,82 @@ else:
         self.assertIn("completions bash --install", log)
         self.assertIn("completions zsh --install", log)
 
+    def test_explicit_selection_deduplicates(self):
+        result, log = self.install("independent", "db,db")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(log.count("--release-source"), 1)
+
+    def test_empty_selection_skips_plugins_and_sources(self):
+        result, log = self.install("missing-list-digest", "")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("--release-source", log)
+        self.assertIn("completions bash --install", log)
+
+    def test_unknown_or_unsafe_selection_fails(self):
+        for plugins in ("ssh", "../db", "*", "db,unknown"):
+            with self.subTest(plugins=plugins):
+                result, log = self.install("independent", plugins)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(log, "")
+
+    def test_local_selection_controls_build_and_install(self):
+        for selection, expected in (("db,db", ["db"]), ("", []), ("ssh db", ["ssh", "db"]), ("sqllog2db", []), ("unknown", None)):
+            with self.subTest(selection=selection), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "scripts").mkdir()
+                shutil.copy2(ROOT / "scripts/install-local.sh", root / "scripts/install-local.sh")
+                for component in ("crates/dm-plugin-sdk", "plugins/db", "plugins/ssh"):
+                    path = root / component
+                    path.mkdir(parents=True)
+                    (path / "Cargo.toml").touch()
+                binaries = root / "target/release"
+                binaries.mkdir(parents=True)
+                host = binaries / "dm"
+                host.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$DM_TEST_LOG"\n')
+                host.chmod(0o755)
+                for plugin in ("ssh", "db"):
+                    shutil.copy2(host, binaries / f"dm-{plugin}")
+                tools = root / "tools"
+                tools.mkdir()
+                cargo = tools / "cargo"
+                cargo.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$DM_TEST_LOG"\n')
+                cargo.chmod(0o755)
+                log = root / "log"
+                env = dict(os.environ, PATH=str(tools) + os.pathsep + os.environ["PATH"],
+                           DM_INSTALL_PLUGINS=selection, DM_TEST_LOG=str(log), DM_INSTALL_DIR=str(root / "bin"))
+                result = subprocess.run(["sh", str(root / "scripts/install-local.sh")], env=env,
+                                        capture_output=True, text=True, timeout=30)
+                if expected is None:
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertFalse(log.exists())
+                    continue
+                self.assertEqual(result.returncode, 0, result.stderr)
+                lines = log.read_text().splitlines()
+                if selection == "sqllog2db":
+                    self.assertIn("install https://github.com/guangl/dm-database-sqllog2db.git --rev v3.0.2 --replace", lines)
+                for plugin in ("ssh", "db"):
+                    self.assertEqual(f"-p dm-plugin-{plugin}" in lines[0], plugin in expected)
+                    installs = [line for line in lines if line.startswith("install ") and f"plugins/{plugin} " in line]
+                    self.assertEqual(len(installs), int(plugin in expected))
+
+    def test_external_sqllog2db_selection(self):
+        result, log = self.install("independent", "db,sqllog2db")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--release-source guangl/dm-plugin-db", log)
+        self.assertIn("install https://github.com/guangl/dm-database-sqllog2db.git --rev v3.0.2 --replace", log)
+
+    def test_external_only_skips_bundled_metadata(self):
+        result, log = self.install("missing-list-digest", "sqllog2db")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--rev v3.0.2", log)
+
     def test_old_release_tracks_host_repository_and_host_tag(self):
         result, log = self.install("legacy")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("--release-source guangl/dameng-cli --release-tag v0.4.1", log)
 
     def test_invalid_sources_stop_before_plugin_installation(self):
-        for mode in ("tampered", "missing-checksum", "missing-plugin"):
+        for mode in ("tampered", "missing-digest", "missing-plugin", "missing-list-digest", "invalid-digest"):
             with self.subTest(mode=mode):
                 result, log = self.install(mode)
                 self.assertNotEqual(result.returncode, 0)

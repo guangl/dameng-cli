@@ -9,6 +9,7 @@ pub mod bounded;
 pub mod codec;
 pub mod completion;
 pub mod config;
+pub(crate) mod github_release;
 pub mod interaction;
 pub mod parallel;
 pub mod process;
